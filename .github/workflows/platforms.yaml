@@ -1,0 +1,38 @@
+# zuslothdb's own per-OS checks, one job per runner: tools/ci/platform.sh
+# runs every check that needs a particular OS, as steps (ci.md). Empty of
+# steps until Stage 1, which adds upstream's doctest suite and the symbol
+# check.
+on:
+  # No `push:`. A pull request already checks its merge with main, so the
+  # push after merge would check the same tree again, in every package at
+  # once. Main is checked by the schedule below, which skips a commit it has
+  # already checked (r-actions README, "Pushes to main").
+  # `labeled`/`unlabeled` so that adding or removing a CI label (`full-ci`,
+  # `ci:minimal`, `skip-ci:<workflow>`) reruns it.
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  schedule:
+    - cron: "13 7 * * 6"
+  workflow_dispatch:
+
+name: platforms
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  platforms:
+    # Decided without a runner (ci.md, Labels); the gate inside repeats it.
+    if: >-
+      github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'full-ci')
+      || !(contains(github.event.pull_request.labels.*.name, 'ci:docs')
+        || contains(github.event.pull_request.labels.*.name, 'ci:minimal')
+        || contains(github.event.pull_request.labels.*.name, 'skip-ci:platforms'))
+    uses: pedrobtz/r-actions/.github/workflows/platforms.yml@v1
+    with:
+      profile: auto

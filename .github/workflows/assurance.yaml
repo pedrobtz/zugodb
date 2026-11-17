@@ -1,0 +1,23 @@
+# Holds .agents/assurance.md to the portfolio standard (the shared
+# assurance.md rules): every required check is backed by a workflow, and
+# every gap names an issue. Also holds the package's own workflows to the
+# gating rule. Seconds; runs on every change, because the file it checks is
+# Markdown the docs gate would skip.
+on:
+  pull_request:
+  # Weekly, in this package's slot, so a gap whose issue was closed without
+  # the row changing shows up; and on demand.
+  schedule:
+    - cron: "18 7 * * 6"
+  workflow_dispatch:
+
+name: assurance
+
+permissions:
+  contents: read
+
+jobs:
+  assurance:
+    uses: pedrobtz/r-actions/.github/workflows/assurance.yml@v1
+    with:
+      ungated-jobs: fail
