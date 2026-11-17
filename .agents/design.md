@@ -276,6 +276,12 @@ library; it is identical wherever it is instantiated and cannot clash.
   `DatabaseConfig::read_only`: `Connection::Query` refuses a batch
   holding any statement that changes the database, before any of it
   runs, and the destructor does not save.
+- **Lost wakeup (found 2026-11-17, #32).** `PhysicalParquetScan` and
+  `ThreadPool` set their stop flag outside the mutex their workers wait
+  with. A worker between its predicate and its wait missed the notify,
+  and `join()` never returned: a Parquet query that stopped early hung
+  the session, and so, 1 run in about 14, did upstream's doctests.
+  Patch 0008 sets each flag under that mutex.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).
