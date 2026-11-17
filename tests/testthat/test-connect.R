@@ -122,3 +122,63 @@ test_that("an unknown argument to dbConnect() is an error", {
     class = "zuslothdb_argument_error"
   )
 })
+
+test_that("dbConnect() checks dbdir and read_only as zuslothdb() does", {
+  drv <- zuslothdb()
+  for (bad in list(NA_character_, character(), c("a", "b"), 1)) {
+    expect_error(
+      DBI::dbConnect(drv, dbdir = bad),
+      class = "zuslothdb_argument_error"
+    )
+  }
+  for (bad in list(NA, "yes", c(TRUE, FALSE), logical())) {
+    expect_error(
+      DBI::dbConnect(drv, read_only = bad),
+      class = "zuslothdb_argument_error"
+    )
+  }
+})
+
+test_that("dbDisconnect() checks shutdown, and leaves the connection open", {
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  for (bad in list(NA, "yes", c(TRUE, FALSE), logical(), 1)) {
+    expect_error(
+      DBI::dbDisconnect(con, shutdown = bad),
+      class = "zuslothdb_argument_error"
+    )
+  }
+  expect_true(DBI::dbIsValid(con))
+})
+
+test_that("a database in a directory with a non-ASCII name round-trips", {
+  dir <- file.path(withr::local_tempdir(), "données 数据")
+  dir.create(dir)
+  path <- file.path(dir, "bäse.sdb")
+  con <- DBI::dbConnect(zuslothdb(), dbdir = path)
+  DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)")
+  DBI::dbExecute(con, "INSERT INTO t VALUES (1), (2), (3)")
+  DBI::dbDisconnect(con)
+  # Written where it was asked to be, under that name.
+  expect_true(file.exists(path))
+  expect_identical(list.files(dir), "bäse.sdb")
+  con <- DBI::dbConnect(zuslothdb(), dbdir = path)
+  withr::defer(DBI::dbDisconnect(con))
+  expect_identical(DBI::dbExecute(con, "DELETE FROM t"), 3)
+})
+
+test_that("the glue checks its own arguments", {
+  # R checks them first; these guard the .Call entry points themselves.
+  expect_identical(.Call(sdb_db_open, NA_character_, FALSE)$kind, "argument")
+  expect_identical(.Call(sdb_db_open, "", NA)$kind, "argument")
+  expect_identical(.Call(sdb_set_threads, 0L)$kind, "argument")
+  expect_identical(.Call(sdb_set_threads, 2)$kind, "argument") # not integer
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  expect_identical(.Call(sdb_execute, con@state$ptr, NA_character_)$kind, "argument")
+  expect_identical(.Call(sdb_execute, con@state$ptr, 1)$kind, "argument")
+  # Not an external pointer at all: closed, not a crash.
+  expect_identical(.Call(sdb_execute, NULL, "SELECT 1")$kind, "closed")
+  expect_identical(.Call(sdb_connect, NULL)$kind, "closed")
+  expect_false(.Call(sdb_conn_is_open, NULL))
+})

@@ -28,6 +28,6 @@ test_that("the statement must be one string", {
   con <- DBI::dbConnect(zuslothdb())
   withr::defer(DBI::dbDisconnect(con))
   for (bad in list(NA_character_, c("SELECT 1", "SELECT 2"), character())) {
-    expect_error(DBI::dbExecute(con, bad), class = "zuslothdb_error")
+    expect_error(DBI::dbExecute(con, bad), class = "zuslothdb_argument_error")
   }
 })
