@@ -83,20 +83,21 @@ group "Exported symbols"
 exports "$so" | sort -u > "$tmp/exports"
 wc -l < "$tmp/exports" | sed 's/^ */exported: /'
 endgroup
-# The C++ standard library's template instantiations (std::, __gnu_cxx::,
-# with their typeinfo, vtables and guard variables) are exported by
-# libstdc++ and libc++ whatever -fvisibility says. Each is the same code in
-# every library that instantiates it, so binding to another library's copy
-# changes nothing. Everything else must be R_init_zuslothdb (design §4, the
-# duckdb_fastpforlib and zstd clashes).
-demangle() { if command -v c++filt >/dev/null 2>&1; then c++filt -n; else cat; fi; }
-std='^((typeinfo( name)?|vtable|VTT|construction vtable|guard variable) for )?(std|__gnu_cxx)::'
-demangle < "$tmp/exports" | paste "$tmp/exports" - |
-  awk -F'\t' -v re="$std" '$2 !~ re {print $1}' > "$tmp/ours"
+# The C++ standard library's template instantiations (std:: and
+# __gnu_cxx::, with their typeinfo, vtables and guard variables) are
+# exported by libstdc++ and libc++ whatever -fvisibility says. Each is the
+# same code in every library that instantiates it, so binding to another
+# library's copy changes nothing. They are told apart by the mangled name,
+# whose outermost scope follows _Z (or _ZN and its cv-qualifiers): St for
+# std, 9__gnu_cxx for __gnu_cxx. A demangled name will not do: it starts
+# with the return type. Everything else must be R_init_zuslothdb (design
+# §4, the duckdb_fastpforlib and zstd clashes).
+std='^_Z(T[ISVT]|GV|TH|TW)?Z?N?[rVKRO]*(St|9__gnu_cxx)'
+grep -vE "$std" "$tmp/exports" > "$tmp/ours" || true
 echo "of which not the C++ standard library's: $(wc -l < "$tmp/ours" | tr -d ' ')"
 if ! [ "$(cat "$tmp/ours")" = "R_init_zuslothdb" ]; then
   echo "FAIL: the shared object exports more than R_init_zuslothdb:" >&2
-  grep -vx 'R_init_zuslothdb' "$tmp/ours" | head -50 >&2
+  grep -vx 'R_init_zuslothdb' "$tmp/ours" | head -200 >&2
   exit 1
 fi
 echo "ok: R_init_zuslothdb is the only symbol of the package's code exported"
@@ -115,11 +116,19 @@ sed -e 's/^_*//' -e 's/_chk$//' \
   "$tmp/imports" | sort -u > "$tmp/bases"
 flagged=$(grep -xE 'exit|_exit|abort|printf|vprintf|puts|putchar|sprintf|vsprintf|rand|srand|stderr|stdout|system' \
   "$tmp/bases" || true)
-if [ -n "$flagged" ]; then
+# On Windows, Rtools links libstdc++ statically, so the C++ runtime's own
+# abort, exit, sprintf and stderr are in every C++ package's DLL, and R's
+# check does not report them there. The package's code is held to the
+# rule on macOS and Linux, where the C++ runtime is a shared library; here
+# the list is printed, not gated.
+if [ -n "$flagged" ] && [ "$os" = windows ]; then
+  echo "note: linked through the static C++ runtime: $(echo $flagged)"
+elif [ -n "$flagged" ]; then
   echo "FAIL: links CRAN-flagged symbols: $(echo $flagged)" >&2
   exit 1
+else
+  echo "ok: no CRAN-flagged symbol linked"
 fi
-echo "ok: no CRAN-flagged symbol linked"
 
 # ---------------------------------------------------------------------------
 # 3. With duckdb in the same session. A binary from the platform's usual
