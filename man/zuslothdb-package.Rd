@@ -4,23 +4,25 @@
 \name{zuslothdb-package}
 \alias{zuslothdb}
 \alias{zuslothdb-package}
-\title{zuslothdb: What the Package Does (One Line, Title Case)}
+\title{zuslothdb: SQL over Local Files with the Embedded 'SlothDB' Engine}
 \description{
-What the package does (one paragraph).
+A 'DBI' driver for 'SlothDB' (\url{https://github.com/SouravRoy-ETL/slothdb}), an analytical SQL engine whose C++ source is bundled and compiled when the package is installed. SQL queries over local 'CSV', 'Parquet', 'JSON' and 'Arrow' IPC files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for 'duckdb': it is offline only, and a database file is tied to the engine commit the package bundles.
 }
 \seealso{
 Useful links:
 \itemize{
   \item \url{https://pedrobtz.github.io/zuslothdb/}
+  \item \url{https://github.com/pedrobtz/zuslothdb}
+  \item Report bugs at \url{https://github.com/pedrobtz/zuslothdb/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: First Last \email{first.last@example.com}
+\strong{Maintainer}: Pedro Baltazar \email{pedrobtz@gmail.com} [copyright holder]
 
 Authors:
 \itemize{
-  \item First Last \email{first.last@example.com}
+  \item Pedro Baltazar \email{pedrobtz@gmail.com} [copyright holder]
 }
 
 }
