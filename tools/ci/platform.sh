@@ -12,7 +12,7 @@
 #   3. zuslothdb and duckdb in one session, in both load orders.
 #   4. Upstream's own doctest suite on the vendored, patched tree
 #      (tools/upstream-tests.sh): on Linux always, on macOS and Windows
-#      under the full profile.
+#      under the full profile; ten runs of it under the full profile.
 set -eu
 os=${1:?usage: tools/ci/platform.sh <macos|windows|ubuntu>}
 case "$os" in
@@ -145,7 +145,10 @@ done
 # Windows (where the MinGW patch is what is tested) under the full profile.
 if [ "$os" = ubuntu ] || [ "$profile" = full ]; then
   group "Upstream doctest suite"
-  SDB_JOBS="$jobs" sh tools/upstream-tests.sh "$tmp/upstream-tests"
+  # Ten runs under the full profile, so a race like #32 shows.
+  runs=1
+  [ "$profile" = full ] && runs=10
+  SDB_JOBS="$jobs" SDB_TEST_RUNS="$runs" sh tools/upstream-tests.sh "$tmp/upstream-tests"
   endgroup
 fi
 

@@ -6,9 +6,9 @@
 # doctest are not vendored: they come from upstream at the pinned commit,
 # with tools/vendor.yaml's test_patches applied and test_exclude left out).
 #
-# Exit status: the doctest binary's, so a failing or crashing upstream case
-# fails the step. design §4.2 / D1: the patches must break nothing upstream
-# tested.
+# Exit status: the doctest binary's (124 for a run that hangs), so a
+# failing, crashing or hanging upstream case fails the step. design §4.2 /
+# D1: the patches must break nothing upstream tested.
 set -eu
 here=$(pwd)
 work=${1:-$(mktemp -d)}
@@ -81,4 +81,28 @@ exe="$work/slothdb_tests"
 case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) exe="$exe.exe" ;; esac
 $CXX $CXXFLAGS "$obj"/*.o -o "$exe" -pthread
 cd "$up"
-"$exe" --no-intro=true --duration=false
+# SDB_TEST_RUNS runs (1 by default), each killed after SDB_TEST_TIMEOUT
+# seconds (600): a hang fails the step with a message, not the job's
+# timeout (#32, a lost wakeup that hung 1 run in about 14). perl, because
+# macOS has no timeout(1).
+runs=${SDB_TEST_RUNS:-1}
+limit=${SDB_TEST_TIMEOUT:-600}
+i=1
+while [ "$i" -le "$runs" ]; do
+  [ "$runs" -gt 1 ] && echo "run $i of $runs"
+  perl -e '
+    my $t = shift;
+    my $pid = fork;
+    die "fork: $!" unless defined $pid;
+    if ($pid == 0) { exec @ARGV or exit 127 }
+    $SIG{ALRM} = sub {
+      kill 9, $pid;
+      print STDERR "upstream doctests: no exit after $t s, killed (a hang)\n";
+      exit 124;
+    };
+    alarm $t;
+    waitpid $pid, 0;
+    exit($? & 127 ? 128 + ($? & 127) : $? >> 8);
+  ' "$limit" "$exe" --no-intro=true --duration=false
+  i=$((i + 1))
+done
