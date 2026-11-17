@@ -2,6 +2,10 @@
 
 ## zuslothdb 0.0.0.9000
 
+- A Parquet query that stops before the file’s last row group, such as a
+  `LIMIT`, no longer hangs now and then: the engine’s decode workers
+  could miss the signal to stop
+  ([\#32](https://github.com/pedrobtz/zuslothdb/issues/32)).
 - [`dbSendQuery()`](https://dbi.r-dbi.org/reference/dbSendQuery.html),
   [`dbFetch()`](https://dbi.r-dbi.org/reference/dbFetch.html),
   [`dbGetQuery()`](https://dbi.r-dbi.org/reference/dbGetQuery.html) and
@@ -35,6 +39,6 @@
   `zuslothdb_argument_error`, `zuslothdb_closed_error` and
   `zuslothdb_unsupported` (`params =`).
 - The SlothDB engine is bundled and compiled with the package: upstream
-  commit `8180f21` with seven patches, listed by
+  commit `8180f21` with eight patches, listed by
   [`zuslothdb_info()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_info.md).
   The package is offline only: a remote path in a query is an error.

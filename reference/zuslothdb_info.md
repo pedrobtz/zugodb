@@ -28,5 +28,5 @@ info$patches
 #> [1] "0001-mingw.patch"             "0002-no-process-output.patch"
 #> [3] "0003-offline.patch"           "0004-threads.patch"          
 #> [5] "0005-strftime-arity.patch"    "0006-compiler-warnings.patch"
-#> [7] "0007-read-only.patch"        
+#> [7] "0007-read-only.patch"         "0008-lost-wakeup.patch"      
 ```
