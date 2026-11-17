@@ -8,7 +8,7 @@ is the short form for a database of its own.
 
 ``` r
 # S4 method for class 'zuslothdb_driver'
-dbConnect(drv, dbdir, read_only, threads = 2L, ...)
+dbConnect(drv, dbdir, read_only, bigint = "numeric", threads = 2L, ...)
 
 # S4 method for class 'zuslothdb_connection'
 dbIsValid(dbObj, ...)
@@ -33,6 +33,13 @@ dbGetInfo(dbObj, ...)
   [`zuslothdb()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb.md).
   When either differs from the driver's, the connection gets a new
   driver, and so a database of its own.
+
+- bigint:
+
+  How 64-bit integers (`BIGINT`, `UINTEGER`, `UBIGINT`) arrive:
+  `"numeric"` (the default, as in `duckdb`), a double, with a value
+  beyond 2^53 a `zuslothdb_type_error`; `"integer64"`, the `bit64`
+  class; or `"character"`, the decimal digits.
 
 - threads:
 

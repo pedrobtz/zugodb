@@ -18,3 +18,16 @@
   : The zuslothdb driver
 - [`zuslothdb_info()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_info.md)
   : Information about the bundled engine
+- [`dbSendQuery(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbSendStatement(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbFetch(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbClearResult(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbIsValid(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbHasCompleted(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbGetRowCount(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbGetRowsAffected(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbGetStatement(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbColumnInfo(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`dbBind(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  [`show(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+  : Query results
