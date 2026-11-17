@@ -218,11 +218,11 @@ Each is recorded in `tools/vendor.yaml` with its reason. If they
 together pass a few thousand lines, or Stage 1 finds the engine wrong
 on its own tests, D1's stop condition applies.
 
-**As built in Stage 1 (2026-11-17):** five patches in `tools/patches/`,
-148 changed lines (69 added, 79 removed), plus one patch of 20 lines to
+**As built in Stage 1 (2026-11-17):** six patches in `tools/patches/`,
+153 changed lines (71 added, 82 removed), plus one patch of 20 lines to
 upstream's tests. `tools/vendor.R` applies them to upstream at the
 pinned commit and copies the result, minus `src/ask/`, `src/extension/`
-and the HTTP client, into `src/vendor/slothdb/`; `tools/vendor/verify`
+the HTTP client and the C API, into `src/vendor/slothdb/`; `tools/vendor/verify`
 rebuilds that tree and compares it file by file. Against the plan
 below: the MinGW patch needed only the time functions in
 `expression_executor.cpp` and `mkdir` in `hive_partition.cpp`, since
@@ -231,7 +231,9 @@ MinGW has `access`, `fseeko`, `dirent.h` and `stat`, and the files with
 syntax pass over the whole tree is clean. The baseline-ISA change needs
 no patch (Q2). Two findings the plan did not have: `rand()` in
 `RANDOM()` and `UUID()` (patch 0002), and `STRFTIME` with one argument
-reading past its argument list (patch 0005). Symbols: `-fvisibility=hidden`
+reading past its argument list (patch 0005); and two compiler warnings
+R CMD check counts as significant (patch 0006), the third such warning
+being in the C API, which is left out instead. Symbols: `-fvisibility=hidden`
 through `$(CXX_VISIBILITY)` and `$(C_VISIBILITY)`, zstd's own
 `visibility("default")` emptied with `-DZSTDLIB_VISIBLE=`, and
 `src/zuslothdb-win.def` on Windows. The C++ standard library's template
@@ -472,7 +474,7 @@ any of them.
   stop, and record why here. The package then exists as a test bed and
   a second engine, never as a recommended `duckdb` alternative.
   **Recorded 2026-11-17 (Stage 1): go.** Each condition, as measured:
-  - *Patches:* five, 148 changed lines (69 added, 79 removed), and one
+  - *Patches:* six, 153 changed lines (71 added, 82 removed), and one
     of 20 lines to upstream's tests (§4.2).
   - *Upstream's tests:* unpatched, the doctest suite crashed at its 95th
     case (`STRFTIME` with one argument) and, with that case excluded,
