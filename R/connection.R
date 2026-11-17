@@ -8,6 +8,10 @@
 #' @param dbdir,read_only As for [zuslothdb()]. When either differs from the
 #'   driver's, the connection gets a new driver, and so a database of its
 #'   own.
+#' @param bigint How 64-bit integers (`BIGINT`, `UINTEGER`, `UBIGINT`)
+#'   arrive: `"numeric"` (the default, as in `duckdb`), a double, with a
+#'   value beyond 2^53 a `zuslothdb_type_error`; `"integer64"`, the
+#'   `bit64` class; or `"character"`, the decimal digits.
 #' @param threads The number of threads the engine may use, a whole number
 #'   from 1. The engine has one thread pool per R process, so this is a cap
 #'   for the whole process, not for this connection: the last
@@ -21,7 +25,7 @@
 #' DBI::dbDisconnect(con)
 setMethod(
   "dbConnect", "zuslothdb_driver",
-  function(drv, dbdir, read_only, threads = 2L, ...) {
+  function(drv, dbdir, read_only, bigint = "numeric", threads = 2L, ...) {
     call <- sys.call()
     if (...length()) {
       sdb_abort(
@@ -42,6 +46,9 @@ setMethod(
     if (new_dbdir != drv@dbdir || new_ro != drv@read_only) {
       drv <- zuslothdb(new_dbdir, new_ro)
     }
+    bigint <- check_choice(
+      bigint, c("numeric", "integer64", "character"), "bigint", call
+    )
     threads <- check_count(threads, "threads", call)
     sdb_value(.Call(sdb_set_threads, threads), call)
 
@@ -50,6 +57,8 @@ setMethod(
     state <- new.env(parent = emptyenv())
     state$ptr <- ptr
     state$db <- db
+    state$bigint <- bigint
+    state$result <- NULL
     reg.finalizer(state, connection_finalizer)
     methods::new("zuslothdb_connection", driver = drv, state = state)
   }

@@ -1,0 +1,6 @@
+-- BIGINT within 2^53, where a double is exact, with NULLs.
+CREATE TABLE t (id INTEGER, v BIGINT);
+INSERT INTO t VALUES
+  (1, 9007199254740992), (2, -9007199254740992), (3, 9007199254740991),
+  (4, 0), (5, NULL), (6, -1);
+SELECT v FROM t ORDER BY id;

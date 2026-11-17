@@ -36,6 +36,7 @@ Imports:
     DBI (>= 1.2.0),
     methods
 Suggests:
+    bit64,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
@@ -50,6 +51,7 @@ Collate:
     'conditions.R'
     'driver.R'
     'connection.R'
+    'result.R'
     'info.R'
     'zuslothdb-package.R'
 Encoding: UTF-8

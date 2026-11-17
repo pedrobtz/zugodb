@@ -1,5 +1,13 @@
 # zuslothdb 0.0.0.9000
 
+* `dbSendQuery()`, `dbFetch()`, `dbGetQuery()` and the other result
+  methods return data frames. Boolean, integer, floating-point and
+  `VARCHAR` columns arrive as logical, integer, double and UTF-8
+  character; `dbConnect(bigint = )` chooses double, `integer64` or
+  character for 64-bit integers. A value R cannot hold exactly is a
+  `zuslothdb_type_error`, never a silent change.
+* `dbExecute()` no longer reads a query's one-row `BIGINT` column named
+  `Count` as a row count.
 * `zuslothdb()` is a DBI driver, used as `duckdb::duckdb()` is: it holds
   one database, in memory or in a file, that its connections share.
   `dbConnect()`, `dbDisconnect()`, `dbIsValid()`, `dbGetInfo()` and

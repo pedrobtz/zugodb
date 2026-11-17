@@ -31,3 +31,24 @@ test_that("the statement must be one string", {
     expect_error(DBI::dbExecute(con, bad), class = "zuslothdb_argument_error")
   }
 })
+
+test_that("params is unsupported on every route that takes it", {
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)")
+  expect_error(
+    DBI::dbSendQuery(con, "SELECT ? AS a", params = list(1L)),
+    class = "zuslothdb_unsupported"
+  )
+  expect_error(
+    DBI::dbGetQuery(con, "SELECT ? AS a", params = list(1L)),
+    class = "zuslothdb_unsupported"
+  )
+  expect_error(
+    DBI::dbSendStatement(con, "INSERT INTO t VALUES (?)", params = list(1L)),
+    class = "zuslothdb_unsupported"
+  )
+  res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  withr::defer(DBI::dbClearResult(res))
+  expect_error(DBI::dbBind(res, list(1L)), class = "zuslothdb_unsupported")
+})

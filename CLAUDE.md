@@ -77,7 +77,12 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
   destroys its connections' engine objects first. Every struct records
   its process; from another (a fork) it is closed and its finalizer
   does nothing.
-- `R/`: [R/driver.R](R/driver.R) (`zuslothdb()`, the database it holds,
+- [src/sdb_result.cpp](src/sdb_result.cpp): results in two phases. The
+  C++ phase copies the engine's whole result into plain buffers (and
+  finds any value R cannot hold); the R phase only slices those buffers
+  into vectors, so no C++ object is live while R allocates.
+- `R/`: [R/result.R](R/result.R) (the `zuslothdb_result` methods),
+  [R/driver.R](R/driver.R) (`zuslothdb()`, the database it holds,
   opened at the first connection), [R/connection.R](R/connection.R)
   (`dbConnect()` to `dbExecute()`), [R/conditions.R](R/conditions.R)
   (`sdb_abort()` turns the glue's error kind into a condition class),
@@ -114,8 +119,13 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
 provenance against the installed `vendor.yaml`), `test-lifecycle.R`
 (out-of-order sequences), `test-connect.R` (arguments, read-only,
 threads), `test-fork.R`, `test-unwind.R` (valgrind is its leak oracle)
-and `test-conditions.R`. Until Stage 3 brings results, "the data is
-there" is the row count a `DELETE` reports. A finalizer's warning
+and `test-conditions.R`; Stage 3's `test-oracle-scalar.R`, `test-fetch.R`,
+`test-bigint.R` and `test-varchar.R`. Recorded answers: run
+`Rscript tools/oracle.R [name]` (needs duckdb) after adding or changing a
+`tests/testthat/oracle/*.sql`; a disagreement is either fixed or listed
+in `oracle/known-differences.md`, whose rows the tests hold to "still
+differs". Helpers live in `helper-*.R`: testthat's shuffled run skips
+file-scope code. A finalizer's warning
 cannot be caught around `gc()` (R runs finalizers through
 `R_ToplevelExec`): test the effect of collection, and call the finalizer
 for the warning. Upstream's own doctest suite runs

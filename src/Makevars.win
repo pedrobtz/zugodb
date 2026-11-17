@@ -16,6 +16,7 @@ PKG_LIBS = -pthread
 
 OBJECTS = sdb_database.o \
   sdb_glue.o \
+  sdb_result.o \
   vendor/slothdb/src/binder/binder.o \
   vendor/slothdb/src/catalog/catalog.o \
   vendor/slothdb/src/catalog/schema_catalog_entry.o \
