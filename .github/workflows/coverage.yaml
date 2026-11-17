@@ -31,3 +31,6 @@ jobs:
     with:
       badge-branch: gh-pages
       badge-path: badges/coverage.svg
+      # The glue's own coverage: functions no test enters and conditions
+      # taken one way only, in the job summary.
+      native: true

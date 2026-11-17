@@ -1,0 +1,3 @@
+# Patches apply to upstream files with LF endings: never convert them, on
+# any checkout (a Windows runner checks out with core.autocrlf=true).
+tools/patches/** -text

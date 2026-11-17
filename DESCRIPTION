@@ -1,9 +1,24 @@
 Package: zuslothdb
 Title: SQL over Local Files with the Embedded 'SlothDB' Engine
 Version: 0.0.0.9000
-Authors@R:
+Authors@R: c(
     person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
-           role = c("aut", "cre", "cph"))
+           role = c("aut", "cre", "cph")),
+    person("SlothDB Contributors", role = c("ctb", "cph"),
+           comment = "bundled SlothDB engine"),
+    person("Meta Platforms, Inc. and affiliates", role = "cph",
+           comment = "bundled Zstandard decompressor"),
+    person("Google Inc.", role = "cph", comment = "bundled Snappy"),
+    person("Daniel", "Lemire", role = c("ctb", "cph"),
+           comment = "bundled FastPFor bitpacking"),
+    person("RAD Game Tools and Valve Software", role = "cph",
+           comment = "bundled miniz"),
+    person("Rich", "Geldreich", role = c("ctb", "cph"),
+           comment = "bundled miniz"),
+    person("Tenacious Software LLC", role = "cph", comment = "bundled miniz"),
+    person("Martin", "Leitner-Ankerl", role = c("ctb", "cph"),
+           comment = "bundled unordered_dense")
+  )
 Description: A 'DBI' driver for 'SlothDB' (<https://github.com/SouravRoy-ETL/slothdb>),
     an analytical SQL engine whose C++ source is bundled and compiled when
     the package is installed. SQL queries over local 'CSV', 'Parquet',
@@ -13,16 +28,19 @@ Description: A 'DBI' driver for 'SlothDB' (<https://github.com/SouravRoy-ETL/slo
     'duckdb': it is offline only, and a database file is tied to the
     engine commit the package bundles.
 License: MIT + file LICENSE
+Copyright: See file inst/COPYRIGHTS.
 URL: https://pedrobtz.github.io/zuslothdb/,
     https://github.com/pedrobtz/zuslothdb
 BugReports: https://github.com/pedrobtz/zuslothdb/issues
 Suggests:
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    yaml
 VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.1
 Config/testthat/edition: 3
+SystemRequirements: C++20
 Encoding: UTF-8
 Language: en-GB
 Roxygen: list(markdown = TRUE)

@@ -1,0 +1,83 @@
+diff --git a/src/main/connection.cpp b/src/main/connection.cpp
+index 1895655..ac8fd89 100644
+--- a/src/main/connection.cpp
++++ b/src/main/connection.cpp
+@@ -17,7 +17,6 @@
+ #include "slothdb/storage/excel_reader.hpp"
+ #include "slothdb/storage/sqlite_scanner.hpp"
+ #endif
+-#include "slothdb/storage/http_client.hpp"
+ #include "slothdb/storage/hive_partition.hpp"
+ #include "slothdb/common/string_util.hpp"
+ #include "slothdb/common/file_glob.hpp"
+@@ -371,60 +370,18 @@ static LogicalType ResolveResultDisplayType(const BoundExpression &expr,
+     return LogicalType(LogicalTypeId::INVALID);
+ }
+ 
+-// If `path_or_url` starts with http://, https://, or s3://, fetch it to a
+-// system temp file and return the temp path (with the original extension
+-// preserved so format detection still works). Returns the input unchanged for
+-// local paths. s3:// is rewritten to virtual-host HTTPS - anonymous read of
+-// public buckets. No SigV4 / credentials yet.
+-// Stable, per-URL temp-file name so repeated queries against the same
+-// remote file reuse the cached download instead of re-fetching the whole
+-// payload every query. Hashes the URL to keep filenames bounded and
+-// safe on Windows. The first query on a URL still pays the full
+-// download cost; every subsequent query uses the cached file.
+-//
+-// Cache is process-temp-dir scoped — it persists across queries within
+-// a process and is reaped naturally by OS temp-dir cleanup. No staleness
+-// check yet: if the remote file changes, the user must `pip install
+-// --force-reinstall` or delete the temp file (TODO: HTTP Range request
+-// the footer + ETag check before reuse).
++// zuslothdb: offline only (design D4). Upstream fetches http://, https://
++// and s3:// paths to a temp file here; the HTTP and S3 client is compiled
++// out, so a remote path is an error and a local path is returned unchanged.
+ static std::string ResolveRemoteFile(const std::string &path_or_url) {
+-    bool is_http  = path_or_url.rfind("http://", 0)  == 0;
+-    bool is_https = path_or_url.rfind("https://", 0) == 0;
+-    bool is_s3    = path_or_url.rfind("s3://", 0)    == 0;
+-    if (!is_http && !is_https && !is_s3) return path_or_url;
+-
+-    std::string url = is_s3 ? S3Client::S3ToHTTPS(path_or_url) : path_or_url;
+-
+-    // Preserve the extension so downstream format sniffing picks the right reader.
+-    std::string ext;
+-    auto qpos = path_or_url.find('?');
+-    std::string clean = (qpos == std::string::npos) ? path_or_url : path_or_url.substr(0, qpos);
+-    auto dot = clean.rfind('.');
+-    auto slash = clean.find_last_of("/\\");
+-    if (dot != std::string::npos && (slash == std::string::npos || dot > slash)) {
+-        ext = clean.substr(dot);
++    if (path_or_url.rfind("http://", 0) == 0 ||
++        path_or_url.rfind("https://", 0) == 0 ||
++        path_or_url.rfind("s3://", 0) == 0) {
++        throw IOException(ErrorCode::NOT_IMPLEMENTED,
++                          "Remote paths are not supported, only local files: " +
++                              path_or_url);
+     }
+-
+-    // Stable filename keyed on a 64-bit FNV-1a hash of the URL.
+-    uint64_t h = 14695981039346656037ULL;
+-    for (char c : url) { h ^= static_cast<unsigned char>(c); h *= 1099511628211ULL; }
+-    char hbuf[32];
+-    std::snprintf(hbuf, sizeof(hbuf), "%016llx",
+-                  static_cast<unsigned long long>(h));
+-
+-    auto tmp = std::filesystem::temp_directory_path() /
+-               (std::string("slothdb_remote_") + hbuf + ext);
+-    auto tmp_str = tmp.string();
+-
+-    // Reuse cached download if present.
+-    if (std::filesystem::exists(tmp) && std::filesystem::file_size(tmp) > 0) {
+-        return tmp_str;
+-    }
+-
+-    if (!HTTPClient::DownloadToFile(url, tmp_str)) {
+-        throw IOException(ErrorCode::FILE_NOT_FOUND, "Failed to download: " + url);
+-    }
+-    return tmp_str;
++    return path_or_url;
+ }
+ 
+ Connection::Connection(Database &database) : db_(database) {}

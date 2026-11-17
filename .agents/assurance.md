@@ -6,8 +6,9 @@ columns as they are.
 
 - **Statuses:** a cell is a fact, `gap #<issue>` or `n/a: <reason>`.
 
-Written in Stage 0, before any engine code: every row is a tracked gap,
-and the issue says which stage of [roadmap.md](roadmap.md) fills it.
+Written in Stage 0, before any engine code, with every row a tracked gap
+whose issue says which stage of [roadmap.md](roadmap.md) fills it; Stage 1
+backed the native checks and added the engine's own rows.
 
 ## Kinds
 
@@ -28,17 +29,17 @@ and the issue says which stage of [roadmap.md](roadmap.md) fills it.
 check. Add `(own)` when that workflow is the package's own rather than a
 call to r-actions.
 
-| Check         | Status  | Where |
-| ------------- | ------- | ----- |
-| sanitizers    | gap #18 |       |
-| valgrind      | gap #18 |       |
-| rchk          | gap #18 |       |
-| gctorture     | gap #18 |       |
-| analyzers     | gap #18 |       |
-| alloc-failure | gap #19 |       |
-| mutation      | gap #20 |       |
-| fuzz          | gap #21 |       |
-| fuzz-reach    | gap #21 |       |
+| Check         | Status  | Where              |
+| ------------- | ------- | ------------------ |
+| sanitizers    | done    | native-checks.yaml |
+| valgrind      | done    | native-checks.yaml |
+| rchk          | done    | native-checks.yaml |
+| gctorture     | done    | gctorture.yaml     |
+| analyzers     | done    | native-checks.yaml |
+| alloc-failure | gap #19 |                    |
+| mutation      | gap #20 |                    |
+| fuzz          | gap #21 |                    |
+| fuzz-reach    | gap #21 |                    |
 
 ## Boundaries
 
@@ -55,6 +56,8 @@ One row per boundary the package crosses. An oracle knows the answer:
 <!-- markdownlint-disable MD013 -->
 | Boundary                                | Oracle                                                    | Carried by |
 | --------------------------------------- | --------------------------------------------------------- | ---------- |
+| the patched SlothDB engine              | upstream's own doctest suite (378 cases) on the vendored, patched tree | tools/upstream-tests.sh, in platforms.yaml |
+| the vendored tree                       | upstream at the pinned commit plus tools/patches, rebuilt and compared file by file | tools/vendor/verify, in vendor.yaml |
 | SQL results as R vectors                | recorded `duckdb` answers for the same queries            | gap #22    |
 | CSV, Parquet, JSON, Arrow IPC files     | recorded `duckdb` answers over `duckdb`-written fixtures  | gap #23    |
 | Avro, Excel and SQLite files            | recorded answers from a reference reader                  | gap #23    |
@@ -85,3 +88,4 @@ One row per limit the package enforces. "Straddled by" is the test of
 | Limit                         | Unit          | Straddled by |
 | ----------------------------- | ------------- | ------------ |
 | 2^53, the largest exact double | integer value | gap #26      |
+| R's integer range, 2^31 - 1 and -(2^31 - 1) | integer value | tests/testthat/test-spike.R |

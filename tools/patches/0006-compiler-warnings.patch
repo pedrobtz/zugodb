@@ -1,0 +1,27 @@
+diff --git a/include/slothdb/parser/expression/parsed_expression.hpp b/include/slothdb/parser/expression/parsed_expression.hpp
+index b542a36..bea88f6 100644
+--- a/include/slothdb/parser/expression/parsed_expression.hpp
++++ b/include/slothdb/parser/expression/parsed_expression.hpp
+@@ -68,8 +68,8 @@ public:
+ 
+     // For NULL.
+     ConstantExpression()
+-        : ParsedExpression(ExpressionType::CONSTANT), is_null(true),
+-          literal_type(TokenType::INVALID) {}
++        : ParsedExpression(ExpressionType::CONSTANT),
++          literal_type(TokenType::INVALID), is_null(true) {}
+ 
+     std::string value;
+     TokenType literal_type = TokenType::INVALID;
+diff --git a/src/common/types/value.cpp b/src/common/types/value.cpp
+index 0692947..aa2ba2f 100644
+--- a/src/common/types/value.cpp
++++ b/src/common/types/value.cpp
+@@ -30,7 +30,6 @@ static std::string ShortestFloatString(T value) {
+     }
+     if (value == static_cast<T>(0)) {
+         // Preserve sign for -0 (matches existing %g output).
+-        std::signbit(static_cast<double>(value));
+         return std::signbit(static_cast<double>(value)) ? "-0" : "0";
+     }
+ 
