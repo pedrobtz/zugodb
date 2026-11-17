@@ -4,18 +4,39 @@ export(zuslothdb)
 export(zuslothdb_info)
 exportClasses(zuslothdb_connection)
 exportClasses(zuslothdb_driver)
+exportClasses(zuslothdb_result)
+exportMethods(dbBind)
+exportMethods(dbClearResult)
+exportMethods(dbColumnInfo)
 exportMethods(dbConnect)
 exportMethods(dbDisconnect)
 exportMethods(dbExecute)
+exportMethods(dbFetch)
 exportMethods(dbGetInfo)
+exportMethods(dbGetRowCount)
+exportMethods(dbGetRowsAffected)
+exportMethods(dbGetStatement)
+exportMethods(dbHasCompleted)
 exportMethods(dbIsValid)
+exportMethods(dbSendQuery)
+exportMethods(dbSendStatement)
 exportMethods(show)
 import(methods)
 importFrom(DBI,
+  dbBind,
+  dbClearResult,
+  dbColumnInfo,
   dbConnect,
   dbDisconnect,
   dbExecute,
+  dbFetch,
   dbGetInfo,
-  dbIsValid
+  dbGetRowCount,
+  dbGetRowsAffected,
+  dbGetStatement,
+  dbHasCompleted,
+  dbIsValid,
+  dbSendQuery,
+  dbSendStatement
 )
 useDynLib(zuslothdb, .registration = TRUE)

@@ -72,3 +72,16 @@ check_open <- function(dbdir, read_only, call = NULL) {
   }
   invisible()
 }
+
+check_choice <- function(x, choices, arg, call = NULL) {
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !x %in% choices) {
+    sdb_abort(
+      sprintf(
+        "`%s` must be one of %s.",
+        arg, paste0("\"", choices, "\"", collapse = ", ")
+      ),
+      "argument", call
+    )
+  }
+  x
+}

@@ -128,6 +128,12 @@ SEXP sdb_disconnect(SEXP ptr);
 SEXP sdb_execute(SEXP ptr, SEXP sql);
 SEXP sdb_set_threads(SEXP n);
 
+// sdb_result.cpp
+SEXP sdb_send(SEXP conptr, SEXP sql);
+SEXP sdb_result_info(SEXP ptr);
+SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint);
+SEXP sdb_result_clear(SEXP ptr);
+
 static const R_CallMethodDef call_methods[] = {
     {"sdb_scalar_int", (DL_FUNC)&sdb_scalar_int, 1},
     {"sdb_info", (DL_FUNC)&sdb_info, 0},
@@ -140,6 +146,10 @@ static const R_CallMethodDef call_methods[] = {
     {"sdb_disconnect", (DL_FUNC)&sdb_disconnect, 1},
     {"sdb_execute", (DL_FUNC)&sdb_execute, 2},
     {"sdb_set_threads", (DL_FUNC)&sdb_set_threads, 1},
+    {"sdb_send", (DL_FUNC)&sdb_send, 2},
+    {"sdb_result_info", (DL_FUNC)&sdb_result_info, 1},
+    {"sdb_fetch", (DL_FUNC)&sdb_fetch, 3},
+    {"sdb_result_clear", (DL_FUNC)&sdb_result_clear, 1},
     {NULL, NULL, 0}};
 
 void attribute_visible R_init_zuslothdb(DllInfo *dll) {

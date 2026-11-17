@@ -9,7 +9,7 @@
 \alias{dbGetInfo,zuslothdb_connection-method}
 \title{Connect to a zuslothdb database}
 \usage{
-\S4method{dbConnect}{zuslothdb_driver}(drv, dbdir, read_only, threads = 2L, ...)
+\S4method{dbConnect}{zuslothdb_driver}(drv, dbdir, read_only, bigint = "numeric", threads = 2L, ...)
 
 \S4method{dbIsValid}{zuslothdb_connection}(dbObj, ...)
 
@@ -23,6 +23,11 @@
 \item{dbdir, read_only}{As for \code{\link[=zuslothdb]{zuslothdb()}}. When either differs from the
 driver's, the connection gets a new driver, and so a database of its
 own.}
+
+\item{bigint}{How 64-bit integers (\code{BIGINT}, \code{UINTEGER}, \code{UBIGINT})
+arrive: \code{"numeric"} (the default, as in \code{duckdb}), a double, with a
+value beyond 2^53 a \code{zuslothdb_type_error}; \code{"integer64"}, the
+\code{bit64} class; or \code{"character"}, the decimal digits.}
 
 \item{threads}{The number of threads the engine may use, a whole number
 from 1. The engine has one thread pool per R process, so this is a cap
