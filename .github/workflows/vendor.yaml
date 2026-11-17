@@ -1,0 +1,33 @@
+# The vendored SlothDB tree is upstream at the pinned commit plus
+# tools/patches, and nothing else: tools/vendor/verify rebuilds it from
+# tools/vendor.yaml and compares every file. On pull requests, a change
+# under src/vendor must come with a change to the manifest or a patch, and
+# to the checksums.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  schedule:
+    - cron: "38 7 * * 6"
+  workflow_dispatch:
+
+name: vendor
+
+permissions:
+  contents: read
+
+jobs:
+  vendor:
+    # Decided without a runner (ci.md, Labels).
+    if: >-
+      github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'full-ci')
+      || !(contains(github.event.pull_request.labels.*.name, 'ci:docs')
+        || contains(github.event.pull_request.labels.*.name, 'ci:minimal')
+        || contains(github.event.pull_request.labels.*.name, 'skip-ci:vendor'))
+    uses: pedrobtz/r-actions/.github/workflows/vendor.yml@v1
+    with:
+      vendor-dir: src/vendor
+      verify: tools/vendor/verify
+      must-update: |
+        tools/vendor.yaml | tools/patches/
+        tools/vendor/checksums.md5

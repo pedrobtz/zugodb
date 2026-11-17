@@ -1,7 +1,8 @@
 # zuslothdb's own per-OS checks, one job per runner: tools/ci/platform.sh
-# runs every check that needs a particular OS, as steps (ci.md). Empty of
-# steps until Stage 1, which adds upstream's doctest suite and the symbol
-# check.
+# runs every check that needs a particular OS, as steps (ci.md): the
+# install, the exported and CRAN-flagged symbols, duckdb in the same
+# session, and upstream's doctest suite on the patched tree (Linux on every
+# run, macOS and Windows under the full profile).
 on:
   # No `push:`. A pull request already checks its merge with main, so the
   # push after merge would check the same tree again, in every package at
@@ -36,3 +37,10 @@ jobs:
     uses: pedrobtz/r-actions/.github/workflows/platforms.yml@v1
     with:
       profile: auto
+      # Linux too: the symbol and coexistence checks matter most where the
+      # dynamic linker shares one namespace.
+      os: '["macos-latest", "windows-latest", "ubuntu-latest"]'
+      # Two builds of the engine per job (the package, and upstream's tests
+      # against the vendored tree), the second on Windows under the full
+      # profile.
+      timeout-minutes: 60

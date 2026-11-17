@@ -1,0 +1,20 @@
+# Weekly: has SlothDB released past the version the vendored commit
+# follows? Opens or updates one issue when it has; never fails a check.
+on:
+  schedule:
+    - cron: "43 7 * * 6"
+  workflow_dispatch:
+
+name: vendor-upstream
+
+jobs:
+  upstream:
+    uses: pedrobtz/r-actions/.github/workflows/vendor-upstream.yml@v1
+    permissions:
+      contents: read
+      issues: write
+    with:
+      upstream-repo: SouravRoy-ETL/slothdb
+      # The release the pinned commit follows: "v0.2.7+" in tools/vendor.yaml.
+      current-version: >-
+        sed -n 's/^  describe: v\{0,1\}\([0-9.]*\).*/\1/p' tools/vendor.yaml
