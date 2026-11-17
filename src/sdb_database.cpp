@@ -22,40 +22,47 @@
 // Every engine call is inside try/catch, with no R API call while a C++
 // object with a destructor is live in the same frame (design §4.3).
 
-#include "sdb_common.h"
+#include "sdb_objects.h"
+
+#include "slothdb/parser/parser.hpp"
 
 #include <algorithm>
-#include <memory>
 #include <new>
-#include <vector>
+
+namespace sdb {
+
+bool LastIsDml(const std::string &sql) {
+  auto statements = slothdb::Parser::Parse(sql);
+  if (statements.empty()) return false;
+  switch (statements.back()->GetType()) {
+  case slothdb::StatementType::INSERT:
+  case slothdb::StatementType::UPDATE:
+  case slothdb::StatementType::DELETE_STMT:
+    return true;
+  default:
+    return false;
+  }
+}
+
+const char *kClosedConnection =
+    "The connection is closed (disconnected, its database shut down, or "
+    "used from another process).";
+
+} // namespace sdb
 
 namespace {
 
-struct SdbConnection;
-
-struct SdbDatabase {
-  std::unique_ptr<slothdb::Database> db;
-  std::vector<SdbConnection *> conns;
-  long pid = SDB_GETPID();
-};
-
-struct SdbConnection {
-  std::unique_ptr<slothdb::Connection> con;
-  SdbDatabase *owner = nullptr;
-  long pid = SDB_GETPID();
-};
-
-bool SameProcess(long pid) { return pid == SDB_GETPID(); }
+using sdb::SameProcess;
+using sdb::SdbConnection;
+using sdb::SdbDatabase;
 
 SdbDatabase *GetDatabase(SEXP ptr) {
   if (TYPEOF(ptr) != EXTPTRSXP) return nullptr;
   return static_cast<SdbDatabase *>(R_ExternalPtrAddr(ptr));
 }
 
-SdbConnection *GetConnection(SEXP ptr) {
-  if (TYPEOF(ptr) != EXTPTRSXP) return nullptr;
-  return static_cast<SdbConnection *>(R_ExternalPtrAddr(ptr));
-}
+using sdb::ConnectionOpen;
+using sdb::GetConnection;
 
 // Destroys the database's connections, then the database (which saves a
 // file-backed one). No R API call in here.
@@ -133,9 +140,11 @@ void EngineConnect(SdbDatabase *d, SdbConnection *c, sdb::EngineError *err) {
 void EngineExecute(SdbConnection *c, const char *sql, double *affected,
                    sdb::EngineError *err) {
   try {
+    // Parsed first: a "Count" row means rows affected only after DML.
+    const bool dml = sdb::LastIsDml(sql);
     slothdb::QueryResult res = c->con->Query(sql);
     *affected = 0;
-    if (res.ColumnCount() == 1 && res.RowCount() == 1 &&
+    if (dml && res.ColumnCount() == 1 && res.RowCount() == 1 &&
         res.column_names[0] == "Count") {
       const slothdb::Value &v = res.GetValue(0, 0);
       if (!v.IsNull() && v.type().id() == slothdb::LogicalTypeId::BIGINT) {
@@ -148,14 +157,6 @@ void EngineExecute(SdbConnection *c, const char *sql, double *affected,
     err->set("unknown C++ exception");
   }
 }
-
-bool ConnectionOpen(SdbConnection *c) {
-  return c && SameProcess(c->pid) && c->con && c->owner && c->owner->db;
-}
-
-const char *kClosedConnection =
-    "The connection is closed (disconnected, its database shut down, or "
-    "used from another process).";
 
 } // namespace
 
@@ -253,7 +254,7 @@ SEXP sdb_execute(SEXP ptr, SEXP sql) {
   sdb::EngineError err;
   SdbConnection *c = GetConnection(ptr);
   if (!ConnectionOpen(c)) {
-    err.set(kClosedConnection, "closed");
+    err.set(sdb::kClosedConnection, "closed");
     return sdb::ResultList(R_NilValue, err);
   }
   if (TYPEOF(sql) != STRSXP || XLENGTH(sql) != 1 ||
