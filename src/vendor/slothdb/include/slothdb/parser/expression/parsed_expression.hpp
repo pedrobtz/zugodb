@@ -68,8 +68,8 @@ public:
 
     // For NULL.
     ConstantExpression()
-        : ParsedExpression(ExpressionType::CONSTANT), is_null(true),
-          literal_type(TokenType::INVALID) {}
+        : ParsedExpression(ExpressionType::CONSTANT),
+          literal_type(TokenType::INVALID), is_null(true) {}
 
     std::string value;
     TokenType literal_type = TokenType::INVALID;

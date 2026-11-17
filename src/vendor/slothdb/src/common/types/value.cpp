@@ -30,7 +30,6 @@ static std::string ShortestFloatString(T value) {
     }
     if (value == static_cast<T>(0)) {
         // Preserve sign for -0 (matches existing %g output).
-        std::signbit(static_cast<double>(value));
         return std::signbit(static_cast<double>(value)) ? "-0" : "0";
     }
 

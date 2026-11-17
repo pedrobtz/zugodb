@@ -48,6 +48,13 @@ exclude:
     reason: HTTP and S3 client; offline only (D4). Patch 0003 removes its use.
   - path: include/slothdb/storage/http_client.hpp
     reason: Header of src/storage/http_client.cpp.
+  - path: src/api
+    reason: >-
+      SlothDB's C API, for its Python binding; the glue binds the C++ API
+      (design D2). Its slothdb_api.cpp also raises a
+      -Wreturn-type-c-linkage warning, which R CMD check counts.
+  - path: include/slothdb/api
+    reason: Header of src/api.
   - path: src/CMakeLists.txt
     reason: The package builds from src/Makevars, written by tools/vendor.R.
   - path: third_party/zstd/lib/decompress/huf_decompress_amd64.S
@@ -86,6 +93,13 @@ patches:
     reason: >-
       STRFTIME with one argument read past its argument list and crashed
       (upstream's own "Advanced - STRFTIME" case); it is now an error.
+  - file: 0006-compiler-warnings.patch
+    reason: >-
+      Two warnings R CMD check counts as significant: a discarded
+      [[nodiscard]] std::signbit() call in value.cpp (clang
+      -Wunused-result) and ConstantExpression's NULL constructor
+      initialising its members out of declaration order (gcc -Wreorder).
+      Neither changes behaviour.
 
 test_patches:
   - file: tests/0001-stale-date-tests.patch

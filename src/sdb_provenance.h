@@ -3,5 +3,5 @@
 #define SDB_UPSTREAM_REPOSITORY "https://github.com/SouravRoy-ETL/slothdb"
 #define SDB_UPSTREAM_COMMIT "8180f215847015944c935f56f008d194e2c1494c"
 #define SDB_UPSTREAM_DESCRIBE "v0.2.7+"
-#define SDB_PATCH_COUNT 5
-#define SDB_PATCHES {"0001-mingw.patch", "0002-no-process-output.patch", "0003-offline.patch", "0004-threads.patch", "0005-strftime-arity.patch"}
+#define SDB_PATCH_COUNT 6
+#define SDB_PATCHES {"0001-mingw.patch", "0002-no-process-output.patch", "0003-offline.patch", "0004-threads.patch", "0005-strftime-arity.patch", "0006-compiler-warnings.patch"}

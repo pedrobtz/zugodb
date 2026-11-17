@@ -1,5 +1,4 @@
 d96cb5ed0044e85708f8a3fe0602b9e0  LICENSE
-4abf6c43c4566f6f4852fbed50f87675  include/slothdb/api/slothdb.h
 1b5c3609f29d6bd74b1f807e44422a6c  include/slothdb/binder/binder.hpp
 d84c59064a3c8d12747f4ba23e7f6074  include/slothdb/binder/bound_expression.hpp
 4108e3f84c49bd9831a6716ea6b9722f  include/slothdb/binder/bound_statement.hpp
@@ -49,7 +48,7 @@ a17eed11e88e42e4264e5c9cedf2fcb6  include/slothdb/main/connection.hpp
 1bc0afa77e4800b70ceb19e73556caa9  include/slothdb/main/database.hpp
 3d629ef04280b5f71b1805aca80b184f  include/slothdb/main/query_materialize.hpp
 08de4bade6f9c165036b189876eabca3  include/slothdb/optimizer/optimizer.hpp
-961dbaefa9820c73b32d20cc5e422224  include/slothdb/parser/expression/parsed_expression.hpp
+aa3307eb31322589db7be32826e145e2  include/slothdb/parser/expression/parsed_expression.hpp
 985945ba7313ef107ed3d14bac1cce64  include/slothdb/parser/parser.hpp
 ea6418f9d602310d01e41326b4c6002d  include/slothdb/parser/statement/parsed_statement.hpp
 68e92927b681c2228d41cc3dfdeb4740  include/slothdb/parser/tokenizer.hpp
@@ -75,7 +74,6 @@ cc1db6cabbe7c8423d4db1f947687b72  include/slothdb/storage/parquet.hpp
 f6aa9cb7b140ac0cd9f9593140d406a3  include/slothdb/transaction/transaction.hpp
 53933ec0f974e34771c296d0963d2a12  include/third_party/stl.h
 1c8a1d422f5db727244ac438fd5e6c84  include/third_party/unordered_dense.h
-5a4c545df82d487933d2965bb0548334  src/api/slothdb_api.cpp
 c558d4b3bc67295075c273adf120cf09  src/binder/binder.cpp
 be4ba4b1f772cfa8e45704ed046bf5a4  src/catalog/catalog.cpp
 8494083c1dd9ac9ee7e1dd6fa5d20dd2  src/catalog/schema_catalog_entry.cpp
@@ -91,7 +89,7 @@ e37ada4f6a353f42ce9b07bfd9ac4186  src/common/types/hugeint.cpp
 7598750d181e30ac498db370f8302e37  src/common/types/logical_type.cpp
 e36aeba59079edf58cbbdb38d255bcf0  src/common/types/selection_vector.cpp
 d6fffccfa9f881aaac1e138193d73f43  src/common/types/validity_mask.cpp
-7981a5bdac9c4e57372efb6ce1b39a72  src/common/types/value.cpp
+4436019775c66e43f405150f615dddca  src/common/types/value.cpp
 d2ec26498de649cc47e475d5951a6318  src/common/types/vector.cpp
 5c6212c60dac018dd4a186c19f900edc  src/execution/agg_emit_helpers.cpp
 5ebcfdf228e898e65b05e56a298c481c  src/execution/count_group_agg.cpp
