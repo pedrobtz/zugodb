@@ -36,7 +36,7 @@ call to r-actions.
 | rchk          | done    | native-checks.yaml |
 | gctorture     | done    | gctorture.yaml     |
 | analyzers     | done    | native-checks.yaml |
-| alloc-failure | gap #19 |                    |
+| alloc-failure | done    | alloc-failure.yaml |
 | mutation      | gap #20 |                    |
 | fuzz          | gap #21 |                    |
 | fuzz-reach    | gap #21 |                    |
@@ -58,7 +58,8 @@ One row per boundary the package crosses. An oracle knows the answer:
 | --------------------------------------- | --------------------------------------------------------- | ---------- |
 | the patched SlothDB engine              | upstream's own doctest suite (378 cases) on the vendored, patched tree | tools/upstream-tests.sh, in platforms.yaml |
 | the vendored tree                       | upstream at the pinned commit plus tools/patches, rebuilt and compared file by file | tools/vendor/verify, in vendor.yaml |
-| SQL results as R vectors                | recorded `duckdb` answers for the same queries            | gap #22    |
+| SQL results as R vectors (scalar types) | recorded `duckdb` answers for the same queries            | tests/testthat/test-oracle-scalar.R |
+| SQL results as R vectors (other types)  | recorded `duckdb` answers for the same queries            | gap #22    |
 | CSV, Parquet, JSON, Arrow IPC files     | recorded `duckdb` answers over `duckdb`-written fixtures  | gap #23    |
 | Avro, Excel and SQLite files            | recorded answers from a reference reader                  | gap #23    |
 | database file                           | round trip through a fresh R process                      | gap #23    |
@@ -77,7 +78,7 @@ cannot apply.
 | ---------- | --------- | ------- | ------- | ------- |
 | database   | tests/testthat/test-lifecycle.R | tests/testthat/test-fork.R | tests/testthat/test-unwind.R | the driver (R/driver.R); connections keep it alive through `prot` |
 | connection | tests/testthat/test-lifecycle.R | tests/testthat/test-fork.R | tests/testthat/test-unwind.R | its database's external pointer, in `prot` (src/sdb_database.cpp) |
-| result     | gap #25   | gap #25 | gap #25 | gap #25 |
+| result     | tests/testthat/test-lifecycle.R | n/a: materialised R-side buffers; its connection's guard refuses a foreign process | tests/testthat/test-unwind.R | its external pointer; a cleared or closed-connection result is refused (R/result.R) |
 <!-- markdownlint-enable MD013 -->
 
 ## Limits
@@ -87,6 +88,7 @@ One row per limit the package enforces. "Straddled by" is the test of
 
 | Limit                         | Unit          | Straddled by |
 | ----------------------------- | ------------- | ------------ |
-| 2^53, the largest exact double | integer value | gap #26      |
+| 2^53, the largest exact double | integer value | tests/testthat/test-bigint.R |
+| -2^31, R's integer NA         | integer value | tests/testthat/test-spike.R |
 | R's integer range, 2^31 - 1 and -(2^31 - 1) | integer value | tests/testthat/test-spike.R |
 | `threads`, 1 to 2^31 - 1                     | threads       | tests/testthat/test-connect.R |

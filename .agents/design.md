@@ -396,6 +396,19 @@ package does with those readers.
 `bigint = "integer64"`; a value beyond 2^53 converted to double is a
 `zuslothdb_type_error`, not a silent rounding.
 
+*As built in Stage 3 (2026-11-17)*, the same rule for the values R holds
+only by losing them: an `INTEGER` of -2^31 (R's `NA_integer_`), a
+`BIGINT` of -2^63 under `bigint = "integer64"` (bit64's `NA`), a
+`UBIGINT` past 2^63 - 1 under `"integer64"`, and a string that is not
+valid UTF-8 or holds a NUL are each a `zuslothdb_type_error` naming the
+column and row, and nothing of the slice is fetched. `bigint` also takes
+`"character"`, the decimal digits. A bare `NULL` arrives as an integer
+`NA`, as in `duckdb`. Results are computed whole and copied into plain
+buffers before any R vector is made (`src/sdb_result.cpp`), and a
+connection has one open result: sending another clears it with a
+warning, as RSQLite does. The unsigned types cannot be named in
+SlothDB's SQL, so they reach R only from files (Stage 6).
+
 Writing goes the other way through `Append` with `DataChunk`s built in
 the glue; factors are written as `VARCHAR`. The `duckdb` choices
 (`bigint`, `timezone_out`) are the defaults to copy, so that code moves
@@ -510,6 +523,10 @@ any of them.
     against 8.3 MB, the installed package 3.9 MB against 72 MB.
   - *Every leg:* the full r-actions profile on the Stage 1 pull request
     (#28), Rtools and the r-devel containers included.
+  Stage 3's oracle found more (`tests/testthat/oracle/known-differences.md`):
+  `substr()` cuts bytes, not characters; TINYINT arithmetic does not
+  check overflow; a subnormal double literal is refused; infinity
+  inserted into a FLOAT column is refused.
   Also found: a table function inside a subquery is not bound
   (`SELECT count(*) FROM (SELECT ... FROM read_parquet(...))` is
   "Table 'READ_PARQUET' not found"), the kind of gap the sqllogictest
