@@ -138,6 +138,12 @@ and answers one query, and the numbers that decide D1 are written down.
 - D1 is recorded in the design as go or stop, with the measurements.
 - The quick profile's duration with the engine compiled is recorded here;
   if over five minutes, `quick-containers` is trimmed and the change noted.
+  *Recorded 2026-11-17 (#28):* serial, the quick legs took 7 m 47 s
+  (Ubuntu release) and 6 m 49 s (clang23), nearly all of it the engine's
+  build. Trimming `quick-containers` shortens no check, so instead
+  `MAKEFLAGS=-j4` goes to R-CMD-check, sanitizers and gctorture:
+  4 m 32 s and 4 m 53 s. UBSan stays at 10 to 14 minutes, and valgrind,
+  rchk, LTO and the analysers, which take no `env` input, at 4 to 10.
 
 **Design.** [§4](design.md#4-architecture),
 [§4.2](design.md#42-patches), [§1.3](design.md#13-upstream-health) and
