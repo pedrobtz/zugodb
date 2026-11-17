@@ -33,11 +33,10 @@ settle one in code without recording it there.
 
 ## Current state
 
-Scaffolded 2026-11-17 with `create-pkg.sh`; no functionality yet, and
-`DESCRIPTION` still has the scaffold's placeholder title, description and
-author. Nothing of the engine has been built with any compiler. The roadmap
-in [.agents/roadmap.md](.agents/roadmap.md) takes it to v0.1.0. Its Stage 1
-is a go/no-go spike (decision D1): the package may stop there.
+Stage 1 (the engine spike) vendored the patched engine, which builds and
+answers `SELECT 42` through an internal function; the DBI driver is
+Stage 2's. The roadmap in [.agents/roadmap.md](.agents/roadmap.md) takes it
+to v0.1.0; decision D1 in the design records whether it goes on.
 
 ## Versions and dependents
 
@@ -47,57 +46,93 @@ Sibling packages that depend on this one before CRAN does: none.
 
 ## Commands
 
-Only the shared commands so far. The design plans `tools/vendor.R`, which
-copies the pinned upstream commit, applies the patches and writes the
-source list into `src/Makevars`.
+```sh
+Rscript tools/vendor.R                    # re-vendor from tools/vendor.yaml
+Rscript tools/vendor.R --upstream <clone> # the same from a local clone
+tools/vendor/verify                       # rebuild in tempdir and compare
+MAKEFLAGS=-j8 R CMD INSTALL . && Rscript tools/ci-run-tests.R
+sh tools/upstream-tests.sh [workdir]      # upstream's doctests, patched tree
+bash tools/ci/platform.sh <macos|windows|ubuntu>  # the per-OS checks
+```
+
+`src/Makevars`, `src/Makevars.win`, `src/sdb_provenance.h`,
+`inst/vendor.yaml` and `tools/vendor/checksums.md5` are written by
+`tools/vendor.R`: change `tools/vendor.yaml` or a patch and re-run it,
+never edit them. Set `MAKEFLAGS=-jN` for any local build; the engine is
+about four CPU-minutes serial. `ZUSLOTHDB_TEST_SEED` replays a shuffled
+test order.
 
 ## Architecture
 
-To be written as stages land; see [.agents/design.md](.agents/design.md) §4
-for the three planned layers (vendored C++, `sdb_` glue C++, R DBI classes).
-The scaffold set up a C stub, [src/zuslothdb.c](src/zuslothdb.c), through
-`use_c()`; the design needs C++20 (`CXX_STD = CXX20`), so Stage 1 replaces
-it.
+Three layers ([.agents/design.md](.agents/design.md) §4):
+
+- `src/vendor/slothdb/`: the engine, upstream plus `tools/patches/`.
+- [src/sdb_glue.cpp](src/sdb_glue.cpp): every `.Call` entry point and
+  `R_init_zuslothdb`. Engine work happens in `Engine*` helpers inside
+  `try`/`catch` with all C++ objects scoped there; entry points get back
+  plain values and an error string, then build R objects.
+- `R/`: errors from the glue become conditions in `sdb_abort()`
+  ([R/spike.R](R/spike.R)); `zuslothdb_info()` in [R/info.R](R/info.R).
 
 ## Invariants that are easy to break
 
-None is enforced by code yet. The design already fixes these:
-
 - No C++ exception crosses into R, and no R API call that can longjmp runs
   while a SlothDB object with a destructor is live on the stack (§4.3).
-  Breaking either leaks or crashes the session.
-- The shared library exports only `R_init_zuslothdb`. SlothDB carries a
-  `duckdb_fastpforlib` namespace copied from DuckDB, so visible symbols
-  clash when `duckdb` is loaded in the same session.
+  Breaking either leaks or crashes the session. The glue never calls
+  `Rf_error()`; keep it that way.
+- The shared library exports only `R_init_zuslothdb` (plus the C++
+  standard library's own template typeinfo). SlothDB carries a
+  `duckdb_fastpforlib` namespace copied from DuckDB, and zstd, which
+  other packages bundle too. `platform.sh` checks it on each OS, and
+  `tools/ci/coexist.R` runs both packages in one session.
 - Nothing vendored is edited by hand: every change to upstream is a patch
   recorded in `tools/vendor.yaml` with its reason (§4.2).
+  `tools/vendor/verify` and the vendor workflow fail otherwise.
+- No `stderr`, `stdout`, `printf`, `abort`, `exit` or `rand` linked:
+  `platform.sh` checks the shared object's imports.
 - Offline only (D4), and no file written outside `tempdir()` and the
-  user's `dbdir`.
-- Two threads unless the user sets `threads` (D5).
+  user's `dbdir`: patch 0003 makes a remote path an error.
+- Two threads unless the user sets `threads` (D5): patch 0004's
+  process-wide cap, `slothdb::SetThreadCap()`.
 - A 64-bit integer that does not fit a double is a `zuslothdb_type_error`,
   never a silent rounding (§6).
 
 ## Testing
 
-None yet: no conformance suite, helpers or measured runtime. The design's
-§10 plans DuckDB as the oracle (in a separate development project, not in
-`Suggests`), `DBItest`, upstream's doctest suite on the patched tree, and
-hostile inputs under the sanitizers, with `ZUZUSLOTHDB_SKIP_HEAVY` and
-`ZUZUSLOTHDB_SLOW_TESTS` as the switches.
+`tests/testthat/` runs shuffled with the seed printed
+([tests/testthat.R](tests/testthat.R), `tools/ci-run-tests.R`). So far:
+`test-spike.R` (the query path, its errors and R's integer range),
+`test-info.R` (the compiled-in provenance against the installed
+`vendor.yaml`) and `test-zuslothdb.R`. Upstream's own doctest suite runs
+on the patched tree through `tools/upstream-tests.sh` (378 cases), and
+`tools/ci/coexist.R` runs `duckdb` in the same session: both from
+`tools/ci/platform.sh`, never from testthat, because §10 keeps `duckdb`
+out of `Suggests`. The design's §10 plans DuckDB's recorded answers as the
+oracle, `DBItest`, and hostile inputs under the sanitizers, with
+`ZUSLOTHDB_SKIP_HEAVY` and `ZUSLOTHDB_SLOW_TESTS` as the switches.
 
 ## Continuous integration
 
-`R-CMD-check.yaml` and `coverage.yaml` call the shared
-`pedrobtz/r-actions` workflows (`r-cmd-check.yml@v1`, `coverage.yml@v1`).
-`pkgdown.yaml` is the r-lib example workflow, building the site to
-`gh-pages`. The roadmap marks Stages 1, 2, 3 and 6 `full`, besides the three closing
-stages.
+All through `pedrobtz/r-actions` `@v1`, on this package's Saturday 07:00
+UTC slot: `R-CMD-check.yaml` (plus Windows R-devel in the full profile),
+`coverage.yaml` (pinned to a commit; `native: true`), `pkgdown.yaml`,
+`assurance.yaml` (`ungated-jobs: fail`), `platforms.yaml` (runs
+`tools/ci/platform.sh` on macOS, Windows and Ubuntu), `native-checks.yaml`
+(sanitizers, valgrind, LTO, rchk, analyzers, cran-special),
+`gctorture.yaml` (wide step on pull requests, step 20 daily), `vendor.yaml`
+and `vendor-upstream.yaml`. The roadmap marks Stages 1, 2, 3 and 6 `full`,
+besides the three closing stages.
 
 ## Vendored native code
 
-Planned, not yet vendored: [SlothDB](https://github.com/SouravRoy-ETL/slothdb)
-(MIT) at commit `8180f215847015944c935f56f008d194e2c1494c`, with its own
-`third_party/` subset (zstd decompressor, snappy, fastpforlib, miniz,
-`unordered_dense.h`). Licences and the initial patch list are in the
-design's front matter and §4.2. Fill in the vendored paths, the patch count
-and the update procedure when Stage 1 vendors it.
+[SlothDB](https://github.com/SouravRoy-ETL/slothdb) (MIT) at commit
+`8180f215847015944c935f56f008d194e2c1494c` ("v0.2.7+"), in
+`src/vendor/slothdb/`, with its `third_party/` subset: the zstd
+decompressor, snappy, fastpforlib and, inside `src/storage/`, miniz;
+`unordered_dense.h` under `include/third_party/`. Left out: `src/ask/`,
+`src/extension/`, the HTTP client and upstream's CMake files. Five
+patches in `tools/patches/`, each with its reason in `tools/vendor.yaml`;
+holders in `inst/COPYRIGHTS`. To update: change `upstream.commit` (and
+`describe`) in `tools/vendor.yaml`, run `Rscript tools/vendor.R`, refresh
+any patch that no longer applies (`git apply` fails loudly), and run
+`tools/upstream-tests.sh`.

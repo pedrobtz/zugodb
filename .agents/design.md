@@ -20,11 +20,16 @@ to [roadmap.md](roadmap.md), and the package's name (Q8, `zuslothdb`).
   (`tools::CRAN_package_db()`, 2026-11-17); the RFC found crandb
   returning `not_found` for `slothdb` and `rslothdb`, and no CRAN
   package name containing `sloth`. `Imports: DBI (>= 1.2.0), methods`. `Suggests:
-  testthat (>= 3.2.0), withr, DBItest, bit64, nanoarrow`. Vendors SlothDB
+  testthat (>= 3.2.0), withr, DBItest, bit64, nanoarrow, yaml` (`yaml`
+  added 2026-11-17: `test-info.R` reads the installed `vendor.yaml`).
+  Vendors SlothDB
   v0.2.7+ at commit `8180f21` (MIT, "SlothDB Contributors"), which
   itself carries zstd's decompressor (BSD-3-Clause, of the BSD/GPL-2.0
   dual licence), snappy (BSD-3-Clause), fastpforlib (Apache-2.0, copied
-  from DuckDB), miniz 3.0.0 (Unlicense) and `unordered_dense.h` (MIT).
+  from DuckDB), miniz 3.0.0 (MIT in `miniz.c`'s header, read
+  2026-11-17; `miniz.h`'s banner also cites the Unlicense) and
+  `unordered_dense.h` (MIT, read 2026-11-17). `inst/COPYRIGHTS` has each
+  holder.
   MIT for the package's own code.
 - **Source:** a clone of
   [SouravRoy-ETL/slothdb](https://github.com/SouravRoy-ETL/slothdb) at
@@ -160,6 +165,12 @@ necessary if `duckdb` is loaded in the same session; `zuslothdb_error`
 conditions; `ZUSLOTHDB_SKIP_HEAVY` and `ZUSLOTHDB_SLOW_TESTS`; CI through
 `pedrobtz/r-actions`.
 
+Other packages of the portfolio are adopted only where the package needs
+an import (maintainer, 2026-11-17). Its imports are `DBI` and `methods`,
+which none replaces, so none is adopted for v0.1.0: `qio`, `zucsv` and
+`zujson` as second readers, `decimal` as a `decimal =` output and
+`zuxlsx` or `zuarrow` as fixture writers were considered and set aside.
+
 ## 4. Architecture
 
 Three layers, as in `duckdb`:
@@ -207,6 +218,26 @@ Each is recorded in `tools/vendor.yaml` with its reason. If they
 together pass a few thousand lines, or Stage 1 finds the engine wrong
 on its own tests, D1's stop condition applies.
 
+**As built in Stage 1 (2026-11-17):** five patches in `tools/patches/`,
+148 changed lines (69 added, 79 removed), plus one patch of 20 lines to
+upstream's tests. `tools/vendor.R` applies them to upstream at the
+pinned commit and copies the result, minus `src/ask/`, `src/extension/`
+and the HTTP client, into `src/vendor/slothdb/`; `tools/vendor/verify`
+rebuilds that tree and compares it file by file. Against the plan
+below: the MinGW patch needed only the time functions in
+`expression_executor.cpp` and `mkdir` in `hive_partition.cpp`, since
+MinGW has `access`, `fseeko`, `dirent.h` and `stat`, and the files with
+`dlfcn.h`, sockets and `#pragma comment` are compiled out; a MinGW-w64
+syntax pass over the whole tree is clean. The baseline-ISA change needs
+no patch (Q2). Two findings the plan did not have: `rand()` in
+`RANDOM()` and `UUID()` (patch 0002), and `STRFTIME` with one argument
+reading past its argument list (patch 0005). Symbols: `-fvisibility=hidden`
+through `$(CXX_VISIBILITY)` and `$(C_VISIBILITY)`, zstd's own
+`visibility("default")` emptied with `-DZSTDLIB_VISIBLE=`, and
+`src/zuslothdb-win.def` on Windows. The C++ standard library's template
+typeinfo stays exported on macOS and Linux, as it does from every C++
+library; it is identical wherever it is instantiated and cannot clash.
+
 - **MinGW.** Windows paths in `http_client.cpp`,
   `extension_manager.cpp`, `file_handle.cpp`, `fast_csv_reader.cpp`,
   `hive_partition.cpp` and `database.cpp` are gated on `_MSC_VER`, so
@@ -231,6 +262,10 @@ on its own tests, D1's stop condition applies.
   from `std::thread::hardware_concurrency()`, overridden only by
   `SLOTHDB_MAX_THREADS`. Default to two threads unless the user sets
   `threads` in `dbConnect()`, matching CRAN's two-core check limit.
+  As built (patch 0004): one process-wide cap, 2 by default, read by
+  every pool and split. The engine's thread pool is a process global
+  sized on first use, so `threads` is per process, not per database
+  as in `duckdb`; Stage 2 documents that.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).
@@ -413,7 +448,11 @@ binaries in the upstream tree (`packaging/npm/slothdb.wasm`,
 - **Hygiene.** Only `R_init_zuslothdb` exported; no file written outside
   `tempdir()` and the user's `dbdir`; no thread outlives
   `dbDisconnect(shutdown = TRUE)`; `duckdb` loaded in the same session
-  links and runs.
+  links and runs. That last check runs in `tools/ci/platform.sh` on
+  macOS, Windows and Ubuntu, with a `duckdb` binary installed on the
+  runner, so `duckdb` stays out of `Suggests` (confirmed 2026-11-17: the
+  recorded answers and the CI step are the only uses, and neither needs
+  it at check time).
 
 ## 11. Roadmap
 
@@ -432,6 +471,26 @@ any of them.
   install is at least several times faster than `duckdb`'s. Otherwise
   stop, and record why here. The package then exists as a test bed and
   a second engine, never as a recommended `duckdb` alternative.
+  **Recorded 2026-11-17 (Stage 1): go.** Each condition, as measured:
+  - *Patches:* five, 148 changed lines (69 added, 79 removed), and one
+    of 20 lines to upstream's tests (§4.2).
+  - *Upstream's tests:* unpatched, the doctest suite crashed at its 95th
+    case (`STRFTIME` with one argument) and, with that case excluded,
+    failed 7 of 407 (stale DATE encodings). On the patched tree, all
+    378 cases built (the 30 of the two compiled-out modules excluded)
+    pass, 131,473 assertions, on macOS with R's compiler, and on every
+    `platforms.yaml` leg (`tools/upstream-tests.sh`).
+  - *Install time:* a cold, serial source install from the tarball on
+    the same 6-core x86-64 Mac took 187 s for `zuslothdb` and 2,711 s
+    for `duckdb` 2.0.0, 14.5 times as long. The tarball is 0.82 MB
+    against 8.3 MB, the installed package 3.9 MB against 72 MB.
+  - *Every leg:* the full r-actions profile on the Stage 1 pull request
+    (#28), Rtools and the r-devel containers included.
+  Also found: a table function inside a subquery is not bound
+  (`SELECT count(*) FROM (SELECT ... FROM read_parquet(...))` is
+  "Table 'READ_PARQUET' not found"), the kind of gap the sqllogictest
+  figure of about 18% predicts; Stages 3 and 6 list such cases in
+  `known-differences.md`.
 - **D2 (C).** Bind SlothDB's C++ API, as `duckdb` binds DuckDB's; the
   C API's six types cannot carry §6.
 - **D3 (C).** Vendor at a pinned commit, not a release tag: v0.2.7
@@ -463,7 +522,16 @@ any of them.
 - **Q1.** Does SlothDB implement `HUGEINT` arithmetic, or only the type
   id? Read in Stage 4.
 - **Q2.** Runtime dispatch for the AVX2 kernels, or scalar only? Depends
-  on how much speed they carry, measured in Stage 1.
+  on how much speed they carry, measured in Stage 1. **Decided
+  2026-11-17: scalar only for v0.1.0**, by the maintainer. Every
+  intrinsic path is guarded by `__AVX2__` or `__SSE2__`, so building
+  without `-mavx2` selects the scalar code with no patch; SSE2 is the
+  x86-64 baseline and stays. Measured on a 6-core x86-64 Mac (two
+  engine threads, 10^7 rows written by `duckdb`, median of 5): the AVX2
+  build (`-mavx2 -mbmi2`) was 0 to 6% faster across seven queries, about
+  5% on a filtered Parquet sum, 3% on a CSV `GROUP BY` and nothing on
+  the rest, inside run-to-run noise. Runtime dispatch is not worth its
+  patch for v0.1.0.
 - **Q3.** Add prepared statements upstream-style in the fork, or wait
   for upstream? `dbplyr` and `DBI::dbAppendTable` work without them;
   `params =` does not.
@@ -472,7 +540,13 @@ any of them.
   DuckDB translations can be reused through `sql_translation()`?
 - **Q6.** Can a query be cancelled? The executor's thread pool must
   poll a flag; if it cannot, interrupts wait for the query to finish,
-  and the README says so.
+  and the README says so. **Answered 2026-11-17: no.** Nothing in the
+  engine polls an interrupt or cancel flag (no such identifier in
+  `src/` or `include/`), and `Connection::Query()` runs to completion
+  on the calling thread. Adding one means a patch in every operator
+  loop of a 14,573-line planner, outside D1's budget for v0.1.0. So an
+  interrupt waits for the query to finish; Stage 3 has nothing to wire
+  and Stage 8's README says so.
 - **Q7.** Should `zuslothdb` refuse to open a database file written by a
   different engine commit, rather than trust the magic number?
 - **Q8.** Name: `slothdb` matches upstream and the `duckdb` precedent,
@@ -505,6 +579,10 @@ any of them.
   names only CSV, Parquet, JSON and Arrow IPC. Proposal: compiled out
   in v0.1.0, since untested parsers of hostile input are what §10
   exists to prevent. Decide in Stage 1, where the source list is made.
+  **Decided 2026-11-17: compiled in and tested**, by the maintainer.
+  The three readers are in the source list; Stage 6 gives them what it
+  gives the other formats (fixtures with recorded answers, hostile
+  inputs, a fuzz harness each), and §2 and §7 gain them there.
 - **Q12.** What does `zuslothdb_read()` return, and does it take reader
   options through `...`? §5 and §7 say only that it builds the `SELECT`.
   Proposal: a data frame, as `dbGetQuery()` of that `SELECT`, with

@@ -17,7 +17,7 @@ planned.
 | Stage | Title | CI | Issue | Pull request | Done |
 | --- | --- | --- | --- | --- | --- |
 | 0 | [Package identity](#stage-0--package-identity) | quick | [#2](https://github.com/pedrobtz/zuslothdb/issues/2) | [#27](https://github.com/pedrobtz/zuslothdb/pull/27) | 2026-11-17 |
-| 1 | [Engine spike](#stage-1--engine-spike) | full | [#3](https://github.com/pedrobtz/zuslothdb/issues/3) | | |
+| 1 | [Engine spike](#stage-1--engine-spike) | full | [#3](https://github.com/pedrobtz/zuslothdb/issues/3) | [#28](https://github.com/pedrobtz/zuslothdb/pull/28) | 2026-11-17 |
 | 2 | [Driver and connection](#stage-2--driver-and-connection) | full | [#4](https://github.com/pedrobtz/zuslothdb/issues/4) | | |
 | 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/zuslothdb/issues/5) | | |
 | 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | | |
@@ -121,7 +121,12 @@ and answers one query, and the numbers that decide D1 are written down.
 - Only `R_init_zuslothdb` is exported: `nm` on the built library, in
   `tools/ci/platform.sh`, once per OS.
 - `duckdb` loaded in the same session: both answer `SELECT 42`, in
-  `test-coexist.R`, skipped without `duckdb`.
+  `test-coexist.R`, skipped without `duckdb`. *Deviation 2026-11-17:* in
+  `tools/ci/coexist.R`, run by `tools/ci/platform.sh` on each OS in both
+  load orders, with a Parquet round trip through DuckDB's own
+  fastpforlib. A testthat file using `duckdb` must declare it in
+  `Suggests`, which §10 rules out, and would be skipped on every
+  `R CMD check` leg anyway.
 - The MinGW branch and the baseline-ISA build: the Windows legs and the
   r-actions x86-64 legs, which run without AVX2 flags.
 
@@ -213,7 +218,8 @@ R types the design's table names.
   query with the `duckdb` answer recorded beside it and the `duckdb`
   version that gave it.
 - `alloc-failure.yaml` caller.
-- Interrupts, as Stage 1 found them possible (Q6).
+- Interrupts, as Stage 1 found them possible (Q6). *Stage 1 found them
+  not possible (2026-11-17): nothing to wire here.*
 - The Objects row for results and the Limits row for 2^53.
 
 **Tests.**
@@ -342,7 +348,9 @@ damaged input is an error the session survives.
 
 - Each format, each Parquet codec (gzip, zstd, snappy) and an
   unsupported codec: the recorded `duckdb` answers, or
-  `zuslothdb_sql_error`, in `test-oracle-files.R`.
+  `zuslothdb_sql_error`, in `test-oracle-files.R`. The formats include
+  Avro, Excel and SQLite, which Q11 compiled in (2026-11-17), with a
+  reference reader's recorded answers for each.
 - Paths with spaces, quotes and non-ASCII characters: the same answer as
   the plain path, in `test-paths.R`.
 - Persistence: write, `shutdown`, reopen in a fresh R process
@@ -570,14 +578,9 @@ twice and what the reviews required is fixed.
 - [Q4](design.md#14-open-questions): `memory_limit` needs engine work.
 - [Q10](design.md#14-open-questions): `zuslothdb_sql()` waits unless it is
   adopted before Stage 6, which would then carry it.
-- [Q11](design.md#14-open-questions): Avro, Excel and SQLite readers, if
-  Stage 1 compiles them out.
 
 ## Blocking open questions
 
-- [D1](design.md#12-decisions) blocks everything after Stage 1.
-- [Q2, Q11](design.md#14-open-questions) block Stage 1; Q6 is answered
-  there and shapes Stage 3.
 - [Q9, Q13](design.md#14-open-questions) block Stage 2.
 - [Q1](design.md#14-open-questions) blocks Stage 4.
 - [Q7, Q12](design.md#14-open-questions) block Stage 6.
