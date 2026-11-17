@@ -40,6 +40,8 @@ jobs:
       # Linux too: the symbol and coexistence checks matter most where the
       # dynamic linker shares one namespace.
       os: '["macos-latest", "windows-latest", "ubuntu-latest"]'
+      # platform.sh installs the package, which imports DBI.
+      r-dependencies: true
       # Two builds of the engine per job (the package, and upstream's tests
       # against the vendored tree), the second on Windows under the full
       # profile.
