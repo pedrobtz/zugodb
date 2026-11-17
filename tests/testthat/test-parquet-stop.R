@@ -28,18 +28,11 @@ test_that("Parquet queries that stop early return, with their rows (#32)", {
   script <- withr::local_tempfile(fileext = ".R")
   writeLines(parquet_stop_child(), script)
 
-  rscript <- file.path(R.home("bin"), "Rscript")
-  # shQuote() quotes for sh unless told otherwise, and Windows'
-  # CreateProcess() does not read single quotes.
-  quoting <- if (.Platform$OS.type == "windows") "cmd" else "sh"
-  args <- shQuote(c(script, dirname(pkg), fixture, seconds, threads), quoting)
-  out <- suppressWarnings(system2(
-    rscript,
-    args,
-    stdout = TRUE,
-    stderr = TRUE,
+  out <- run_child_r(
+    script,
+    c(dirname(pkg), fixture, seconds, threads),
     timeout = seconds + 120
-  ))
+  )
   said <- paste(c("child R printed:", out), collapse = "\n")
   # 124: system2() killed the child at its timeout, a query that hung.
   expect_null(attr(out, "status"), info = said)
