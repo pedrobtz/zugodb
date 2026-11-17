@@ -15,7 +15,7 @@ them.
 
 ## What this is
 
-`slothdb` is to SlothDB what `duckdb` is to DuckDB: the engine’s C++20
+`zuslothdb` is to SlothDB what `duckdb` is to DuckDB: the engine’s C++20
 source vendored into the package and compiled at install, with a DBI
 driver on top, so that SQL over local CSV, Parquet, JSON and Arrow IPC
 files works with no system library, no server and no download. Runtime
@@ -24,7 +24,7 @@ dependencies are `DBI` and `methods` only. It is deliberately not a
 client (HTTP, S3, extension loading and the `ask` module are compiled
 out), and not a `dplyr` backend of its own in v0.1.0.
 
-[.agents/design.md](https://pedrobtz.github.io/slothdb/.agents/design.md)
+[.agents/design.md](https://pedrobtz.github.io/zuslothdb/.agents/design.md)
 is the specification and outranks this file; it records the RFC it came
 from. Its §5.1 fixes the rule for the API: the shape is `duckdb`’s, the
 scope is upstream’s Python binding’s. Its §12 decisions and §14 open
@@ -37,14 +37,14 @@ Scaffolded 2026-11-17 with `create-pkg.sh`; no functionality yet, and
 `DESCRIPTION` still has the scaffold’s placeholder title, description
 and author. Nothing of the engine has been built with any compiler. The
 roadmap in
-[.agents/roadmap.md](https://pedrobtz.github.io/slothdb/.agents/roadmap.md)
+[.agents/roadmap.md](https://pedrobtz.github.io/zuslothdb/.agents/roadmap.md)
 takes it to v0.1.0. Its Stage 1 is a go/no-go spike (decision D1): the
 package may stop there.
 
 ## Versions and dependents
 
 The current version’s parent issue is
-[\#1](https://github.com/pedrobtz/slothdb/issues/1) for `v0.1.0`.
+[\#1](https://github.com/pedrobtz/zuslothdb/issues/1) for `v0.1.0`.
 Sibling packages that depend on this one before CRAN does: none.
 
 ## Commands
@@ -56,10 +56,10 @@ the source list into `src/Makevars`.
 ## Architecture
 
 To be written as stages land; see
-[.agents/design.md](https://pedrobtz.github.io/slothdb/.agents/design.md)
+[.agents/design.md](https://pedrobtz.github.io/zuslothdb/.agents/design.md)
 §4 for the three planned layers (vendored C++, `sdb_` glue C++, R DBI
 classes). The scaffold set up a C stub,
-[src/slothdb.c](https://pedrobtz.github.io/slothdb/src/slothdb.c),
+[src/zuslothdb.c](https://pedrobtz.github.io/zuslothdb/src/zuslothdb.c),
 through `use_c()`; the design needs C++20 (`CXX_STD = CXX20`), so Stage
 1 replaces it.
 
@@ -70,7 +70,7 @@ None is enforced by code yet. The design already fixes these:
 - No C++ exception crosses into R, and no R API call that can longjmp
   runs while a SlothDB object with a destructor is live on the stack
   (§4.3). Breaking either leaks or crashes the session.
-- The shared library exports only `R_init_slothdb`. SlothDB carries a
+- The shared library exports only `R_init_zuslothdb`. SlothDB carries a
   `duckdb_fastpforlib` namespace copied from DuckDB, so visible symbols
   clash when `duckdb` is loaded in the same session.
 - Nothing vendored is edited by hand: every change to upstream is a
@@ -79,8 +79,8 @@ None is enforced by code yet. The design already fixes these:
   [`tempdir()`](https://rdrr.io/r/base/tempfile.html) and the user’s
   `dbdir`.
 - Two threads unless the user sets `threads` (D5).
-- A 64-bit integer that does not fit a double is a `slothdb_type_error`,
-  never a silent rounding (§6).
+- A 64-bit integer that does not fit a double is a
+  `zuslothdb_type_error`, never a silent rounding (§6).
 
 ## Testing
 
@@ -88,7 +88,7 @@ None yet: no conformance suite, helpers or measured runtime. The
 design’s §10 plans DuckDB as the oracle (in a separate development
 project, not in `Suggests`), `DBItest`, upstream’s doctest suite on the
 patched tree, and hostile inputs under the sanitizers, with
-`SLOTHDB_SKIP_HEAVY` and `SLOTHDB_SLOW_TESTS` as the switches.
+`ZUZUSLOTHDB_SKIP_HEAVY` and `ZUZUSLOTHDB_SLOW_TESTS` as the switches.
 
 ## Continuous integration
 

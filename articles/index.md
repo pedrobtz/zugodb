@@ -3,7 +3,7 @@
 ### All vignettes
 
 - [Get started with
-  slothdb](https://pedrobtz.github.io/slothdb/articles/slothdb.md):
+  zuslothdb](https://pedrobtz.github.io/zuslothdb/articles/zuslothdb.md):
 
   Connect, query a local file with SQL, and see how values and failures
   come back to R.
