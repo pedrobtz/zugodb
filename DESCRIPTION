@@ -32,15 +32,26 @@ Copyright: See file inst/COPYRIGHTS.
 URL: https://pedrobtz.github.io/zuslothdb/,
     https://github.com/pedrobtz/zuslothdb
 BugReports: https://github.com/pedrobtz/zuslothdb/issues
+Imports:
+    DBI (>= 1.2.0),
+    methods
 Suggests:
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
+    withr,
     yaml
 VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.1
 Config/testthat/edition: 3
 SystemRequirements: C++20
+Collate:
+    'checks.R'
+    'conditions.R'
+    'driver.R'
+    'connection.R'
+    'info.R'
+    'zuslothdb-package.R'
 Encoding: UTF-8
 Language: en-GB
 Roxygen: list(markdown = TRUE)
