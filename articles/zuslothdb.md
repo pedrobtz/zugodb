@@ -17,10 +17,12 @@ write.csv(mtcars, cars, row.names = FALSE)
 
 ## Connect and query a file
 
-[`zuslothdb()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb-package.md)
+[`zuslothdb()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb.md)
 is a DBI driver, used the way `duckdb::duckdb()` is: code moves between
-the two by changing the first argument of `dbConnect()`. The engine
-reads files through SQL table functions, so there is no import step.
+the two by changing the first argument of
+[`dbConnect()`](https://dbi.r-dbi.org/reference/dbConnect.html). The
+engine reads files through SQL table functions, so there is no import
+step.
 
 ``` r
 

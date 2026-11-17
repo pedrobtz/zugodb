@@ -76,16 +76,16 @@ file, and shows how the package handles types, failures and writing.</p>
 <div class="section level2">
 <h2 id="connect-and-query-a-file">Connect and query a file<a class="anchor" aria-label="anchor" href="#connect-and-query-a-file"></a>
 </h2>
-<p><code><a href="../reference/zuslothdb-package.html">zuslothdb()</a></code> is a DBI driver, used the way
+<p><code><a href="../reference/zuslothdb.html">zuslothdb()</a></code> is a DBI driver, used the way
 <code>duckdb::duckdb()</code> is: code moves between the two by changing
-the first argument of <code>dbConnect()</code>. The engine reads files
+the first argument of <code><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect()</a></code>. The engine reads files
 through SQL table functions, so there is no import step.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">dbConnect</span><span class="op">(</span><span class="fu"><a href="../reference/zuslothdb-package.html">zuslothdb</a></span><span class="op">(</span><span class="op">)</span>, dbdir <span class="op">=</span> <span class="st">":memory:"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu"><a href="../reference/zuslothdb.html">zuslothdb</a></span><span class="op">(</span><span class="op">)</span>, dbdir <span class="op">=</span> <span class="st">":memory:"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span></span>
 <span>  <span class="st">"SELECT cyl, count(*) AS n, avg(mpg) AS mpg "</span>,</span>
-<span>  <span class="st">"FROM read_csv("</span>, <span class="fu">dbQuoteString</span><span class="op">(</span><span class="va">con</span>, <span class="va">cars</span><span class="op">)</span>, <span class="st">") GROUP BY cyl ORDER BY cyl"</span></span>
+<span>  <span class="st">"FROM read_csv("</span>, <span class="fu"><a href="https://dbi.r-dbi.org/reference/dbQuoteString.html" class="external-link">dbQuoteString</a></span><span class="op">(</span><span class="va">con</span>, <span class="va">cars</span><span class="op">)</span>, <span class="st">") GROUP BY cyl ORDER BY cyl"</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Open: what zuslothdb_read() returns and whether it takes reader options (Q12)</span></span>
@@ -99,14 +99,14 @@ information is an error instead of a rounded number. A 64-bit integer is
 a double by default; beyond 2^53 you choose a wider type when
 connecting.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT DATE '2026-11-17' AS day, 42::BIGINT AS n"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT DATE '2026-11-17' AS day, 42::BIGINT AS n"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT 9007199254740993::BIGINT AS n"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT 9007199254740993::BIGINT AS n"</span><span class="op">)</span></span>
 <span><span class="co"># a zuslothdb_type_error</span></span>
 <span></span>
-<span><span class="va">con64</span> <span class="op">&lt;-</span> <span class="fu">dbConnect</span><span class="op">(</span><span class="fu"><a href="../reference/zuslothdb-package.html">zuslothdb</a></span><span class="op">(</span><span class="op">)</span>, bigint <span class="op">=</span> <span class="st">"integer64"</span><span class="op">)</span></span>
-<span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con64</span>, <span class="st">"SELECT 9007199254740993::BIGINT AS n"</span><span class="op">)</span></span>
-<span><span class="fu">dbDisconnect</span><span class="op">(</span><span class="va">con64</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">con64</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu"><a href="../reference/zuslothdb.html">zuslothdb</a></span><span class="op">(</span><span class="op">)</span>, bigint <span class="op">=</span> <span class="st">"integer64"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con64</span>, <span class="st">"SELECT 9007199254740993::BIGINT AS n"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">con64</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="failures-are-classed-conditions">Failures are classed conditions<a class="anchor" aria-label="anchor" href="#failures-are-classed-conditions"></a>
@@ -117,11 +117,11 @@ can tell a bad query from a missing feature. SlothDB has no prepared
 statements, so parameters are refused in v0.1.0.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
-<span>  <span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT no_such_column FROM read_csv('missing.csv')"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT no_such_column FROM read_csv('missing.csv')"</span><span class="op">)</span>,</span>
 <span>  zuslothdb_sql_error <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT ? AS x"</span>, params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">dbGetQuery</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"SELECT ? AS x"</span>, params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co"># a zuslothdb_unsupported error</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -131,15 +131,15 @@ statements, so parameters are refused in v0.1.0.</p>
 database persists them. A database file is tied to the package version
 that wrote it.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">dbWriteTable</span><span class="op">(</span><span class="va">con</span>, <span class="st">"cars"</span>, <span class="va">mtcars</span><span class="op">)</span></span>
-<span><span class="fu">dbAppendTable</span><span class="op">(</span><span class="va">con</span>, <span class="st">"cars"</span>, <span class="va">mtcars</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="op">]</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"cars"</span>, <span class="va">mtcars</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbAppendTable.html" class="external-link">dbAppendTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"cars"</span>, <span class="va">mtcars</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="op">]</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">dbBegin</span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
-<span><span class="fu">dbExecute</span><span class="op">(</span><span class="va">con</span>, <span class="st">"DELETE FROM cars WHERE cyl = 8"</span><span class="op">)</span></span>
-<span><span class="fu">dbRollback</span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/transactions.html" class="external-link">dbBegin</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"DELETE FROM cars WHERE cyl = 8"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/transactions.html" class="external-link">dbRollback</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">dbListTables</span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
-<span><span class="fu">dbDisconnect</span><span class="op">(</span><span class="va">con</span>, shutdown <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbListTables.html" class="external-link">dbListTables</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">con</span>, shutdown <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="where-next">Where next<a class="anchor" aria-label="anchor" href="#where-next"></a>

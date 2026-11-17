@@ -35,8 +35,15 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.0.9000" id="zuslothdb-0009000">zuslothdb 0.0.0.9000<a class="anchor" aria-label="anchor" href="#zuslothdb-0009000"></a></h2>
-<ul><li>The SlothDB engine is bundled and compiled with the package: upstream commit <code>8180f21</code> with six patches, listed by <code><a href="../reference/zuslothdb_info.html">zuslothdb_info()</a></code>. The package is offline only: a remote path in a query is an error. The engine runs two threads.</li>
-<li>The package has its name, title and description.</li>
+<ul><li>
+<code><a href="../reference/zuslothdb.html">zuslothdb()</a></code> is a DBI driver, used as <code>duckdb::duckdb()</code> is: it holds one database, in memory or in a file, that its connections share. <code><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect()</a></code>, <code><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect()</a></code>, <code><a href="https://dbi.r-dbi.org/reference/dbIsValid.html" class="external-link">dbIsValid()</a></code>, <code><a href="https://dbi.r-dbi.org/reference/dbGetInfo.html" class="external-link">dbGetInfo()</a></code> and <code><a href="https://rdrr.io/r/methods/show.html" class="external-link">show()</a></code> work for the driver and the connection, and <code><a href="https://dbi.r-dbi.org/reference/dbExecute.html" class="external-link">dbExecute()</a></code> runs statements and returns the rows they changed.</li>
+<li>
+<code>dbConnect(read_only = TRUE)</code> refuses every statement that would change the database and never writes its file.</li>
+<li>
+<code>dbConnect(threads = )</code> caps the engine’s threads, 2 by default; the engine has one thread pool per process, so the cap is process-wide.</li>
+<li>A file database is written when its last connection closes. A connection used in a forked child is a <code>zuslothdb_closed_error</code>.</li>
+<li>Errors are conditions inheriting from <code>zuslothdb_error</code>: <code>zuslothdb_sql_error</code> (the engine’s message), <code>zuslothdb_type_error</code>, <code>zuslothdb_argument_error</code>, <code>zuslothdb_closed_error</code> and <code>zuslothdb_unsupported</code> (<code>params =</code>).</li>
+<li>The SlothDB engine is bundled and compiled with the package: upstream commit <code>8180f21</code> with seven patches, listed by <code><a href="../reference/zuslothdb_info.html">zuslothdb_info()</a></code>. The package is offline only: a remote path in a query is an error.</li>
 </ul></div>
   </main></div>
 
