@@ -9,7 +9,9 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-# Not evaluated: written from .agents/design.md before the API exists.
+# Not evaluated: written from .agents/design.md before the API exists. eval
+# = FALSE is also set on each chunk, because knitr::purl() (which R CMD
+# check runs) reads chunk headers, not this setup call.
 # Switch eval on, and check the output, once the functions are in.
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
@@ -20,7 +22,7 @@ and puts a DBI driver on top, so there is no server, no system library and
 no download. This page connects, queries one CSV file, and shows how the
 package handles types, failures and writing.
 
-```{r setup}
+```{r setup, eval = FALSE}
 library(DBI)
 library(zuslothdb)
 
@@ -34,7 +36,7 @@ write.csv(mtcars, cars, row.names = FALSE)
 between the two by changing the first argument of `dbConnect()`. The engine
 reads files through SQL table functions, so there is no import step.
 
-```{r}
+```{r, eval = FALSE}
 con <- dbConnect(zuslothdb(), dbdir = ":memory:")
 
 dbGetQuery(con, paste0(
@@ -52,7 +54,7 @@ Every engine type maps to one R type, and a value that would lose
 information is an error instead of a rounded number. A 64-bit integer is a
 double by default; beyond 2^53 you choose a wider type when connecting.
 
-```{r}
+```{r, eval = FALSE}
 dbGetQuery(con, "SELECT DATE '2026-11-17' AS day, 42::BIGINT AS n")
 
 dbGetQuery(con, "SELECT 9007199254740993::BIGINT AS n")
@@ -70,7 +72,7 @@ conditions that inherit from `zuslothdb_error`, so a caller can tell a bad
 query from a missing feature. SlothDB has no prepared statements, so
 parameters are refused in v0.1.0.
 
-```{r}
+```{r, eval = FALSE}
 tryCatch(
   dbGetQuery(con, "SELECT no_such_column FROM read_csv('missing.csv')"),
   zuslothdb_sql_error = function(e) conditionMessage(e)
@@ -86,7 +88,7 @@ Data frames are written through the engine's appender, and a file database
 persists them. A database file is tied to the package version that wrote
 it.
 
-```{r}
+```{r, eval = FALSE}
 dbWriteTable(con, "cars", mtcars)
 dbAppendTable(con, "cars", mtcars[1:3, ])
 
