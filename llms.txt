@@ -22,7 +22,12 @@ You can install the development version of zuslothdb from
 pak::pak("pedrobtz/zuslothdb")
 ```
 
-# 
+# Package index
+
+## All functions
+
+- [`zuslothdb_info()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_info.md)
+  : Information about the bundled engine
 
 # Articles
 

@@ -94,5 +94,6 @@ dbDisconnect(con, shutdown = TRUE)
 ## Where next
 
 The [reference index](https://pedrobtz.github.io/zuslothdb/reference/)
-lists every function. `zuslothdb_info()` reports the engine commit, the
-patches applied and the thread count.
+lists every function.
+[`zuslothdb_info()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_info.md)
+reports the engine commit, the patches applied and the thread count.

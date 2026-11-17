@@ -26,3 +26,25 @@ Useful links:
 Authors:
 
 - Pedro Baltazar <pedrobtz@gmail.com> \[copyright holder\]
+
+Other contributors:
+
+- SlothDB Contributors (bundled SlothDB engine) \[contributor, copyright
+  holder\]
+
+- Meta Platforms, Inc. and affiliates (bundled Zstandard decompressor)
+  \[copyright holder\]
+
+- Google Inc. (bundled Snappy) \[copyright holder\]
+
+- Daniel Lemire (bundled FastPFor bitpacking) \[contributor, copyright
+  holder\]
+
+- RAD Game Tools and Valve Software (bundled miniz) \[copyright holder\]
+
+- Rich Geldreich (bundled miniz) \[contributor, copyright holder\]
+
+- Tenacious Software LLC (bundled miniz) \[copyright holder\]
+
+- Martin Leitner-Ankerl (bundled unordered_dense) \[contributor,
+  copyright holder\]
