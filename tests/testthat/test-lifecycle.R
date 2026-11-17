@@ -173,3 +173,55 @@ test_that("dbGetInfo() names the database and the engine commit", {
     utils::packageVersion("zuslothdb")
   )
 })
+
+# Results (roadmap Stage 3).
+
+test_that("fetching after dbClearResult() is a zuslothdb_closed_error", {
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  expect_true(DBI::dbClearResult(res))
+  expect_false(DBI::dbIsValid(res))
+  expect_error(DBI::dbFetch(res), class = "zuslothdb_closed_error")
+  expect_error(DBI::dbHasCompleted(res), class = "zuslothdb_closed_error")
+})
+
+test_that("clearing twice warns and returns FALSE", {
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  DBI::dbClearResult(res)
+  expect_warning(out <- DBI::dbClearResult(res), "already cleared")
+  expect_false(out)
+})
+
+test_that("fetching after dbDisconnect() is a zuslothdb_closed_error", {
+  con <- DBI::dbConnect(zuslothdb())
+  res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  DBI::dbDisconnect(con)
+  expect_false(DBI::dbIsValid(res))
+  expect_error(DBI::dbFetch(res), class = "zuslothdb_closed_error")
+})
+
+test_that("a second query while one is open clears the first, with a warning", {
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  first <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  expect_warning(second <- DBI::dbSendQuery(con, "SELECT 2 AS b"), "Clearing")
+  expect_false(DBI::dbIsValid(first))
+  expect_error(DBI::dbFetch(first), class = "zuslothdb_closed_error")
+  expect_identical(DBI::dbFetch(second)$b, 2L)
+  DBI::dbClearResult(second)
+  # A cleared result does not count as open: no warning for the next.
+  expect_no_warning(third <- DBI::dbSendQuery(con, "SELECT 3 AS c"))
+  DBI::dbClearResult(third)
+})
+
+test_that("show() reports a result and whether it is cleared", {
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  expect_output(show(res), "<zuslothdb_result> SELECT 1 AS a$")
+  DBI::dbClearResult(res)
+  expect_output(show(res), "\\(cleared\\)")
+})

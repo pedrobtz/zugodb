@@ -1,0 +1,3 @@
+CREATE TABLE t (id INTEGER, b BOOLEAN);
+INSERT INTO t VALUES (1, true), (2, false), (3, NULL);
+SELECT b FROM t ORDER BY id;
