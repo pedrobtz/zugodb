@@ -54,3 +54,14 @@ test_that("sql must be one string", {
     expect_error(sdb_query_int(bad), class = "zuslothdb_argument_error")
   }
 })
+
+test_that("a result that is not one integer is refused, by its kind", {
+  # No value: a statement with no result set.
+  expect_error(
+    sdb_query_int("CREATE TABLE t (a INTEGER)"),
+    class = "zuslothdb_sql_error"
+  )
+  # A value of another type is a type error, not an engine error.
+  expect_error(sdb_query_int("SELECT 'a'"), class = "zuslothdb_type_error")
+  expect_error(sdb_query_int("SELECT 1.5"), class = "zuslothdb_type_error")
+})

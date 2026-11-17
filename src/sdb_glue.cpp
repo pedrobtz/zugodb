@@ -32,10 +32,14 @@ namespace {
 // that produced it without a destructor of its own on the R side.
 struct EngineError {
   bool failed = false;
+  // "sql" for the engine's own errors, "type" for a value R cannot take;
+  // sdb_abort() in R maps each to its condition class.
+  const char *kind = "sql";
   char message[2048] = {0};
 
-  void set(const char *msg) {
+  void set(const char *msg, const char *k = "sql") {
     failed = true;
+    kind = k;
     std::strncpy(message, msg ? msg : "unknown error", sizeof(message) - 1);
     message[sizeof(message) - 1] = '\0';
   }
@@ -75,7 +79,8 @@ void EngineScalarInt(const char *sql, ScalarInt *out, EngineError *err) {
       break;
     default:
       err->set(("the value is not an integer but " + v.type().ToString())
-                   .c_str());
+                   .c_str(),
+               "type");
       return;
     }
     // INT_MIN is R's NA_integer_, so it does not fit either.
@@ -122,7 +127,7 @@ SEXP sdb_scalar_int(SEXP sql) {
   ScalarInt v;
   EngineError err;
   EngineScalarInt(text, &v, &err);
-  if (err.failed) return ResultList(R_NilValue, err, "sql");
+  if (err.failed) return ResultList(R_NilValue, err, err.kind);
   switch (v.kind) {
   case ScalarKind::kNull:
     return ResultList(Rf_ScalarInteger(NA_INTEGER), err, "ok");
