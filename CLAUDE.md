@@ -71,8 +71,17 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
   `R_init_zuslothdb`. Engine work happens in `Engine*` helpers inside
   `try`/`catch` with all C++ objects scoped there; entry points get back
   plain values and an error string, then build R objects.
-- `R/`: errors from the glue become conditions in `sdb_abort()`
-  ([R/spike.R](R/spike.R)); `zuslothdb_info()` in [R/info.R](R/info.R).
+- [src/sdb_database.cpp](src/sdb_database.cpp): databases and connections
+  behind external pointers. A connection's `prot` is its database's
+  pointer, so the database struct outlives it; closing a database
+  destroys its connections' engine objects first. Every struct records
+  its process; from another (a fork) it is closed and its finalizer
+  does nothing.
+- `R/`: [R/driver.R](R/driver.R) (`zuslothdb()`, the database it holds,
+  opened at the first connection), [R/connection.R](R/connection.R)
+  (`dbConnect()` to `dbExecute()`), [R/conditions.R](R/conditions.R)
+  (`sdb_abort()` turns the glue's error kind into a condition class),
+  [R/checks.R](R/checks.R) (argument checks), [R/info.R](R/info.R).
 
 ## Invariants that are easy to break
 
@@ -101,9 +110,15 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
 
 `tests/testthat/` runs shuffled with the seed printed
 ([tests/testthat.R](tests/testthat.R), `tools/ci-run-tests.R`). So far:
-`test-spike.R` (the query path, its errors and R's integer range),
-`test-info.R` (the compiled-in provenance against the installed
-`vendor.yaml`) and `test-zuslothdb.R`. Upstream's own doctest suite runs
+`test-spike.R` (the Stage 1 query path), `test-info.R` (the compiled-in
+provenance against the installed `vendor.yaml`), `test-lifecycle.R`
+(out-of-order sequences), `test-connect.R` (arguments, read-only,
+threads), `test-fork.R`, `test-unwind.R` (valgrind is its leak oracle)
+and `test-conditions.R`. Until Stage 3 brings results, "the data is
+there" is the row count a `DELETE` reports. A finalizer's warning
+cannot be caught around `gc()` (R runs finalizers through
+`R_ToplevelExec`): test the effect of collection, and call the finalizer
+for the warning. Upstream's own doctest suite runs
 on the patched tree through `tools/upstream-tests.sh` (378 cases), and
 `tools/ci/coexist.R` runs `duckdb` in the same session: both from
 `tools/ci/platform.sh`, never from testthat, because §10 keeps `duckdb`
@@ -131,7 +146,7 @@ besides the three closing stages.
 decompressor, snappy, fastpforlib and, inside `src/storage/`, miniz;
 `unordered_dense.h` under `include/third_party/`. Left out: `src/ask/`,
 `src/extension/`, `src/api/` (the C API), the HTTP client and upstream's
-CMake files. Six
+CMake files. Seven
 patches in `tools/patches/`, each with its reason in `tools/vendor.yaml`;
 holders in `inst/COPYRIGHTS`. To update: change `upstream.commit` (and
 `describe`) in `tools/vendor.yaml`, run `Rscript tools/vendor.R`, refresh

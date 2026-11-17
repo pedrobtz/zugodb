@@ -75,8 +75,8 @@ cannot apply.
 <!-- markdownlint-disable MD013 -->
 | Object     | Sequences | Fork    | Unwind  | Owner   |
 | ---------- | --------- | ------- | ------- | ------- |
-| database   | gap #25   | gap #25 | gap #25 | gap #25 |
-| connection | gap #25   | gap #25 | gap #25 | gap #25 |
+| database   | tests/testthat/test-lifecycle.R | tests/testthat/test-fork.R | tests/testthat/test-unwind.R | the driver (R/driver.R); connections keep it alive through `prot` |
+| connection | tests/testthat/test-lifecycle.R | tests/testthat/test-fork.R | tests/testthat/test-unwind.R | its database's external pointer, in `prot` (src/sdb_database.cpp) |
 | result     | gap #25   | gap #25 | gap #25 | gap #25 |
 <!-- markdownlint-enable MD013 -->
 
@@ -89,3 +89,4 @@ One row per limit the package enforces. "Straddled by" is the test of
 | ----------------------------- | ------------- | ------------ |
 | 2^53, the largest exact double | integer value | gap #26      |
 | R's integer range, 2^31 - 1 and -(2^31 - 1) | integer value | tests/testthat/test-spike.R |
+| `threads`, 1 to 2^31 - 1                     | threads       | tests/testthat/test-connect.R |
