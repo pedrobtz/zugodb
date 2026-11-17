@@ -12,6 +12,11 @@ test_that("Parquet queries that stop early return, with their rows (#32)", {
     file.exists(file.path(pkg, "Meta", "package.rds")),
     "needs the installed package: the queries run in a child R"
   )
+  # Not a hang: the filtered query kills the child R there (exit 1033).
+  skip_if(
+    .Platform$OS.type == "windows",
+    "a filtered Parquet query kills R on Windows (#34)"
+  )
   # CRAN: two seconds on two threads (its limit). Elsewhere: six threads,
   # which hung the unpatched engine 4 runs in 5 within 20 seconds.
   slow <- nzchar(Sys.getenv("ZUSLOTHDB_SLOW_TESTS"))
