@@ -1,5 +1,8 @@
 # zuslothdb 0.0.0.9000
 
+* A Parquet query that stops before the file's last row group, such as a
+  `LIMIT`, no longer hangs now and then: the engine's decode workers
+  could miss the signal to stop (#32).
 * `dbSendQuery()`, `dbFetch()`, `dbGetQuery()` and the other result
   methods return data frames. Boolean, integer, floating-point and
   `VARCHAR` columns arrive as logical, integer, double and UTF-8
@@ -24,5 +27,5 @@
   `zuslothdb_argument_error`, `zuslothdb_closed_error` and
   `zuslothdb_unsupported` (`params =`).
 * The SlothDB engine is bundled and compiled with the package: upstream
-  commit `8180f21` with seven patches, listed by `zuslothdb_info()`. The
+  commit `8180f21` with eight patches, listed by `zuslothdb_info()`. The
   package is offline only: a remote path in a query is an error.

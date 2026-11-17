@@ -107,6 +107,15 @@ patches:
       DatabaseConfig makes Connection::Query refuse any batch with a
       statement that changes the database, before any of it runs, and stops
       the destructor saving the file.
+  - file: 0008-lost-wakeup.patch
+    reason: >-
+      A lost wakeup hung the session (#32): PhysicalParquetScan::StopWorkers
+      and ThreadPool's destructor set their stop flag outside the mutex
+      their workers wait with, so a worker between its predicate and its
+      wait missed the notify and join() never returned. A Parquet query
+      that stops early (LIMIT over several row groups) reached it. Each
+      flag is now set under that mutex, as are ThreadPool's active-task
+      count changes that WaitAll() waits on.
 
 test_patches:
   - file: tests/0001-stale-date-tests.patch
