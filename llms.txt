@@ -1,26 +1,25 @@
 # zuslothdb
 
-The goal of zuslothdb is to …
+zuslothdb is to [SlothDB](https://github.com/SouravRoy-ETL/slothdb) what
+duckdb is to DuckDB. The engine’s C++ source is bundled into the package
+and compiled when you install it. On top of it sits a DBI driver, so SQL
+over local CSV, Parquet, JSON and Arrow IPC files works with no system
+library, no server and no download. SlothDB calls itself experimental,
+and so is this package: it is not a duckdb replacement.
+
+The package is in development. Nothing of the engine is built yet; the
+[roadmap](https://github.com/pedrobtz/zuslothdb/blob/main/.agents/roadmap.md)
+takes it to its first release.
 
 ## Installation
 
 You can install the development version of zuslothdb from
-[GitHub](https://github.com/) with:
+[GitHub](https://github.com/pedrobtz/zuslothdb) with:
 
 ``` r
 
 # install.packages("pak")
 pak::pak("pedrobtz/zuslothdb")
-```
-
-## Example
-
-This is a basic example which shows you how to solve a common problem:
-
-``` r
-
-library(zuslothdb)
-## basic example code
 ```
 
 # 
