@@ -2,10 +2,23 @@
 # Called by r-actions vendor.yml from the repository root: rebuild the
 # vendored tree from tools/vendor.yaml and tools/patches in a temporary
 # directory and compare it, file by file, with what is committed.
+#
+# vendor.yml runs this on a bare ubuntu-latest runner, which has no R: then
+# Ubuntu's own R and yaml packages are installed first (about a minute).
 set -eu
+if ! command -v Rscript >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq --no-install-recommends r-base-core r-cran-yaml > /dev/null
+  else
+    echo "tools/vendor/verify needs Rscript" >&2
+    exit 1
+  fi
+fi
 if ! Rscript -e 'quit(status = !requireNamespace("yaml", quietly = TRUE))' 2>/dev/null; then
   lib=$(mktemp -d)
   Rscript -e "install.packages('yaml', lib = '$lib', repos = 'https://cloud.r-project.org')"
-  export R_LIBS="$lib${R_LIBS:+:$R_LIBS}"
+  R_LIBS="$lib${R_LIBS:+:$R_LIBS}"
+  export R_LIBS
 fi
 Rscript tools/vendor.R --verify

@@ -26,6 +26,8 @@ R=${R_HOME:+$R_HOME/bin/}R
 Rscript=${R_HOME:+$R_HOME/bin/}Rscript
 command -v Rscript >/dev/null 2>&1 && R=R && Rscript=Rscript
 jobs=$("$Rscript" -e 'cat(max(1L, parallel::detectCores()))')
+sep=:
+[ "$os" = windows ] && sep=';'
 
 group() { echo "::group::$*"; }
 endgroup() { echo "::endgroup::"; }
@@ -70,8 +72,9 @@ exports() {
 imports() {
   case "$os" in
     macos) nm -u "$1" | awk '{print $NF}' | sed 's/^_//' ;;
+    # "<tab><address>  <ordinal>  <hint>  <name>" under each DLL Name.
     windows) objdump -p "$1" | awk '/DLL Name:/ {on = 1; next}
-                                    on && /^\t+[0-9a-f]+ +[0-9]+ / {print $NF}' ;;
+                                    on && /^\t[0-9a-f]+[ \t]/ {print $NF}' ;;
     *) nm -u "$1" | awk '{print $NF}' | sed 's/@.*//' ;;
   esac
 }
@@ -80,12 +83,17 @@ group "Exported symbols"
 exports "$so" | sort -u > "$tmp/exports"
 wc -l < "$tmp/exports" | sed 's/^ */exported: /'
 endgroup
-# The C++ standard library's own template typeinfo (_ZTI/_ZTS of std::
-# classes) is exported by libc++ and libstdc++ whatever -fvisibility says;
-# it is the same in every library that instantiates it, so it cannot clash.
-# Everything else must be R_init_zuslothdb (design §4, the
-# duckdb_fastpforlib clash).
-grep -vE '^_ZT[ISV](N?St|NSt3__1|NSt7__cxx11|NSt6__ndk1)' "$tmp/exports" > "$tmp/ours" || true
+# The C++ standard library's template instantiations (std::, __gnu_cxx::,
+# with their typeinfo, vtables and guard variables) are exported by
+# libstdc++ and libc++ whatever -fvisibility says. Each is the same code in
+# every library that instantiates it, so binding to another library's copy
+# changes nothing. Everything else must be R_init_zuslothdb (design §4, the
+# duckdb_fastpforlib and zstd clashes).
+demangle() { if command -v c++filt >/dev/null 2>&1; then c++filt -n; else cat; fi; }
+std='^((typeinfo( name)?|vtable|VTT|construction vtable|guard variable) for )?(std|__gnu_cxx)::'
+demangle < "$tmp/exports" | paste "$tmp/exports" - |
+  awk -F'\t' -v re="$std" '$2 !~ re {print $1}' > "$tmp/ours"
+echo "of which not the C++ standard library's: $(wc -l < "$tmp/ours" | tr -d ' ')"
 if ! [ "$(cat "$tmp/ours")" = "R_init_zuslothdb" ]; then
   echo "FAIL: the shared object exports more than R_init_zuslothdb:" >&2
   grep -vx 'R_init_zuslothdb' "$tmp/ours" | head -50 >&2
@@ -117,23 +125,10 @@ echo "ok: no CRAN-flagged symbol linked"
 # 3. With duckdb in the same session. A binary from the platform's usual
 # repository: CRAN's on macOS and Windows, Posit's on Ubuntu.
 group "duckdb"
-R_LIBS="$lib${R_LIBS:+:$R_LIBS}" "$Rscript" -e '
-  if (!requireNamespace("duckdb", quietly = TRUE)) {
-    repos <- getOption("repos")
-    if (Sys.info()[["sysname"]] == "Linux") {
-      rel <- sub(".*=", "", grep("^VERSION_CODENAME=", readLines("/etc/os-release"), value = TRUE))
-      repos <- c(P3M = sprintf("https://packagemanager.posit.co/cran/__linux__/%s/latest", rel))
-      options(HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(),
-        paste(getRversion(), R.version$platform, R.version$arch, R.version$os)))
-    } else if (is.null(repos) || repos[["CRAN"]] == "@CRAN@") {
-      repos <- c(CRAN = "https://cloud.r-project.org")
-    }
-    install.packages(c("DBI", "duckdb"), lib = .libPaths()[1], repos = repos)
-  }
-  cat("duckdb", as.character(packageVersion("duckdb")), "\n")'
+R_LIBS="$lib${R_LIBS:+$sep$R_LIBS}" "$Rscript" tools/ci/install-duckdb.R
 endgroup
 for order in zuslothdb-first duckdb-first; do
-  R_LIBS="$lib${R_LIBS:+:$R_LIBS}" "$Rscript" tools/ci/coexist.R "$order"
+  R_LIBS="$lib${R_LIBS:+$sep$R_LIBS}" "$Rscript" tools/ci/coexist.R "$order"
 done
 
 # ---------------------------------------------------------------------------
