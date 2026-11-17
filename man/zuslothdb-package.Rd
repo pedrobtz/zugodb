@@ -25,5 +25,17 @@ Authors:
   \item Pedro Baltazar \email{pedrobtz@gmail.com} [copyright holder]
 }
 
+Other contributors:
+\itemize{
+  \item SlothDB Contributors (bundled SlothDB engine) [contributor, copyright holder]
+  \item Meta Platforms, Inc. and affiliates (bundled Zstandard decompressor) [copyright holder]
+  \item Google Inc. (bundled Snappy) [copyright holder]
+  \item Daniel Lemire (bundled FastPFor bitpacking) [contributor, copyright holder]
+  \item RAD Game Tools and Valve Software (bundled miniz) [copyright holder]
+  \item Rich Geldreich (bundled miniz) [contributor, copyright holder]
+  \item Tenacious Software LLC (bundled miniz) [copyright holder]
+  \item Martin Leitner-Ankerl (bundled unordered_dense) [contributor, copyright holder]
+}
+
 }
 \keyword{internal}
