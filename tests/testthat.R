@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(slothdb)
+library(zuslothdb)
 
-test_check("slothdb")
+test_check("zuslothdb")

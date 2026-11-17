@@ -2,6 +2,6 @@
 "_PACKAGE"
 
 ## usethis namespace: start
-#' @useDynLib slothdb, .registration = TRUE
+#' @useDynLib zuslothdb, .registration = TRUE
 ## usethis namespace: end
 NULL

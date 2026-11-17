@@ -1,10 +1,10 @@
-# slothdb: roadmap
+# zuslothdb: roadmap
 
 Status: draft 2026-11-17. Implements [design.md](design.md).
 Target: v0.1.0, the first CRAN release.
-Tracking: [v0.1.0 (#1)](https://github.com/pedrobtz/slothdb/issues/1),
+Tracking: [v0.1.0 (#1)](https://github.com/pedrobtz/zuslothdb/issues/1),
 with one sub-issue per stage;
-[CRAN-submission (#15)](https://github.com/pedrobtz/slothdb/issues/15).
+[CRAN-submission (#15)](https://github.com/pedrobtz/zuslothdb/issues/15).
 
 Stage 1 is a go/no-go spike. If its numbers meet the stop condition of
 [D1](design.md#12-decisions), the package stops there: the reason is
@@ -16,25 +16,25 @@ planned.
 <!-- markdownlint-disable MD013 -->
 | Stage | Title | CI | Issue | Pull request | Done |
 | --- | --- | --- | --- | --- | --- |
-| 0 | [Package identity](#stage-0--package-identity) | quick | [#2](https://github.com/pedrobtz/slothdb/issues/2) | | |
-| 1 | [Engine spike](#stage-1--engine-spike) | full | [#3](https://github.com/pedrobtz/slothdb/issues/3) | | |
-| 2 | [Driver and connection](#stage-2--driver-and-connection) | full | [#4](https://github.com/pedrobtz/slothdb/issues/4) | | |
-| 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/slothdb/issues/5) | | |
-| 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/slothdb/issues/6) | | |
-| 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/slothdb/issues/7) | | |
-| 6 | [Files and persistence](#stage-6--files-and-persistence) | full | [#8](https://github.com/pedrobtz/slothdb/issues/8) | | |
-| 7 | [DBItest conformance](#stage-7--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/slothdb/issues/9) | | |
-| 8 | [Documentation and measured claims](#stage-8--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/slothdb/issues/10) | | |
-| 9 | [Assurance](#stage-9--assurance) | quick | [#11](https://github.com/pedrobtz/slothdb/issues/11) | | |
-| 10 | [Full CI](#stage-10--full-ci) | full | [#12](https://github.com/pedrobtz/slothdb/issues/12) | | |
-| 11 | [v0.1.0 readiness](#stage-11--v010-readiness) | full | [#13](https://github.com/pedrobtz/slothdb/issues/13) | | |
-| 12 | [Review](#stage-12--review) | full | [#14](https://github.com/pedrobtz/slothdb/issues/14) | | |
+| 0 | [Package identity](#stage-0--package-identity) | quick | [#2](https://github.com/pedrobtz/zuslothdb/issues/2) | | |
+| 1 | [Engine spike](#stage-1--engine-spike) | full | [#3](https://github.com/pedrobtz/zuslothdb/issues/3) | | |
+| 2 | [Driver and connection](#stage-2--driver-and-connection) | full | [#4](https://github.com/pedrobtz/zuslothdb/issues/4) | | |
+| 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/zuslothdb/issues/5) | | |
+| 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | | |
+| 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | | |
+| 6 | [Files and persistence](#stage-6--files-and-persistence) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | |
+| 7 | [DBItest conformance](#stage-7--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
+| 8 | [Documentation and measured claims](#stage-8--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/zuslothdb/issues/10) | | |
+| 9 | [Assurance](#stage-9--assurance) | quick | [#11](https://github.com/pedrobtz/zuslothdb/issues/11) | | |
+| 10 | [Full CI](#stage-10--full-ci) | full | [#12](https://github.com/pedrobtz/zuslothdb/issues/12) | | |
+| 11 | [v0.1.0 readiness](#stage-11--v010-readiness) | full | [#13](https://github.com/pedrobtz/zuslothdb/issues/13) | | |
+| 12 | [Review](#stage-12--review) | full | [#14](https://github.com/pedrobtz/zuslothdb/issues/14) | | |
 <!-- markdownlint-enable MD013 -->
 
 ## Stage 0 — Package identity
 
-**Issue.** [#2](https://github.com/pedrobtz/slothdb/issues/2), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#2](https://github.com/pedrobtz/zuslothdb/issues/2), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `quick`.
 
@@ -63,7 +63,7 @@ economy and its assurance file in place, before any engine code arrives.
 **Tests.**
 
 - The package loads and its one placeholder test runs shuffled: the seed
-  printed in the CI log, in `tests/testthat/test-slothdb.R`.
+  printed in the CI log, in `tests/testthat/test-zuslothdb.R`.
 - `.agents/assurance.md` is well formed and every gap is tracked:
   `assurance.yml`, which fails on either.
 
@@ -79,8 +79,8 @@ the family conventions that apply.
 
 ## Stage 1 — Engine spike
 
-**Issue.** [#3](https://github.com/pedrobtz/slothdb/issues/3), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#3](https://github.com/pedrobtz/zuslothdb/issues/3), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `full — a vendored C++20 library and the package's first compiled
 code: every platform leg, sanitizers, valgrind and rchk must see it before
@@ -97,8 +97,8 @@ and answers one query, and the numbers that decide D1 are written down.
 - The patches of §4.2, with Q2 (AVX2 kernels) and Q11 (which readers are
   compiled) decided and recorded.
 - Minimal glue: one database, one connection, `SELECT 42` returned as an
-  R integer, behind the exception barrier of §4.3. `slothdb_info()`.
-- Symbol visibility: only `R_init_slothdb` exported.
+  R integer, behind the exception barrier of §4.3. `zuslothdb_info()`.
+- Symbol visibility: only `R_init_zuslothdb` exported.
 - `tools/upstream-tests.sh`: builds upstream's doctest binary against the
   patched tree without R, run as a step of `tools/ci/platform.sh`.
 - `native-checks.yaml` (sanitizers, valgrind, rchk, analyzers) and
@@ -114,11 +114,11 @@ and answers one query, and the numbers that decide D1 are written down.
 **Tests.**
 
 - `SELECT 42`: the literal, in `tests/testthat/test-spike.R`.
-- `slothdb_info()` reports the pinned commit and patch list:
+- `zuslothdb_info()` reports the pinned commit and patch list:
   `tools/vendor.yaml`, read by the test, in `test-info.R`.
 - The patches break nothing upstream tested: upstream's own doctest
   cases, by `tools/upstream-tests.sh`.
-- Only `R_init_slothdb` is exported: `nm` on the built library, in
+- Only `R_init_zuslothdb` is exported: `nm` on the built library, in
   `tools/ci/platform.sh`, once per OS.
 - `duckdb` loaded in the same session: both answer `SELECT 42`, in
   `test-coexist.R`, skipped without `duckdb`.
@@ -140,22 +140,22 @@ and answers one query, and the numbers that decide D1 are written down.
 
 ## Stage 2 — Driver and connection
 
-**Issue.** [#4](https://github.com/pedrobtz/slothdb/issues/4), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#4](https://github.com/pedrobtz/zuslothdb/issues/4), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `full — external pointers with finalizers for the database and
 the connection: valgrind, ASan and a dispatched step-20 gctorture run.`
 
-**Goal.** `dbConnect(slothdb())` and `dbDisconnect()` work, every
+**Goal.** `dbConnect(zuslothdb())` and `dbDisconnect()` work, every
 lifetime is defined, and failures are classed conditions.
 
 **Work.**
 
-- `slothdb()`, `dbConnect()`, `dbDisconnect()`, `dbIsValid()`,
-  `dbGetInfo()`, `show()`; the `slothdb_driver` and `slothdb_connection`
+- `zuslothdb()`, `dbConnect()`, `dbDisconnect()`, `dbIsValid()`,
+  `dbGetInfo()`, `show()`; the `zuslothdb_driver` and `zuslothdb_connection`
   classes; `threads`, `read_only`.
 - Q9 (where the database lives) and Q13 (fork) decided and recorded.
-- The `slothdb_error` condition classes.
+- The `zuslothdb_error` condition classes.
 - `dbExecute()` for statements without a result, so tests can set up
   state.
 - The Objects rows for database and connection in `.agents/assurance.md`.
@@ -165,7 +165,7 @@ lifetime is defined, and failures are classed conditions.
 - Database and connection, out-of-order sequences (disconnect twice, use
   after disconnect, use after `shutdown`, database collected while a
   connection lives, collected without disconnect): each a
-  `slothdb_closed_error` or the documented warning, in
+  `zuslothdb_closed_error` or the documented warning, in
   `test-lifecycle.R`.
 - Fork guard: a connection used in a `parallel::mcparallel()` child, in
   `test-fork.R`, skipped on Windows.
@@ -173,10 +173,10 @@ lifetime is defined, and failures are classed conditions.
   valid and no engine object leaked, checked under valgrind, in
   `test-unwind.R`.
 - `threads`: 0 refused, 1 and 2 accepted and reported by
-  `slothdb_info()`, the default 2, in `test-connect.R`.
-- `read_only = TRUE`: a write is a `slothdb_sql_error` and the file's
+  `zuslothdb_info()`, the default 2, in `test-connect.R`.
+- `read_only = TRUE`: a write is a `zuslothdb_sql_error` and the file's
   bytes are unchanged (`tools::md5sum()`), in `test-connect.R`.
-- An engine error: class `slothdb_sql_error` carrying the engine's
+- An engine error: class `zuslothdb_sql_error` carrying the engine's
   message, in `test-conditions.R`.
 
 **Exit criteria.**
@@ -191,8 +191,8 @@ lifetime is defined, and failures are classed conditions.
 
 ## Stage 3 — Results and scalar types
 
-**Issue.** [#5](https://github.com/pedrobtz/slothdb/issues/5), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#5](https://github.com/pedrobtz/zuslothdb/issues/5), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `full — the column conversion from engine chunks to R vectors is
 where the glue allocates and protects: sanitizers, valgrind, rchk and
@@ -206,9 +206,9 @@ R types the design's table names.
 - `dbSendQuery()`, `dbFetch(n)` by chunk, `dbClearResult()`,
   `dbGetQuery()`, `dbHasCompleted()`, `dbGetRowCount()`,
   `dbGetRowsAffected()`, `dbGetStatement()`, `dbColumnInfo()`; the
-  `slothdb_result` class.
+  `zuslothdb_result` class.
 - Boolean, integer, floating-point and `VARCHAR` columns; `bigint`.
-- `params =` and `dbBind()` raise `slothdb_unsupported`.
+- `params =` and `dbBind()` raise `zuslothdb_unsupported`.
 - The oracle harness: `tools/oracle.R` and `tests/testthat/oracle/`, each
   query with the `duckdb` answer recorded beside it and the `duckdb`
   version that gave it.
@@ -223,13 +223,13 @@ R types the design's table names.
 - `dbFetch(n)`: chunks of `n - 1`, `n` and `n + 1` rows against a known
   row count concatenate to the `dbGetQuery()` result, in `test-fetch.R`.
 - 64-bit integers at 2^53 - 1, 2^53 and 2^53 + 1 under each `bigint`
-  value: exact value or `slothdb_type_error`, against the literal's
+  value: exact value or `zuslothdb_type_error`, against the literal's
   decimal string, in `test-bigint.R`.
 - `VARCHAR`: UTF-8 marked, embedded multi-byte text identical to the
   input literal, in `test-varchar.R`.
 - Result sequences (fetch after clear, clear twice, fetch after
   disconnect, a second query while one is open): in `test-lifecycle.R`.
-- `params =`: `slothdb_unsupported`, in `test-conditions.R`.
+- `params =`: `zuslothdb_unsupported`, in `test-conditions.R`.
 
 **Exit criteria.**
 
@@ -245,8 +245,8 @@ R types the design's table names.
 
 ## Stage 4 — Temporal, decimal and nested types
 
-**Issue.** [#6](https://github.com/pedrobtz/slothdb/issues/6), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#6](https://github.com/pedrobtz/zuslothdb/issues/6), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `quick`.
 
@@ -267,7 +267,7 @@ errors as the table says.
   extremes: the recorded answers, in `test-temporal.R`.
 - `DECIMAL` at the largest precision under both `decimal` values: the
   literal's decimal string, in `test-decimal.R`.
-- `MAP`, `UNION`, `HUGEINT`: `slothdb_type_error` naming the column, in
+- `MAP`, `UNION`, `HUGEINT`: `zuslothdb_type_error` naming the column, in
   `test-conditions.R`.
 
 **Exit criteria.**
@@ -279,8 +279,8 @@ errors as the table says.
 
 ## Stage 5 — Writing and transactions
 
-**Issue.** [#7](https://github.com/pedrobtz/slothdb/issues/7), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#7](https://github.com/pedrobtz/zuslothdb/issues/7), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `quick`.
 
@@ -300,7 +300,7 @@ transactions commit and roll back.
   more rows than one chunk: `identical()` to the input, in
   `test-roundtrip.R`.
 - Factors arrive as `VARCHAR`; a column of a type with no mapping is a
-  `slothdb_type_error` and the table is unchanged, in `test-write.R`.
+  `zuslothdb_type_error` and the table is unchanged, in `test-write.R`.
 - Identifiers that need quoting (spaces, quotes, reserved words, UTF-8):
   round trip through `dbListFields()`, in `test-identifiers.R`.
 - Rollback: the table equals its state before `dbBegin()`; an error
@@ -318,8 +318,8 @@ transactions commit and roll back.
 
 ## Stage 6 — Files and persistence
 
-**Issue.** [#8](https://github.com/pedrobtz/slothdb/issues/8), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#8](https://github.com/pedrobtz/zuslothdb/issues/8), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `full — the file readers and the database file parse bytes the
 package did not write: ASan, valgrind and the fuzz harnesses.`
@@ -330,7 +330,7 @@ damaged input is an error the session survives.
 
 **Work.**
 
-- `slothdb_read()`, with Q12 decided; Q7 (refusing a file from another
+- `zuslothdb_read()`, with Q12 decided; Q7 (refusing a file from another
   engine commit) decided.
 - File fixtures written by `tools/oracle.R` with `duckdb` as the
   reference writer, small enough for the tarball, with their provenance.
@@ -342,16 +342,16 @@ damaged input is an error the session survives.
 
 - Each format, each Parquet codec (gzip, zstd, snappy) and an
   unsupported codec: the recorded `duckdb` answers, or
-  `slothdb_sql_error`, in `test-oracle-files.R`.
+  `zuslothdb_sql_error`, in `test-oracle-files.R`.
 - Paths with spaces, quotes and non-ASCII characters: the same answer as
   the plain path, in `test-paths.R`.
 - Persistence: write, `shutdown`, reopen in a fresh R process
   (`callr`-free, through `Rscript`), read back `identical()`, in
   `test-persist.R`.
 - Truncated and bit-flipped files of each format, invalid UTF-8 in CSV,
-  a corrupted database file: `slothdb_sql_error`, and the same
+  a corrupted database file: `zuslothdb_sql_error`, and the same
   connection then returns the recorded answer for an intact file, in
-  `test-hostile.R`; the large cases behind `SLOTHDB_SKIP_HEAVY`.
+  `test-hostile.R`; the large cases behind `ZUSLOTHDB_SKIP_HEAVY`.
 - Each fuzz harness: rows returned equal `count(*)` over the same bytes
   and a second read is identical, in `fuzz/`.
 - No file written outside `tempdir()` and `dbdir`: a directory listing
@@ -370,8 +370,8 @@ damaged input is an error the session survives.
 
 ## Stage 7 — DBItest conformance
 
-**Issue.** [#9](https://github.com/pedrobtz/slothdb/issues/9), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#9](https://github.com/pedrobtz/zuslothdb/issues/9), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `quick`.
 
@@ -392,7 +392,7 @@ every skip named and explained.
   fails when a skipped `DBItest` case starts passing or a new one is
   added without a reason, in `test-DBItest.R`.
 - The deepest nested expression the parser accepts and one level past
-  it: an answer and a `slothdb_sql_error`, not a stack overflow, in
+  it: an answer and a `zuslothdb_sql_error`, not a stack overflow, in
   `test-hostile.R`.
 
 **Exit criteria.**
@@ -405,8 +405,8 @@ every skip named and explained.
 
 ## Stage 8 — Documentation and measured claims
 
-**Issue.** [#10](https://github.com/pedrobtz/slothdb/issues/10), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#10](https://github.com/pedrobtz/zuslothdb/issues/10), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `quick`.
 
@@ -419,7 +419,7 @@ engine, and how it differs from `duckdb`, from measured numbers.
 - README: the engine commit, the patch list, the sqllogictest pass rate,
   the known differences from `duckdb`, that SlothDB is experimental, and
   that a database file is tied to the package version.
-- `tools/sqllogictest.R` behind `SLOTHDB_SLOW_TESTS`, at a pinned corpus
+- `tools/sqllogictest.R` behind `ZUSLOTHDB_SLOW_TESTS`, at a pinned corpus
   revision.
 - Reference index grouped in `_pkgdown.yml`; every exported function
   with examples that run.
@@ -441,8 +441,8 @@ engine, and how it differs from `duckdb`, from measured numbers.
 
 ## Stage 9 — Assurance
 
-**Issue.** [#11](https://github.com/pedrobtz/slothdb/issues/11), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#11](https://github.com/pedrobtz/zuslothdb/issues/11), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `quick`.
 
@@ -474,8 +474,8 @@ check it names has been read, not only run.
 
 ## Stage 10 — Full CI
 
-**Issue.** [#12](https://github.com/pedrobtz/slothdb/issues/12), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#12](https://github.com/pedrobtz/zuslothdb/issues/12), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `full`.
 
@@ -503,8 +503,8 @@ on the default branch's code is fixed.
 
 ## Stage 11 — v0.1.0 readiness
 
-**Issue.** [#13](https://github.com/pedrobtz/slothdb/issues/13), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#13](https://github.com/pedrobtz/zuslothdb/issues/13), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `full`.
 
@@ -516,8 +516,6 @@ on the default branch's code is fixed.
 - `cran-comments.md` listing the r-actions CI legs as test environments
   and explaining any size NOTE.
 - `urlchecker::url_check()` and `spelling::spell_check_package()` clean.
-- Q8 (the package name) settled with upstream's author, or recorded as
-  unanswered.
 
 **Tests.**
 
@@ -532,8 +530,8 @@ on the default branch's code is fixed.
 
 ## Stage 12 — Review
 
-**Issue.** [#14](https://github.com/pedrobtz/slothdb/issues/14), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/slothdb/issues/1).
+**Issue.** [#14](https://github.com/pedrobtz/zuslothdb/issues/14), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
 **CI.** `full`.
 
@@ -570,7 +568,7 @@ twice and what the reviews required is fixed.
   `duckdb_register()`'s counterpart needs a scan over R memory in the
   engine.
 - [Q4](design.md#14-open-questions): `memory_limit` needs engine work.
-- [Q10](design.md#14-open-questions): `slothdb_sql()` waits unless it is
+- [Q10](design.md#14-open-questions): `zuslothdb_sql()` waits unless it is
   adopted before Stage 6, which would then carry it.
 - [Q11](design.md#14-open-questions): Avro, Excel and SQLite readers, if
   Stage 1 compiles them out.
@@ -583,5 +581,3 @@ twice and what the reviews required is fixed.
 - [Q9, Q13](design.md#14-open-questions) block Stage 2.
 - [Q1](design.md#14-open-questions) blocks Stage 4.
 - [Q7, Q12](design.md#14-open-questions) block Stage 6.
-- [Q8](design.md#14-open-questions) blocks Stage 11. It is cheapest to
-  ask upstream now: a rename after Stage 0 touches every issue and link.

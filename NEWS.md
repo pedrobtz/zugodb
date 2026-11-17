@@ -1,3 +1,3 @@
-# slothdb (development version)
+# zuslothdb (development version)
 
 * Initial CRAN submission.
