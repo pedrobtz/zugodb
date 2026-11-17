@@ -41,6 +41,10 @@ jobs:
       # treats 0 as false.
       test-timeout-minutes: ${{ (github.event_name != 'schedule' && github.event_name != 'workflow_dispatch') && 10 || 0 }}
       timeout-minutes: 240
+      # The engine is about four CPU-minutes to compile; the runners have
+      # four cores. Without this, every check waits on a serial build.
+      env: |
+        MAKEFLAGS=-j4
 
   # A scheduled failure otherwise notifies only whoever last edited the cron
   # line. This keeps one open issue, labelled gctorture, while the scheduled

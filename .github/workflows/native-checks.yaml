@@ -36,6 +36,10 @@ jobs:
     with:
       asan: true
       profile: auto
+      # The engine is about four CPU-minutes to compile; the runners have
+      # four cores. Without this, every check waits on a serial build.
+      env: |
+        MAKEFLAGS=-j4
 
   valgrind:
     if: >-
