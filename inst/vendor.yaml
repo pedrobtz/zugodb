@@ -1,0 +1,102 @@
+# What zuslothdb vendors from SlothDB, and every change made to it.
+#
+# tools/vendor.R reads this file: it checks out `upstream.commit`, applies
+# `patches` in order, copies `copy` minus `exclude` into `destination`,
+# and writes src/Makevars, src/Makevars.win, src/sdb_provenance.h,
+# inst/vendor.yaml and tools/vendor/checksums.md5 from the result.
+# Nothing under `destination` is edited by hand (design §4.2).
+#
+# tools/upstream-tests.sh builds upstream's doctest suite against the
+# vendored tree, with `test_patches` applied and `test_exclude` left out.
+
+upstream:
+  repository: https://github.com/SouravRoy-ETL/slothdb
+  commit: 8180f215847015944c935f56f008d194e2c1494c
+  # The last release tag before the commit (design D3: pinned to a commit,
+  # because v0.2.7 predates two weeks of fixes).
+  describe: v0.2.7+
+  license: MIT
+
+destination: src/vendor/slothdb
+
+copy:
+  - LICENSE
+  - include
+  - src
+  - third_party/zstd/LICENSE
+  - third_party/zstd/lib/zstd.h
+  - third_party/zstd/lib/zstd_errors.h
+  - third_party/zstd/lib/common
+  - third_party/zstd/lib/decompress
+  - third_party/fastpforlib
+  - third_party/snappy
+
+exclude:
+  - path: src/ask
+    reason: >-
+      Natural-language-to-SQL module; downloads a model to ~/.slothdb/models
+      at run time, which CRAN forbids (design §4.2, D4).
+  - path: include/slothdb/ask
+    reason: Headers of src/ask.
+  - path: src/extension
+    reason: >-
+      Extension loading through dlopen and its HTTP installer; offline only
+      (D4).
+  - path: include/slothdb/extension
+    reason: Headers of src/extension.
+  - path: src/storage/http_client.cpp
+    reason: HTTP and S3 client; offline only (D4). Patch 0003 removes its use.
+  - path: include/slothdb/storage/http_client.hpp
+    reason: Header of src/storage/http_client.cpp.
+  - path: src/CMakeLists.txt
+    reason: The package builds from src/Makevars, written by tools/vendor.R.
+  - path: third_party/zstd/lib/decompress/huf_decompress_amd64.S
+    reason: >-
+      Assembly; ZSTD_DISABLE_ASM selects the C path, as upstream's CMake
+      build does.
+  - path: third_party/snappy/snappy-stubs-public.h.in
+    reason: CMake template; snappy-stubs-public.h is already generated.
+  - path: third_party/snappy/README.md
+    reason: Not source.
+  - path: third_party/snappy/config.h
+    reason: Unused; nothing defines HAVE_CONFIG_H, as upstream's build does not.
+
+patches:
+  - file: 0001-mingw.patch
+    reason: >-
+      Rtools' GCC takes the POSIX branch of guards written for MSVC
+      (_MSC_VER), where MinGW lacks gmtime_r, localtime_r, timegm and the
+      two-argument mkdir. The Windows branch is gated on _WIN32 instead.
+  - file: 0002-no-process-output.patch
+    reason: >-
+      A package must not write to stderr, call abort() or use rand() (CRAN's
+      compiled-code check). SLOTH_PROFILE timings are discarded, the
+      no-exceptions branch of unordered_dense.h throws, and RANDOM() and
+      UUID() use a per-thread std::mt19937_64.
+  - file: 0003-offline.patch
+    reason: >-
+      Offline only (D4): an http://, https:// or s3:// path is an error, not
+      a download to the system temp directory.
+  - file: 0004-threads.patch
+    reason: >-
+      Two threads unless the user sets threads (D5): one process-wide cap,
+      read by every pool and parallel split, in place of
+      hardware_concurrency() and SLOTHDB_MAX_THREADS.
+  - file: 0005-strftime-arity.patch
+    reason: >-
+      STRFTIME with one argument read past its argument list and crashed
+      (upstream's own "Advanced - STRFTIME" case); it is now an error.
+
+test_patches:
+  - file: tests/0001-stale-date-tests.patch
+    reason: >-
+      Seven doctest cases still expect DATE as a YYYYMMDD integer and
+      LAST_DAY as TIMESTAMP micros; the engine returns DATE as days since
+      1970-01-01. The STRFTIME case passes a format and checks that the
+      one-argument form is refused (patch 0005).
+
+test_exclude:
+  - path: test/unit/ask/test_nl_to_sql.cpp
+    reason: Tests src/ask, which is excluded.
+  - path: test/unit/execution/test_extensions.cpp
+    reason: Tests src/extension, which is excluded.

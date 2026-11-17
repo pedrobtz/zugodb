@@ -1,0 +1,152 @@
+diff --git a/include/slothdb/common/profile_log.hpp b/include/slothdb/common/profile_log.hpp
+new file mode 100644
+index 0000000..60de7d1
+--- /dev/null
++++ b/include/slothdb/common/profile_log.hpp
+@@ -0,0 +1,8 @@
++#pragma once
++// zuslothdb: the SLOTH_PROFILE timings upstream writes to stderr are
++// discarded. A package must not write to the process's stderr (CRAN's
++// compiled-code check), and nothing reads them. The arguments are still
++// evaluated, so the callers' timing variables stay used.
++namespace slothdb {
++inline void ProfileLog(const char *, ...) {}
++} // namespace slothdb
+diff --git a/include/third_party/unordered_dense.h b/include/third_party/unordered_dense.h
+index 97ef720..3ee5f13 100644
+--- a/include/third_party/unordered_dense.h
++++ b/include/third_party/unordered_dense.h
+@@ -135,13 +135,13 @@ namespace detail {
+ #    else
+ 
+ [[noreturn]] inline void on_error_key_not_found() {
+-    abort();
++    throw std::out_of_range("ankerl::unordered_dense::map::at(): key not found");
+ }
+ [[noreturn]] inline void on_error_bucket_overflow() {
+-    abort();
++    throw std::overflow_error("ankerl::unordered_dense: reached max bucket size, cannot increase size");
+ }
+ [[noreturn]] inline void on_error_too_many_elements() {
+-    abort();
++    throw std::out_of_range("ankerl::unordered_dense::map::replace(): too many elements");
+ }
+ 
+ #    endif
+diff --git a/src/execution/expression_executor.cpp b/src/execution/expression_executor.cpp
+index b3de3d0..ece7f3a 100644
+--- a/src/execution/expression_executor.cpp
++++ b/src/execution/expression_executor.cpp
+@@ -15,10 +15,19 @@
+ #include <ctime>
+ #include <limits>
+ #include <optional>
++#include <random>
+ #include <regex>
+ 
+ namespace slothdb {
+ 
++// zuslothdb: RANDOM() and UUID() draw from this rather than rand(), which a
++// package must not call (CRAN's compiled-code check). One generator per
++// thread, seeded once from std::random_device.
++static std::mt19937_64 &SlothRng() {
++    thread_local std::mt19937_64 rng{std::random_device{}()};
++    return rng;
++}
++
+ static bool LikeMatch(const std::string &str, const std::string &pattern);
+ 
+ // Self-contained SHA-512 (FIPS 180-4) over arbitrary-length bytes.
+@@ -3124,7 +3133,7 @@ void ExpressionExecutor::ExecuteFunction(const BoundFunction &expr, DataChunk &i
+ 
+     if (name == "RANDOM" || name == "RAND") {
+         for (idx_t i = 0; i < count; i++) {
+-            result.GetData<double>()[i] = static_cast<double>(std::rand()) / RAND_MAX;
++            result.GetData<double>()[i] = std::uniform_real_distribution<double>(0.0, 1.0)(SlothRng());
+         }
+         return;
+     }
+@@ -3942,7 +3951,7 @@ void ExpressionExecutor::ExecuteFunction(const BoundFunction &expr, DataChunk &i
+         static const char hex[] = "0123456789abcdef";
+         for (idx_t i = 0; i < count; i++) {
+             unsigned char b[16];
+-            for (int k = 0; k < 16; k++) b[k] = static_cast<unsigned char>(rand() & 0xff);
++            for (int k = 0; k < 16; k++) b[k] = static_cast<unsigned char>(SlothRng()() & 0xff);
+             b[6] = (b[6] & 0x0f) | 0x40; // version 4
+             b[8] = (b[8] & 0x3f) | 0x80; // variant 1
+             char buf[37];
+diff --git a/src/execution/int_group_agg.cpp b/src/execution/int_group_agg.cpp
+index 6a7cd4f..2ecb202 100644
+--- a/src/execution/int_group_agg.cpp
++++ b/src/execution/int_group_agg.cpp
+@@ -1,4 +1,5 @@
+ #include "slothdb/execution/int_group_agg.hpp"
++#include "slothdb/common/profile_log.hpp"
+ 
+ #include <algorithm>
+ #include <atomic>
+@@ -269,7 +270,7 @@ std::vector<IntGroupAgg::Group> IntGroupAgg::MergeAll() {
+         }
+     }
+     if (_pf) {
+-        fprintf(stderr, "[SLOTH_PROFILE] IntGroupAgg::MergeAll %.0fms\n",
++        slothdb::ProfileLog("[SLOTH_PROFILE] IntGroupAgg::MergeAll %.0fms\n",
+                 std::chrono::duration_cast<std::chrono::nanoseconds>(
+                     std::chrono::steady_clock::now() - _t0).count() / 1e6);
+     }
+diff --git a/src/execution/physical_planner.cpp b/src/execution/physical_planner.cpp
+index f041ed9..1e3d5b6 100644
+--- a/src/execution/physical_planner.cpp
++++ b/src/execution/physical_planner.cpp
+@@ -1,4 +1,5 @@
+ #include "slothdb/execution/physical_planner.hpp"
++#include "slothdb/common/profile_log.hpp"
+ #include "slothdb/execution/expression_executor.hpp"
+ #include "slothdb/execution/agg_emit_helpers.hpp"
+ #include "slothdb/execution/dict_histogram.hpp"
+@@ -1119,7 +1120,7 @@ public:
+             double p1 = slothdb::g_pq_profile.agg_pass1_ns.load() / 1e6;
+             double p2 = slothdb::g_pq_profile.agg_pass2_ns.load() / 1e6;
+             unsigned long long dsum = slothdb::g_pq_profile.agg_dict_sum.load();
+-            fprintf(stderr,
++            slothdb::ProfileLog(
+                 "[SLOTH_PROFILE] RunParallelRGs wall=%.0fms nt=%u pages=%llu | "
+                 "per-thread: rgdecode=%.0fms (decomp=%.0fms pagedecode=%.0fms other=%.0fms) "
+                 "consume=%.0fms (agg_p1=%.0fms agg_p2=%.0fms) | acct=%.0fms dict_sum=%llu "
+@@ -10245,7 +10246,7 @@ private:
+                 }
+             }
+             if (merge_profile_on) {
+-                fprintf(stderr, "[SLOTH_PROFILE] varchar-group merge %.0fms\n",
++                slothdb::ProfileLog("[SLOTH_PROFILE] varchar-group merge %.0fms\n",
+                         std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             std::chrono::steady_clock::now() - merge_profile_t0).count()
+                         / 1e6);
+diff --git a/src/execution/radix_count_agg.cpp b/src/execution/radix_count_agg.cpp
+index 8ce1af2..8bf8c2e 100644
+--- a/src/execution/radix_count_agg.cpp
++++ b/src/execution/radix_count_agg.cpp
+@@ -1,4 +1,5 @@
+ #include "slothdb/execution/radix_count_agg.hpp"
++#include "slothdb/common/profile_log.hpp"
+ 
+ #include <algorithm>
+ #include <array>
+@@ -560,7 +561,7 @@ void RadixHashCountStr::Finalize() {
+         for (auto& t : ws) if (t.joinable()) t.join();
+     }
+     if (_pf) {
+-        fprintf(stderr, "[SLOTH_PROFILE] RadixHashCountStr::Finalize %.0fms\n",
++        slothdb::ProfileLog("[SLOTH_PROFILE] RadixHashCountStr::Finalize %.0fms\n",
+                 std::chrono::duration_cast<std::chrono::nanoseconds>(
+                     std::chrono::steady_clock::now() - _t0).count() / 1e6);
+     }
+@@ -700,7 +701,7 @@ std::vector<RadixCountStrResult> RadixHashCountStr::EmitTopK(int k) const {
+     }
+     if (k > 0) std::reverse(result.begin(), result.end());
+     if (_pf) {
+-        fprintf(stderr, "[SLOTH_PROFILE] RadixHashCountStr::EmitTopK %.0fms\n",
++        slothdb::ProfileLog("[SLOTH_PROFILE] RadixHashCountStr::EmitTopK %.0fms\n",
+                 std::chrono::duration_cast<std::chrono::nanoseconds>(
+                     std::chrono::steady_clock::now() - _t0).count() / 1e6);
+     }

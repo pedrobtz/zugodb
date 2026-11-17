@@ -1,0 +1,11 @@
+#!/bin/sh
+# Called by r-actions vendor.yml from the repository root: rebuild the
+# vendored tree from tools/vendor.yaml and tools/patches in a temporary
+# directory and compare it, file by file, with what is committed.
+set -eu
+if ! Rscript -e 'quit(status = !requireNamespace("yaml", quietly = TRUE))' 2>/dev/null; then
+  lib=$(mktemp -d)
+  Rscript -e "install.packages('yaml', lib = '$lib', repos = 'https://cloud.r-project.org')"
+  export R_LIBS="$lib${R_LIBS:+:$R_LIBS}"
+fi
+Rscript tools/vendor.R --verify
