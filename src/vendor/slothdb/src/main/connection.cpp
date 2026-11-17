@@ -591,6 +591,28 @@ QueryResult Connection::Query(const std::string &sql) {
     // for the same-shape bug fixed in CREATE TABLE AS).
     auto stmt_slices = SplitTopLevelStatements(sql);
 
+    // zuslothdb: a read-only database refuses the whole batch, before any
+    // statement runs, if one of them would change the catalog or its data.
+    if (db_.GetConfig().read_only) {
+        for (auto &stmt : statements) {
+            switch (stmt->GetType()) {
+            case StatementType::SELECT:
+            case StatementType::EXPLAIN:
+            case StatementType::DESCRIBE:
+            case StatementType::PRAGMA:
+            case StatementType::SHOW:
+            case StatementType::BEGIN_TXN:
+            case StatementType::COMMIT_TXN:
+            case StatementType::ROLLBACK_TXN:
+                break;
+            default:
+                throw InvalidInputException(
+                    "Cannot execute a statement that changes the database: "
+                    "it is open read-only");
+            }
+        }
+    }
+
     QueryResult final_result;
     for (auto &stmt : statements) {
         idx_t stmt_idx = static_cast<idx_t>(&stmt - statements.data());

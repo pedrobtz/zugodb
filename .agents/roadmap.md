@@ -18,7 +18,7 @@ planned.
 | --- | --- | --- | --- | --- | --- |
 | 0 | [Package identity](#stage-0--package-identity) | quick | [#2](https://github.com/pedrobtz/zuslothdb/issues/2) | [#27](https://github.com/pedrobtz/zuslothdb/pull/27) | 2026-11-17 |
 | 1 | [Engine spike](#stage-1--engine-spike) | full | [#3](https://github.com/pedrobtz/zuslothdb/issues/3) | [#28](https://github.com/pedrobtz/zuslothdb/pull/28) | 2026-11-17 |
-| 2 | [Driver and connection](#stage-2--driver-and-connection) | full | [#4](https://github.com/pedrobtz/zuslothdb/issues/4) | | |
+| 2 | [Driver and connection](#stage-2--driver-and-connection) | full | [#4](https://github.com/pedrobtz/zuslothdb/issues/4) | [#30](https://github.com/pedrobtz/zuslothdb/pull/30) | 2026-11-17 |
 | 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/zuslothdb/issues/5) | | |
 | 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | | |
 | 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | | |
@@ -177,7 +177,10 @@ lifetime is defined, and failures are classed conditions.
   after disconnect, use after `shutdown`, database collected while a
   connection lives, collected without disconnect): each a
   `zuslothdb_closed_error` or the documented warning, in
-  `test-lifecycle.R`.
+  `test-lifecycle.R`. *Note 2026-11-17:* R runs finalizers through
+  `R_ToplevelExec`, so `expect_warning(gc())` cannot see their warning;
+  collection is tested by its effect, the warning by calling the
+  finalizer.
 - Fork guard: a connection used in a `parallel::mcparallel()` child, in
   `test-fork.R`, skipped on Windows.
 - Unwind guard: an R error raised during a call leaves the connection
@@ -587,6 +590,5 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- [Q9, Q13](design.md#14-open-questions) block Stage 2.
 - [Q1](design.md#14-open-questions) blocks Stage 4.
 - [Q7, Q12](design.md#14-open-questions) block Stage 6.

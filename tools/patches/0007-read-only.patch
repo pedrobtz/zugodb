@@ -1,0 +1,62 @@
+diff --git a/include/slothdb/main/database.hpp b/include/slothdb/main/database.hpp
+index a4bd425..20e44d2 100644
+--- a/include/slothdb/main/database.hpp
++++ b/include/slothdb/main/database.hpp
+@@ -12,6 +12,10 @@ struct DatabaseConfig {
+     std::string path;           // Empty = in-memory only.
+     idx_t memory_limit = 0;     // 0 = unlimited.
+     idx_t threads = 0;          // 0 = auto-detect.
++    // zuslothdb: opened read-only. Connection::Query refuses any statement
++    // that would change the catalog or its data, and the destructor does
++    // not save the file.
++    bool read_only = false;
+ };
+ 
+ // A SlothDB database instance. Owns the catalog and storage.
+diff --git a/src/main/connection.cpp b/src/main/connection.cpp
+index ac8fd89..0c0fcde 100644
+--- a/src/main/connection.cpp
++++ b/src/main/connection.cpp
+@@ -591,6 +591,28 @@ QueryResult Connection::Query(const std::string &sql) {
+     // for the same-shape bug fixed in CREATE TABLE AS).
+     auto stmt_slices = SplitTopLevelStatements(sql);
+ 
++    // zuslothdb: a read-only database refuses the whole batch, before any
++    // statement runs, if one of them would change the catalog or its data.
++    if (db_.GetConfig().read_only) {
++        for (auto &stmt : statements) {
++            switch (stmt->GetType()) {
++            case StatementType::SELECT:
++            case StatementType::EXPLAIN:
++            case StatementType::DESCRIBE:
++            case StatementType::PRAGMA:
++            case StatementType::SHOW:
++            case StatementType::BEGIN_TXN:
++            case StatementType::COMMIT_TXN:
++            case StatementType::ROLLBACK_TXN:
++                break;
++            default:
++                throw InvalidInputException(
++                    "Cannot execute a statement that changes the database: "
++                    "it is open read-only");
++            }
++        }
++    }
++
+     QueryResult final_result;
+     for (auto &stmt : statements) {
+         idx_t stmt_idx = static_cast<idx_t>(&stmt - statements.data());
+diff --git a/src/main/database.cpp b/src/main/database.cpp
+index ea53100..2464c55 100644
+--- a/src/main/database.cpp
++++ b/src/main/database.cpp
+@@ -40,7 +40,8 @@ Database::Database(DatabaseConfig config)
+ 
+ Database::~Database() {
+     // If path is set, save on close (atomic: write to .tmp then rename).
+-    if (!config_.path.empty() && catalog_) {
++    // zuslothdb: never for a database opened read-only.
++    if (!config_.path.empty() && catalog_ && !config_.read_only) {
+         try {
+             auto tmp_path = config_.path + ".tmp";
+             Checkpoint::Save(*catalog_, tmp_path);

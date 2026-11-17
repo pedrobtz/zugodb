@@ -267,7 +267,15 @@ library; it is identical wherever it is instantiated and cannot clash.
   As built (patch 0004): one process-wide cap, 2 by default, read by
   every pool and split. The engine's thread pool is a process global
   sized on first use, so `threads` is per process, not per database
-  as in `duckdb`; Stage 2 documents that.
+  as in `duckdb`. **Decided 2026-11-17** (maintainer): it stays
+  `dbConnect(threads = 2L)`, documented as the process-wide cap that
+  the last `dbConnect()` sets; `zuslothdb_info()` reports it. The pool
+  is sized to the smaller of the cap and the hardware's threads.
+- **Read-only (Stage 2).** The engine has no read-only mode and saves
+  a file database whenever it closes. Patch 0007 adds
+  `DatabaseConfig::read_only`: `Connection::Query` refuses a batch
+  holding any statement that changes the database, before any of it
+  runs, and the destructor does not save.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).
@@ -313,7 +321,9 @@ takes `"character"`.
 v0.1.0, since SlothDB has no prepared statements (Q3). Conditions
 inherit from `zuslothdb_error`: `zuslothdb_sql_error` (the engine's
 message), `zuslothdb_type_error`, `zuslothdb_unsupported`,
-`zuslothdb_closed_error`.
+`zuslothdb_closed_error`, and `zuslothdb_argument_error` for a bad
+argument (added 2026-11-17, Stage 2, so a caller can tell an argument
+from an engine error).
 
 ### 5.1 The API against its two references
 
@@ -354,7 +364,10 @@ failure is a bare `RuntimeError("Query failed: ...")`; and
 `execute()` is an alias of `sql()`, so there is no rows-affected
 count. §6 and the `zuslothdb_error` classes are the answer to each;
 whether the C++ API reports rows affected for `dbExecute()` is read in
-Stage 2.
+Stage 2. *Read 2026-11-17:*
+it does: `INSERT`, `UPDATE` and `DELETE` return one `BIGINT` column
+named `Count`, which `dbExecute()` returns; any other statement
+affected 0 rows.
 
 The Python README queries Avro, Excel and SQLite files as well as §2's
 four formats (`sqlite_scan('app.db', 'users')`); Q11 asks what the R
@@ -406,6 +419,15 @@ compatibility promise, so `zuslothdb_info()` reports the engine commit,
 and the README tells users to treat a database file as tied to the
 package version that wrote it (Q7). Opening one file from two
 connections in two R processes is documented as unsupported.
+
+*As read in Stage 2 (2026-11-17):* there is no write-ahead log. A file
+database is read whole into memory when it opens (`Checkpoint::Load`)
+and written whole when the `Database` is destroyed, through a `.tmp`
+file and a rename beside it. So a crash loses every change since the
+database opened, and two drivers on one file, in one process or two,
+each write their own copy at close: the last to close wins. Stage 6
+documents both and tests the round trip; v0.1.0 does not lock the
+file.
 
 ## 9. Relationship to the C API and Python binding
 
@@ -570,6 +592,18 @@ any of them.
   `zuslothdb(dbdir = ":memory:", read_only = FALSE)`, with
   `dbConnect(zuslothdb(), dbdir = )` as the short form, and no
   `zuslothdb_shutdown()` until someone needs it. Decide in Stage 2.
+  **Decided 2026-11-17: copy `duckdb`**, by the maintainer. As built:
+  the driver holds the database and opens it at its first connection;
+  connections from one driver share it; `dbConnect(drv, dbdir = )` or
+  `read_only = ` that differ from the driver's give a new driver.
+  `dbDisconnect(con)`, with `shutdown = TRUE` as in `duckdb` 2.0, closes
+  the database with its *last* open connection (writing a file), and
+  never closes other open connections; `shutdown = FALSE` keeps it open
+  for the driver's next connection, and the driver's next
+  `dbConnect()` reopens a closed one. A connection or a kept-open
+  database collected by the garbage collector is closed with a warning.
+  This is deterministic where `duckdb` 2.0 closes on its last
+  reference, because a file is written only when its database closes.
 - **Q10.** A one-shot query function, the counterpart of Python's
   `slothdb.sql()`? Proposal: `zuslothdb_sql(sql)`, which opens an
   in-memory database, runs the query, returns the data frame and
@@ -595,7 +629,11 @@ any of them.
   (`parallel::mclapply()`)? The engine owns threads and a file handle
   that do not survive `fork()`. Proposal: the driver records its
   process id, and any use from another process is a
-  `zuslothdb_closed_error`. Decide in Stage 2.
+  `zuslothdb_closed_error`. Decide in Stage 2. **Decided 2026-11-17: as
+  proposed**, by the maintainer. Each database and connection records
+  the process that made it; from any other, `dbIsValid()` is `FALSE`
+  and every call a `zuslothdb_closed_error`, and its finalizers do
+  nothing, so a child's exit never writes the parent's file.
 
 ## 15. Sources and verification
 

@@ -12,6 +12,10 @@ struct DatabaseConfig {
     std::string path;           // Empty = in-memory only.
     idx_t memory_limit = 0;     // 0 = unlimited.
     idx_t threads = 0;          // 0 = auto-detect.
+    // zuslothdb: opened read-only. Connection::Query refuses any statement
+    // that would change the catalog or its data, and the destructor does
+    // not save the file.
+    bool read_only = false;
 };
 
 // A SlothDB database instance. Owns the catalog and storage.

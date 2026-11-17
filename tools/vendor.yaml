@@ -100,6 +100,13 @@ patches:
       -Wunused-result) and ConstantExpression's NULL constructor
       initialising its members out of declaration order (gcc -Wreorder).
       Neither changes behaviour.
+  - file: 0007-read-only.patch
+    reason: >-
+      dbConnect(read_only = TRUE): the engine has no read-only mode, and a
+      file-backed database is saved whenever it closes. A read_only flag in
+      DatabaseConfig makes Connection::Query refuse any batch with a
+      statement that changes the database, before any of it runs, and stops
+      the destructor saving the file.
 
 test_patches:
   - file: tests/0001-stale-date-tests.patch

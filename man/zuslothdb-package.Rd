@@ -2,7 +2,6 @@
 % Please edit documentation in R/zuslothdb-package.R
 \docType{package}
 \name{zuslothdb-package}
-\alias{zuslothdb}
 \alias{zuslothdb-package}
 \title{zuslothdb: SQL over Local Files with the Embedded 'SlothDB' Engine}
 \description{

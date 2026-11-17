@@ -14,7 +14,8 @@ PKG_CXXFLAGS = $(CXX_VISIBILITY)
 PKG_CFLAGS = $(C_VISIBILITY)
 PKG_LIBS = -pthread
 
-OBJECTS = sdb_glue.o \
+OBJECTS = sdb_database.o \
+  sdb_glue.o \
   vendor/slothdb/src/binder/binder.o \
   vendor/slothdb/src/catalog/catalog.o \
   vendor/slothdb/src/catalog/schema_catalog_entry.o \

@@ -1,49 +1,22 @@
-// zuslothdb's glue over SlothDB's C++ API (design §4, D2).
+// zuslothdb's glue over SlothDB's C++ API (design §4, D2): registration,
+// zuslothdb_info(), and the Stage 1 spike's one-query path.
 //
 // The rule of §4.3: no C++ exception crosses into R, and no R API call that
 // can longjmp runs while a SlothDB object with a destructor is live on the
 // stack. So every entry point does its engine work in an `Engine*` helper,
 // inside try/catch, with every C++ object scoped to that helper; the helper
-// returns plain values and an error string, and only then, with the C++
+// returns plain values and an sdb::EngineError, and only then, with the C++
 // frames gone, does the entry point build R objects. Errors are returned to
-// R, never raised here: the R side turns them into zuslothdb_error
-// conditions. Nothing here calls Rf_error().
+// R, never raised here: sdb_abort() in R turns them into zuslothdb_error
+// conditions. Nothing in the glue calls Rf_error().
 
-#include "slothdb/common/parallel.hpp"
-#include "slothdb/main/connection.hpp"
-#include "slothdb/main/database.hpp"
+#include "sdb_common.h"
 
 #include <cstdint>
-#include <cstring>
-#include <exception>
-#include <string>
 
 #include "sdb_provenance.h"
 
-#define R_NO_REMAP
-#include <R.h>
-#include <R_ext/Rdynload.h>
-#include <R_ext/Visibility.h>
-#include <Rinternals.h>
-
 namespace {
-
-// A fixed-size message buffer, so an error string outlives the C++ frame
-// that produced it without a destructor of its own on the R side.
-struct EngineError {
-  bool failed = false;
-  // "sql" for the engine's own errors, "type" for a value R cannot take;
-  // sdb_abort() in R maps each to its condition class.
-  const char *kind = "sql";
-  char message[2048] = {0};
-
-  void set(const char *msg, const char *k = "sql") {
-    failed = true;
-    kind = k;
-    std::strncpy(message, msg ? msg : "unknown error", sizeof(message) - 1);
-    message[sizeof(message) - 1] = '\0';
-  }
-};
 
 enum class ScalarKind { kNull, kInt, kTooWide };
 
@@ -53,9 +26,8 @@ struct ScalarInt {
 };
 
 // Opens an in-memory database, runs `sql`, and reads the first column of
-// the first row as an integer. The spike's one query path (roadmap Stage 1);
-// Stage 2 replaces it with database and connection objects.
-void EngineScalarInt(const char *sql, ScalarInt *out, EngineError *err) {
+// the first row as an integer.
+void EngineScalarInt(const char *sql, ScalarInt *out, sdb::EngineError *err) {
   try {
     slothdb::Database db;
     slothdb::Connection con(db);
@@ -97,47 +69,33 @@ void EngineScalarInt(const char *sql, ScalarInt *out, EngineError *err) {
   }
 }
 
-// list(value = <integer or NULL>, error = <string or NULL>, kind = <string>)
-SEXP ResultList(SEXP value, const EngineError &err, const char *kind) {
-  const char *names[] = {"value", "error", "kind", ""};
-  SEXP out = PROTECT(Rf_mkNamed(VECSXP, names));
-  SET_VECTOR_ELT(out, 0, value);
-  if (err.failed) {
-    SET_VECTOR_ELT(out, 1, Rf_mkString(err.message));
-  }
-  SET_VECTOR_ELT(out, 2, Rf_mkString(kind));
-  UNPROTECT(1);
-  return out;
-}
-
 } // namespace
 
 extern "C" {
 
 SEXP sdb_scalar_int(SEXP sql) {
+  sdb::EngineError err;
   if (TYPEOF(sql) != STRSXP || XLENGTH(sql) != 1 ||
       STRING_ELT(sql, 0) == NA_STRING) {
-    EngineError err;
-    err.set("sql must be a single string");
-    return ResultList(R_NilValue, err, "argument");
+    err.set("sql must be a single string", "argument");
+    return sdb::ResultList(R_NilValue, err);
   }
   // Translated to UTF-8 before any C++ object exists: Rf_translateCharUTF8
   // allocates and can longjmp.
   const char *text = Rf_translateCharUTF8(STRING_ELT(sql, 0));
   ScalarInt v;
-  EngineError err;
   EngineScalarInt(text, &v, &err);
-  if (err.failed) return ResultList(R_NilValue, err, err.kind);
+  if (err.failed) return sdb::ResultList(R_NilValue, err);
   switch (v.kind) {
   case ScalarKind::kNull:
-    return ResultList(Rf_ScalarInteger(NA_INTEGER), err, "ok");
+    return sdb::ResultList(Rf_ScalarInteger(NA_INTEGER), err);
   case ScalarKind::kTooWide:
-    err.set("the value does not fit an R integer");
-    return ResultList(R_NilValue, err, "type");
+    err.set("the value does not fit an R integer", "type");
+    return sdb::ResultList(R_NilValue, err);
   case ScalarKind::kInt:
     break;
   }
-  return ResultList(Rf_ScalarInteger(v.value), err, "ok");
+  return sdb::ResultList(Rf_ScalarInteger(v.value), err);
 }
 
 SEXP sdb_info(void) {
@@ -159,9 +117,29 @@ SEXP sdb_info(void) {
   return out;
 }
 
+// sdb_database.cpp
+SEXP sdb_db_open(SEXP path, SEXP read_only);
+SEXP sdb_db_close(SEXP ptr);
+SEXP sdb_db_is_open(SEXP ptr);
+SEXP sdb_db_connections(SEXP ptr);
+SEXP sdb_connect(SEXP dbptr);
+SEXP sdb_conn_is_open(SEXP ptr);
+SEXP sdb_disconnect(SEXP ptr);
+SEXP sdb_execute(SEXP ptr, SEXP sql);
+SEXP sdb_set_threads(SEXP n);
+
 static const R_CallMethodDef call_methods[] = {
     {"sdb_scalar_int", (DL_FUNC)&sdb_scalar_int, 1},
     {"sdb_info", (DL_FUNC)&sdb_info, 0},
+    {"sdb_db_open", (DL_FUNC)&sdb_db_open, 2},
+    {"sdb_db_close", (DL_FUNC)&sdb_db_close, 1},
+    {"sdb_db_is_open", (DL_FUNC)&sdb_db_is_open, 1},
+    {"sdb_db_connections", (DL_FUNC)&sdb_db_connections, 1},
+    {"sdb_connect", (DL_FUNC)&sdb_connect, 1},
+    {"sdb_conn_is_open", (DL_FUNC)&sdb_conn_is_open, 1},
+    {"sdb_disconnect", (DL_FUNC)&sdb_disconnect, 1},
+    {"sdb_execute", (DL_FUNC)&sdb_execute, 2},
+    {"sdb_set_threads", (DL_FUNC)&sdb_set_threads, 1},
     {NULL, NULL, 0}};
 
 void attribute_visible R_init_zuslothdb(DllInfo *dll) {

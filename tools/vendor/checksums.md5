@@ -45,7 +45,7 @@ de7468cc46a0f76902b2e1f522cf08bc  include/slothdb/execution/string_dedup.hpp
 e2707f519292c10cb8504474227837b5  include/slothdb/execution/topk_varchar.hpp
 6904979a97c5de8cca733d7a28d2b977  include/slothdb/execution/topn_filter_pass.hpp
 a17eed11e88e42e4264e5c9cedf2fcb6  include/slothdb/main/connection.hpp
-1bc0afa77e4800b70ceb19e73556caa9  include/slothdb/main/database.hpp
+d8b5d398d6904ac48209ce872ac91e1e  include/slothdb/main/database.hpp
 3d629ef04280b5f71b1805aca80b184f  include/slothdb/main/query_materialize.hpp
 08de4bade6f9c165036b189876eabca3  include/slothdb/optimizer/optimizer.hpp
 aa3307eb31322589db7be32826e145e2  include/slothdb/parser/expression/parsed_expression.hpp
@@ -110,8 +110,8 @@ fe6223772c41b29568229d47bef0021c  src/execution/str_group_distinct.cpp
 5b2b58a08666145f1816f27bb0f7a08a  src/execution/string_dedup.cpp
 30ad45c38023f994fe6b00260a5af067  src/execution/substring_search.cpp
 90a041f7d77700b167e4077c42a60304  src/execution/topk_varchar.cpp
-c568a9b6195d7c68b1f987fcc8100385  src/main/connection.cpp
-ccfabd145e5841d0f6c8b2728be41561  src/main/database.cpp
+96ee57f69f9d57c2021f1988a985703d  src/main/connection.cpp
+c31bace5a00e736632d185caffa30200  src/main/database.cpp
 e9b244647c95ae51e17a2838cf8eaa91  src/optimizer/optimizer.cpp
 13133c7a5ec8a4d0d67c2de6c2477c7d  src/parser/parser.cpp
 eb90662128c62546e6ba82b62aeb0d8a  src/parser/tokenizer.cpp

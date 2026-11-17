@@ -40,7 +40,8 @@ Database::Database(DatabaseConfig config)
 
 Database::~Database() {
     // If path is set, save on close (atomic: write to .tmp then rename).
-    if (!config_.path.empty() && catalog_) {
+    // zuslothdb: never for a database opened read-only.
+    if (!config_.path.empty() && catalog_ && !config_.read_only) {
         try {
             auto tmp_path = config_.path + ".tmp";
             Checkpoint::Save(*catalog_, tmp_path);
