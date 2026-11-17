@@ -29,16 +29,21 @@ test_that("Parquet queries that stop early return, with their rows (#32)", {
   writeLines(parquet_stop_child(), script)
 
   rscript <- file.path(R.home("bin"), "Rscript")
+  # shQuote() quotes for sh unless told otherwise, and Windows'
+  # CreateProcess() does not read single quotes.
+  quoting <- if (.Platform$OS.type == "windows") "cmd" else "sh"
+  args <- shQuote(c(script, dirname(pkg), fixture, seconds, threads), quoting)
   out <- suppressWarnings(system2(
     rscript,
-    shQuote(c(script, dirname(pkg), fixture, seconds, threads)),
+    args,
     stdout = TRUE,
     stderr = TRUE,
     timeout = seconds + 120
   ))
+  said <- paste(c("child R printed:", out), collapse = "\n")
   # 124: system2() killed the child at its timeout, a query that hung.
-  expect_null(attr(out, "status"))
+  expect_null(attr(out, "status"), info = said)
   last <- utils::tail(out, 1L)
-  expect_match(last, "^ok [0-9]+ iterations$")
+  expect_match(last, "^ok [0-9]+ iterations$", info = said)
   expect_gt(as.integer(sub("^ok ([0-9]+).*", "\\1", last)), 0L)
 })
