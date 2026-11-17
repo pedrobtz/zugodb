@@ -29,11 +29,20 @@ run_child_r <- function(script, args, timeout) {
 # answer checked against the file's x = 0, 1, ..., 40959. Alternating them
 # is what reached the race; each alone did not in 20 000 runs. More decode
 # workers than cores (threads = 6, the scan's own maximum) make a worker
-# more likely to be preempted inside the race window.
+# more likely to be preempted inside the race window. Each step is
+# appended to the trace file args[[5]] and the file closed, so the trace
+# survives a child that dies with its output still buffered.
 parquet_stop_child <- function() {
   c(
     'args <- commandArgs(trailingOnly = TRUE)',
+    'step <- function(...) {',
+    '  tc <- file(args[[5]], "a")',
+    '  writeLines(paste(...), tc)',
+    '  close(tc)',
+    '}',
+    'step("started", R.version.string, "pid", Sys.getpid())',
     'library(zuslothdb, lib.loc = args[[1]])',
+    'step("loaded zuslothdb", format(packageVersion("zuslothdb")))',
     'f <- gsub("\'", "\'\'", args[[2]], fixed = TRUE)',
     'seconds <- as.numeric(args[[3]])',
     'threads <- as.integer(args[[4]])',
@@ -42,7 +51,9 @@ parquet_stop_child <- function() {
     '  "SELECT x FROM read_parquet(\'%s\') WHERE x %% 7 = 0 LIMIT 3",',
     '  "SELECT x FROM read_parquet(\'%s\') LIMIT 5000"',
     '), f)',
+    'step("fixture", args[[2]], "exists", file.exists(args[[2]]))',
     'con <- DBI::dbConnect(zuslothdb(), threads = threads)',
+    'step("connected, threads", threads)',
     'check <- function(d, n, ok) {',
     '  if (!identical(names(d), "x") || nrow(d) != n || !is.integer(d$x) ||',
     '      anyNA(d$x) || !all(ok(d$x))) stop("wrong rows")',
@@ -51,13 +62,18 @@ parquet_stop_child <- function() {
     'end <- Sys.time() + seconds',
     'while (Sys.time() < end) {',
     '  check(DBI::dbGetQuery(con, q[[1]]), 1L, function(x) x >= 0L & x < 40960L)',
+    '  if (n == 0L) step("query 1 ok")',
     '  check(DBI::dbGetQuery(con, q[[2]]), 3L, function(x) x %% 7L == 0L & x < 40960L)',
+    '  if (n == 0L) step("query 2 ok")',
     '  d <- DBI::dbGetQuery(con, q[[3]])',
+    '  if (n == 0L) step("query 3 returned")',
     '  check(d, 5000L, function(x) x >= 0L & x < 40960L)',
     '  if (anyDuplicated(d$x)) stop("wrong rows")',
     '  n <- n + 1L',
     '}',
+    'step("looped", n)',
     'DBI::dbDisconnect(con)',
+    'step("disconnected")',
     'cat("ok", n, "iterations\\n")'
   )
 }

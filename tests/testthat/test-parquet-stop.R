@@ -27,13 +27,18 @@ test_that("Parquet queries that stop early return, with their rows (#32)", {
   fixture <- normalizePath(test_path("fixtures", "parquet-row-groups.parquet"))
   script <- withr::local_tempfile(fileext = ".R")
   writeLines(parquet_stop_child(), script)
+  trace <- withr::local_tempfile(fileext = ".txt")
 
   out <- run_child_r(
     script,
-    c(dirname(pkg), fixture, seconds, threads),
+    c(dirname(pkg), fixture, seconds, threads, trace),
     timeout = seconds + 120
   )
-  said <- paste(c("child R printed:", out), collapse = "\n")
+  steps <- if (file.exists(trace)) readLines(trace) else "(no trace file)"
+  said <- paste(
+    c("child R printed:", out, "its steps:", steps),
+    collapse = "\n"
+  )
   # 124: system2() killed the child at its timeout, a query that hung.
   expect_null(attr(out, "status"), info = said)
   last <- utils::tail(out, 1L)
