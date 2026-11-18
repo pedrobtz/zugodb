@@ -7,8 +7,8 @@ signature and method list, the new §5.1, Q9 to Q13 in §14, the
 recorded-answer oracle and fuzzing in §10, §11, whose stages moved
 to [roadmap.md](roadmap.md), and the package's name (Q8, `zuslothdb`).
 On 2026-11-18: where files are read (§7 and D9, the zu family's
-readers), D1's second look, Q15 to Q23, and §16 with D11: extensions
-through R packages.
+readers), D1's second look, Q15 to Q23 (all decided), and §16 with
+D11: extensions through R packages.
 
 - **Status:** Proposed. Merging this file adopts the design as the starting
   point for the package's own `.agents/design.md`; each decision in
@@ -1194,18 +1194,21 @@ any of them.
   `zuslothdb_read()`, no engine change) joins Stage 10; B (table
   functions in SQL), C (scalar functions) and D (results out) follow
   v0.1.0 in that order, one release each. Q19 already put B after
-  v0.1.0, and Q18's bar comes before new engine code.
+  v0.1.0, and Q18's bar comes before new engine code. **Decided
+  2026-11-18 (maintainer): as proposed.**
 - **Q22.** How does an extension register? Proposal: its `.onLoad`
   calls an exported `zuslothdb` function with an external pointer to
   a versioned C struct of callbacks (§16.3). The registry is one per
   process, as the thread pool is, and a name registered twice is an
   error. The alternative, `zuslothdb` looking packages up by name
   with `R_GetCCallable`, makes it know its extensions in advance.
+  **Decided 2026-11-18 (maintainer): as proposed.**
 - **Q23.** What crosses the boundary for a scalar function? Proposal:
   Arrow arrays in and one Arrow array out, a chunk at a time, so no
   engine type is in the public header. The cost is a conversion of
   each chunk in both directions, a copy for strings. Exposing the
   engine's `Vector` would be faster and would freeze its layout.
+  **Decided 2026-11-18 (maintainer): as proposed.**
 
 ## 15. Sources and verification
 
@@ -1329,7 +1332,8 @@ Each is useful alone, and only the first needs no engine change.
 - **D. Results out.** `dbSendQueryArrow()` and `dbFetchArrow()` give a
   result as a stream (D8's later work), and a writer package takes it.
 
-Q21 asks their order against v0.1.0.
+As Q21 decided: A is in v0.1.0, in Stage 10; B, C and D follow v0.1.0
+in that order, one release each.
 
 ### 16.6 What it will not become
 
