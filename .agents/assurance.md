@@ -93,3 +93,4 @@ One row per limit the package enforces. "Straddled by" is the test of
 | -2^31, R's integer NA         | integer value | tests/testthat/test-spike.R |
 | R's integer range, 2^31 - 1 and -(2^31 - 1) | integer value | tests/testthat/test-spike.R |
 | `threads`, 1 to 2^31 - 1                     | threads       | tests/testthat/test-connect.R |
+| an engine vector, 2048 rows, inside a table's row group (#45) | rows | tests/testthat/test-storage.R (NULLs at rows 2047 to 2049 and 4095 to 4097, by one VALUES list and by many inserts), oracle/scalar-nulls-long |

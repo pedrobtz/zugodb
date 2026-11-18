@@ -1,5 +1,9 @@
 # zuslothdb 0.0.0.9000
 
+* A table of more than 2048 rows with a `NULL` past row 2048 no longer
+  reads back with `NULL`s where there are none, or crashes R: the engine
+  kept a whole row group's `NULL`s in a mask the size of one vector, and
+  an `INSERT` of more than 2048 `VALUES` wrote past its buffers (#45).
 * `DATE` columns arrive as `Date`, `TIMESTAMP` as `POSIXct` and `BLOB` as
   a list of raw vectors with `blob::blob()`'s classes.
   `dbConnect(timezone_out = )` sets the time zone a `POSIXct` is shown
@@ -40,5 +44,5 @@
   `zuslothdb_argument_error`, `zuslothdb_closed_error` and
   `zuslothdb_unsupported` (`params =`).
 * The SlothDB engine is bundled and compiled with the package: upstream
-  commit `8180f21` with nine patches, listed by `zuslothdb_info()`. The
+  commit `8180f21` with ten patches, listed by `zuslothdb_info()`. The
   package is offline only: a remote path in a query is an error.

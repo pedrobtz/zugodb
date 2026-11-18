@@ -294,6 +294,14 @@ library; it is identical wherever it is instantiated and cannot clash.
   main thread and the pool never exit mid-session. Patch 0009 makes
   the seven objects local to their call. A `thread_local` with a
   destructor is not to be added in a patch.
+- **Validity past one vector (found 2026-11-18, #45).** `ValidityMask`
+  held 2048 bits, one vector's, and a row group's column (122880 rows)
+  kept its `NULL`s in one: a `NULL` from row 2049 on was written past a
+  heap buffer, and others read back as `NULL` (5 `NULL`s in 5000 rows
+  read as 817). `PhysicalInsert` also put a whole `VALUES` list into one
+  2048-row chunk. Patch 0010 sizes the mask by its holder's capacity and
+  the chunk by the list. 31 other chunks keep the default capacity and
+  are not yet audited; one filled past 2048 rows would be the same bug.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).
