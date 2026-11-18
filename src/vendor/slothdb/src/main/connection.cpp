@@ -2433,7 +2433,13 @@ QueryResult Connection::Query(const std::string &sql) {
                         sel.from_table->table_name = "READ_PARQUET";
 #ifndef SLOTHDB_EDGE
                     } else if (ext == "arrow" || ext == "feather" || ext == "ipc") {
-                        sel.from_table->table_name = "READ_ARROW";
+                        // zuslothdb: no Arrow IPC (pedrobtz/zuslothdb#40); see
+                        // arrow_ipc.cpp. Refused here, rather than routed to
+                        // a READ_ARROW table that is never registered.
+                        throw NotImplementedException(
+                            "Arrow IPC is not supported: SlothDB cannot read a file "
+                            "from another Arrow implementation; convert it to "
+                            "Parquet or CSV");
                     } else if (ext == "avro") {
                         sel.from_table->table_name = "READ_AVRO";
                     } else if (ext == "xlsx" || ext == "xls") {

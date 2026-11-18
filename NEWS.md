@@ -1,5 +1,8 @@
 # zuslothdb 0.0.0.9000
 
+* Arrow IPC files are not supported: SlothDB's Arrow format is its own,
+  and reads no file another Arrow tool writes. `read_arrow()` and a
+  `.arrow`, `.feather` or `.ipc` path are an error saying so (#40).
 * A JSON file the engine would read wrongly is an error naming the record
   and the key: a nested object or array, a key the first record does not
   have, or a value whose type is not the first record's for that key.

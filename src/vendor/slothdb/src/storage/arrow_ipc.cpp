@@ -37,6 +37,18 @@ static LogicalType ArrowIdToLogicalType(uint8_t id) {
     }
 }
 
+// zuslothdb: the format below is SlothDB's own, after Arrow's "ARROW1"
+// magic: a column count, then its own layout, not Arrow IPC's FlatBuffers
+// messages. A file from any Arrow implementation is parsed as that and
+// fails, or, if its bytes happen to look plausible, is read as garbage;
+// and a file it writes no Arrow tool can read. Both are refused
+// (pedrobtz/zuslothdb#40).
+static const char *kArrowUnsupported =
+    "Arrow IPC is not supported: SlothDB's Arrow reader and writer use a "
+    "format of their own that starts with Arrow's magic bytes, and cannot "
+    "read a file from another Arrow implementation; convert it to Parquet "
+    "or CSV";
+
 // ============================================================================
 // Writer
 // ============================================================================
@@ -44,7 +56,9 @@ static LogicalType ArrowIdToLogicalType(uint8_t id) {
 ArrowIPCWriter::ArrowIPCWriter(const std::string &path,
                                const std::vector<std::string> &column_names,
                                const std::vector<LogicalType> &column_types)
-    : path_(path), column_names_(column_names), column_types_(column_types) {}
+    : path_(path), column_names_(column_names), column_types_(column_types) {
+    throw NotImplementedException(kArrowUnsupported);
+}
 
 void ArrowIPCWriter::WriteBatch(const std::vector<std::vector<Value>> &rows) {
     batches_.push_back(rows);
@@ -100,7 +114,9 @@ void ArrowIPCWriter::Finish() {
 // Reader
 // ============================================================================
 
-ArrowIPCReader::ArrowIPCReader(const std::string &path) : path_(path) {}
+ArrowIPCReader::ArrowIPCReader(const std::string &path) : path_(path) {
+    throw NotImplementedException(kArrowUnsupported);
+}
 
 void ArrowIPCReader::Parse() {
     if (parsed_) return;

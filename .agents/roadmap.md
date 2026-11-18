@@ -361,7 +361,7 @@ past 2048 rows with a `NULL` corrupted memory (#45, fixed first).
 **CI.** `full — the file readers and the database file parse bytes the
 package did not write: ASan, valgrind and the fuzz harnesses.`
 
-**Goal.** SQL reads CSV, Parquet, JSON and Arrow IPC files with the
+**Goal.** SQL reads CSV, Parquet and JSON files with the
 answers a reference gives, a database file survives a restart, and
 damaged input is an error the session survives.
 
