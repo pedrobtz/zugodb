@@ -856,8 +856,11 @@ twice and what the reviews required is fixed.
 - [§2](design.md#2-scope): parameter binding (Q3), Arrow export through
   `nanoarrow`, ALTREP results, R functions as SQL functions and `dbplyr`
   translations (Q5) wait, as the design says.
-- [§7.6](design.md#76-two-steps): scanning a reader's stream from SQL
-  (Q19), which brings back `SELECT ... FROM read_csv('x')`.
+- [§16.5](design.md#165-steps), extensions through R packages (D11),
+  one release each, in this order unless Q21 decides otherwise: B,
+  table functions in SQL over a stream (Q19), which brings back
+  `SELECT ... FROM read_csv('x')`; C, registered scalar functions;
+  D, results out as Arrow streams.
 - [§7.1](design.md#71-the-readers): Excel through `zuxlsx` and Arrow IPC
   through `zuarrow`
   ([zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251)), once
@@ -871,7 +874,11 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- None. Q15 to Q20, and the database file's checksum, were decided on
+- **Q21** (whether registered readers, step A of design §16.5, join
+  Stage 10) blocks Stage 10's scope. **Q22** (how an extension
+  registers) blocks step A wherever it lands. Both have proposals in
+  [design §14](design.md#14-open-questions).
+- Q15 to Q20, and the database file's checksum, were decided on
   2026-11-18 ([design §14](design.md#14-open-questions) and
   [§8](design.md#8-persistence)).
 - Still to find, inside a stage: how an append to an existing table

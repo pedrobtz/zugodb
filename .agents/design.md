@@ -7,7 +7,8 @@ signature and method list, the new §5.1, Q9 to Q13 in §14, the
 recorded-answer oracle and fuzzing in §10, §11, whose stages moved
 to [roadmap.md](roadmap.md), and the package's name (Q8, `zuslothdb`).
 On 2026-11-18: where files are read (§7 and D9, the zu family's
-readers), D1's second look, and Q15 to Q19.
+readers), D1's second look, Q15 to Q23, and §16 with D11: extensions
+through R packages.
 
 - **Status:** Proposed. Merging this file adopts the design as the starting
   point for the package's own `.agents/design.md`; each decision in
@@ -74,12 +75,17 @@ linked into the package, and not by SlothDB's own (§7). The example
 above then takes two steps, a load and a query, until the engine can
 scan a reader's stream from SQL (Q19).
 
+*Since 2026-11-18 (D11):* the aim is a small engine that other R
+packages extend, as extensions extend DuckDB: §16.
+
 ### 1.1 What zuslothdb is not
 
 - Not a DuckDB replacement. `duckdb` 2.0.0 is on CRAN and is the
   mature choice; §1.2 is the honest comparison.
 - Not a network client. SlothDB's HTTP and S3 readers, its extension
   loader and its natural-language `ask` module are compiled out (§4.2).
+  The engine loads no code of its own accord: an extension is an R
+  package that registers with it (§16).
 - Not a `dplyr` backend of its own in v0.1.0; `dbplyr` works through
   DBI to the extent SlothDB's SQL does (Q5).
 
@@ -937,6 +943,9 @@ any of them.
 - **D6 (C).** `Imports: DBI, methods`, not `Depends: DBI` as `duckdb`
   has; users call `DBI::` or attach DBI themselves.
 - **D7 (C).** No hand-written C API for other packages in v0.1.0.
+  *Rewritten 2026-11-18 by D10 and D11:* a small public header,
+  `inst/include/zuslothdb.h`, for extension packages to register
+  against (§16.3).
 - **D8 (C).** Results are materialised R vectors; ALTREP and Arrow
   export are later work.
 - **D9 (maintainer, 2026-11-18).** Files are read by the zu family's
@@ -953,6 +962,11 @@ any of them.
   its stream, zujson's C API comes early and zukomp's archive carries
   codecs (§7.8). Each package's issue names what must not change, and
   its existing tests are the check.
+- **D11 (maintainer, 2026-11-18).** `zuslothdb` aims to be a small
+  engine that R packages extend: no extension loader of its own, and
+  an extension is a package that registers table sources and scalar
+  functions with it (§16). The scope is those two kinds, over the
+  flat types of §6.
 
 ## 13. Acceptance criteria for v0.1.0
 
@@ -1151,7 +1165,8 @@ any of them.
   from a stream (§7.6), and with it a `duckdb_register()` counterpart.
   Proposal: after v0.1.0, once Q18's bar is met. **Decided 2026-11-18
   (maintainer): after v0.1.0.** Stage 7's adapter pulls, so the operator
-  can be built on it without changing it (§7.3).
+  can be built on it without changing it (§7.3). With D11 it is step
+  B of §16.5, and Q21 asks whether its place in the order changes.
 - **Q20.** Where does the readers' codec table come from? `qio` needs
   zstd and lz4 for most Parquet files, and reaches them through
   zukomp's table (§7.2). Two ways to get it:
@@ -1174,6 +1189,23 @@ any of them.
   code is copied into this package's shared object too. The price is
   that a codec fix reaches users when `zuslothdb` is rebuilt, and that
   the engine's own zstd must be cut first (§7.4).
+- **Q21.** In what order do §16.5's steps come, and which are in
+  v0.1.0? Proposal: step A (registered readers for
+  `zuslothdb_read()`, no engine change) joins Stage 10; B (table
+  functions in SQL), C (scalar functions) and D (results out) follow
+  v0.1.0 in that order, one release each. Q19 already put B after
+  v0.1.0, and Q18's bar comes before new engine code.
+- **Q22.** How does an extension register? Proposal: its `.onLoad`
+  calls an exported `zuslothdb` function with an external pointer to
+  a versioned C struct of callbacks (§16.3). The registry is one per
+  process, as the thread pool is, and a name registered twice is an
+  error. The alternative, `zuslothdb` looking packages up by name
+  with `R_GetCCallable`, makes it know its extensions in advance.
+- **Q23.** What crosses the boundary for a scalar function? Proposal:
+  Arrow arrays in and one Arrow array out, a chunk at a time, so no
+  engine type is in the public header. The cost is a conversion of
+  each chunk in both directions, a copy for strings. Exposing the
+  engine's `Vector` would be faster and would freeze its layout.
 
 ## 15. Sources and verification
 
@@ -1208,5 +1240,102 @@ compiler (Stage 1); that SlothDB's C++ API exposes a cancellation hook
 files; install time and installed size; whether arm64 builds; the
 sqllogictest figure, taken from commit messages; and every engine
 behaviour beyond the files named.
+
+## 16. Extensions through R packages
+
+Added 2026-11-18 (D11). DuckDB grows through extensions it downloads and
+loads itself. `zuslothdb` loads nothing: R already installs, loads,
+versions and distributes packages, so an extension is an R package that
+registers its code with the engine when it is loaded.
+
+### 16.1 What the engine offers today
+
+Read on 2026-11-18 at the fork's `zuslothdb-6`.
+
+| Kind | In the engine | For an extension |
+| --- | --- | --- |
+| Table sources | Operators share one pull interface, `PhysicalOperator::GetData(DataChunk &)`, with hints for projection, `LIMIT` and top-N. Six of the 22 operators are scans. Table function names are fixed in the parser, the tokenizer and `connection.cpp`. | A good fit: one generic operator over a stream, and a registry of names. |
+| Scalar functions | No registry. `ExpressionExecutor::ExecuteFunction` is one function of about 3,000 lines that compares the name 133 times; the binder picks the return type from a second chain of 127. The call is already a chunk in and a vector out. | Workable: a registry consulted when both chains fall through. |
+| Aggregates | 121 name comparisons in the planner, inside specialised operators (radix, integer-group, dictionary histogram). | Hard, and not planned. |
+| Types | A fixed enum, of which the engine produces only the flat ones (§6). | The limit. An extension's own data travels as `BLOB` or `VARCHAR`, with functions over it, as in SQLite. |
+| Writers | Results reach R as vectors only (D8). | Easy once a result can leave as an Arrow stream. |
+
+### 16.2 Scope
+
+In: table sources and scalar functions, over the flat types of §6, and
+writers once results leave as streams.
+
+Out: aggregate and window functions, new types, optimizer rules, file
+systems (D4), and R functions as SQL functions. A callback can run on an
+engine worker thread, where R cannot be called.
+
+### 16.3 How an extension joins
+
+- **A header**, `inst/include/zuslothdb.h`: plain C, no R header, an ABI
+  version, and no engine type. An extension has `LinkingTo: zuslothdb`
+  for it and `Imports: zuslothdb` to register.
+- **Registration from `.onLoad`** (Q22): the extension hands over a
+  versioned struct of callbacks. The engine keeps the pointer and never
+  opens a library, so the shared object still exports only
+  `R_init_zuslothdb`.
+- **One contract for data**, the one §7.3 chose: an Arrow C stream for a
+  table source, Arrow arrays for a function's arguments and result
+  (Q23).
+- **A table source is the readers' entry point.** It opens with a path
+  or arguments and fills a stream, as `zucsv_open_stream()` does (§7.2).
+  So one function serves both routes: linked statically for the formats
+  every installation has (D9), registered at load for the rest. Options
+  reach a registered source as strings, since the engine cannot know its
+  options struct.
+- **A scalar function** declares its name, its argument types and its
+  return type, so the binder can type the call, and a function over
+  arrays.
+
+### 16.4 Rules for a callback
+
+- **No R.** It may run on any engine thread, so it calls no R API and
+  allocates nothing from R.
+- **Errors returned**, as a code and a message; never a `longjmp`, an
+  `abort()` or a write to `stderr`.
+- **Never another value** (§6): what it cannot deliver exactly is an
+  error.
+- **Registered once, for the process.** The engine's thread pool is
+  already process-wide (§4.2). So is `ExpressionExecutor::catalog_`, a
+  static pointer each query sets before it runs; that is sound only
+  because R runs one query at a time, and a callback must not start one.
+- **The package stays loaded.** Unloading an extension's namespace while
+  it is registered would leave the engine calling freed code, so
+  registration holds the namespace, or unloading unregisters; step A
+  settles which.
+
+### 16.5 Steps
+
+Each is useful alone, and only the first needs no engine change.
+
+- **A. Registered readers.** `zuslothdb_read(format = )` looks the
+  format up in the registry after the built-in ones, and loads the
+  stream through Stage 7's adapter. No fork commit.
+- **B. Table functions in SQL.** A fork commit adds one scan operator
+  over a stream and a registry the binder consults for a table function
+  it does not know (Q19). It also gives `duckdb_register()` a
+  counterpart for data frames. The planner and `connection.cpp` reach
+  into table storage on about 73 lines of fast paths; the new scan must
+  fall through each of them, and a table function inside a subquery,
+  which the engine does not bind today (D1), must work.
+- **C. Scalar functions.** A fork commit adds the registry and consults
+  it where the binder's and the executor's chains end. Built-in
+  functions can then move into it one at a time, which shortens the
+  chains the `STRFTIME` crash lived in.
+- **D. Results out.** `dbSendQueryArrow()` and `dbFetchArrow()` give a
+  result as a stream (D8's later work), and a writer package takes it.
+
+Q21 asks their order against v0.1.0.
+
+### 16.6 What it will not become
+
+A small DuckDB in shape, not in reach. The engine has no transactions
+(§5), no cancellation (Q6), keeps every table in memory (§8), has an
+optimizer of 228 lines and passes about 18% of sqllogictest (§1.3).
+Extensions add sources and functions; they do not change those.
 
 [admission]: https://github.com/pedrobtz/packages/blob/main/rfcs/base-layer-candidates.md#2-the-admission-test
