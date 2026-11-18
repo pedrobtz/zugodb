@@ -1,7 +1,8 @@
 # zuslothdb: roadmap
 
 Status: draft 2026-11-17, restaged 2026-11-18 from Stage 6 on (design
-D9). Implements [design.md](design.md).
+D9), Stages 5.1 and 5.2 added the same day (D12: the engine as
+`libzugodb`, the package as `zugodb`). Implements [design.md](design.md).
 Target: v0.1.0, the first CRAN release.
 Tracking: [v0.1.0 (#1)](https://github.com/pedrobtz/zuslothdb/issues/1),
 with one sub-issue per stage;
@@ -34,6 +35,8 @@ GitHub or the maintainer's r-universe.
 | 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/zuslothdb/issues/5) | [#31](https://github.com/pedrobtz/zuslothdb/pull/31) | 2026-11-17 |
 | 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | [#44](https://github.com/pedrobtz/zuslothdb/pull/44) | 2026-11-18 |
 | 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | [#50](https://github.com/pedrobtz/zuslothdb/pull/50) | 2026-11-18 |
+| 5.1 | [The engine as libzugodb](#stage-51--the-engine-as-libzugodb) | full | [#64](https://github.com/pedrobtz/zuslothdb/issues/64) | | |
+| 5.2 | [The package as zugodb](#stage-52--the-package-as-zugodb) | full | [#65](https://github.com/pedrobtz/zuslothdb/issues/65) | | |
 | 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | |
 | 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | | |
 | 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | | |
@@ -367,6 +370,95 @@ past 2048 rows with a `NULL` corrupted memory (#45, fixed first).
 
 **Design.** [§5](design.md#5-public-r-api-proposed) and
 [§6](design.md#6-types).
+
+## Stage 5.1 — The engine as libzugodb
+
+**Issue.** [#64](https://github.com/pedrobtz/zuslothdb/issues/64), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
+
+**CI.** `full — the vendored engine is replaced by a tagged release of a
+new repository: every platform leg, the sanitizers, and the symbol and
+import checks must see it.`
+
+**Goal.** The engine is `pedrobtz/libzugodb`, a project of its own with
+its own CI, and this package vendors its first tag (design D12).
+
+**Work.**
+
+- Rename `pedrobtz/slothdb` to `pedrobtz/libzugodb`, keeping its
+  history; make the `zuslothdb` branch its `main`; archive the upstream
+  mirror and keep the `fix/` branches while upstream pull requests
+  SouravRoy-ETL/slothdb#43 to #48 are open.
+- In `libzugodb`: a README that credits SlothDB as its origin, the MIT
+  `LICENSE` with "SlothDB Contributors" kept, a CMake CI workflow (the
+  doctest suite on Linux, macOS and Windows with MinGW, ASan and UBSan),
+  and a `CHANGELOG` whose first entry lists the 16 changes since
+  upstream `8180f21`.
+- Rename the C++ namespace `slothdb::` to `zugodb::`; tag `v0.1.0` of
+  the engine.
+- `tools/vendor.yaml` and `tools/vendor.R`: vendor a tag of
+  `libzugodb`, with a pin and checksums; the `changes` ledger and its
+  history check go. `tools/vendor/verify` checks the tree against the
+  tag. `.agents/VENDORED.md` is rewritten for it.
+- `zuslothdb_info()` reports the engine's tag and commit instead of a
+  patch list.
+
+**Tests.**
+
+- The vendored tree equals the tag, file for file: `tools/vendor/verify`.
+- The engine's own suite passes on the tag in `libzugodb`'s CI, and
+  `tools/upstream-tests.sh` passes against the vendored tree.
+- `zuslothdb_info()` reports the tag and commit in `inst/vendor.yaml`, in
+  `test-info.R`.
+- The rename changes no result: the whole suite passes unchanged, and
+  only `R_init_zuslothdb` is exported, by `tools/ci/platform.sh`.
+
+**Exit criteria.**
+
+- A full-profile run is green on the pull request.
+- `libzugodb`'s CI is green on its tag.
+
+**Design.** [D12](design.md#12-decisions).
+
+## Stage 5.2 — The package as zugodb
+
+**Issue.** [#65](https://github.com/pedrobtz/zuslothdb/issues/65), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
+
+**CI.** `full — the shared object's name, its init symbol and every
+exported name change.`
+
+**Goal.** The package is `zugodb`, with the `zug_` prefix throughout,
+and nothing else changes (design D12).
+
+**Work.**
+
+- Rename the repository `pedrobtz/zuslothdb` to `pedrobtz/zugodb`
+  (GitHub redirects the old name) and the package to `zugodb`.
+- The driver `zugodb()`; `zug_read()`, `zug_info()`; condition classes
+  `zug_error`, `zug_sql_error`, `zug_type_error`, `zug_unsupported`,
+  `zug_closed_error`, `zug_argument_error`; the glue's C symbols from
+  `sdb_` to `zug_`; `R_init_zugodb`; `ZUG_SKIP_HEAVY`,
+  `ZUG_SLOW_TESTS`, `ZUG_TEST_SEED`.
+- `DESCRIPTION`, `NAMESPACE`, `man/`, README, pkgdown, `CLAUDE.md`,
+  `.agents/`, the workflows and `tools/` follow; the design keeps its
+  history and says when the name changed.
+- The issues and roadmap of this repository keep their numbers.
+
+**Tests.**
+
+- The whole suite passes with each test's names changed and nothing
+  else: a rename that changed a behaviour would fail one.
+- No `zuslothdb` or `sdb_` is left in `R/`, `src/` (outside the vendored
+  tree), `tests/` or `DESCRIPTION`: a `grep` in `tools/ci/platform.sh`.
+- Only `R_init_zugodb` is exported, on each OS.
+
+**Exit criteria.**
+
+- A full-profile run is green on the pull request.
+- Every `**Tests.**` line exists and was seen to fail.
+
+**Design.** [D12](design.md#12-decisions).
 
 ## Stage 6 — Persistence and the engine's own readers
 
