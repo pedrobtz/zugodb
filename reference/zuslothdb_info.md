@@ -25,9 +25,9 @@ info <- zuslothdb_info()
 info$commit
 #> [1] "8180f215847015944c935f56f008d194e2c1494c"
 info$patches
-#> [1] "0001-mingw.patch"             "0002-no-process-output.patch"
-#> [3] "0003-offline.patch"           "0004-threads.patch"          
-#> [5] "0005-strftime-arity.patch"    "0006-compiler-warnings.patch"
-#> [7] "0007-read-only.patch"         "0008-lost-wakeup.patch"      
-#> [9] "0009-thread-local.patch"     
+#>  [1] "0001-mingw.patch"             "0002-no-process-output.patch"
+#>  [3] "0003-offline.patch"           "0004-threads.patch"          
+#>  [5] "0005-strftime-arity.patch"    "0006-compiler-warnings.patch"
+#>  [7] "0007-read-only.patch"         "0008-lost-wakeup.patch"      
+#>  [9] "0009-thread-local.patch"      "0010-validity-capacity.patch"
 ```
