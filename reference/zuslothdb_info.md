@@ -26,7 +26,7 @@ engine's thread cap, an integer).
 ``` r
 info <- zuslothdb_info()
 info$commit
-#> [1] "1b126916a47074be6339f64c81d5b3929b2e495e"
+#> [1] "69917820e317fe8bf4e21dd44baf55d3ba450da8"
 info$changes
 #>  [1] "Take the Windows branch under MinGW, not only MSVC"            
 #>  [2] "Write nothing to stderr, never abort, use no rand()"           
@@ -44,4 +44,5 @@ info$changes
 #> [14] "Refuse unreadable Parquet columns when bound, not when scanned"
 #> [15] "Refuse JSON the readers would misread, and decode \\u escapes" 
 #> [16] "Refuse Arrow IPC: SlothDB's Arrow format is its own"           
+#> [17] "Refuse the SQLite, Excel and Avro readers"                     
 ```
