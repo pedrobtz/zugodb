@@ -1,20 +1,20 @@
-// zuslothdb's glue over SlothDB's C++ API (design §4, D2): registration,
-// zuslothdb_info(), and the Stage 1 spike's one-query path.
+// zugodb's glue over SlothDB's C++ API (design §4, D2): registration,
+// zug_c_info(), and the Stage 1 spike's one-query path.
 //
 // The rule of §4.3: no C++ exception crosses into R, and no R API call that
 // can longjmp runs while a SlothDB object with a destructor is live on the
 // stack. So every entry point does its engine work in an `Engine*` helper,
 // inside try/catch, with every C++ object scoped to that helper; the helper
-// returns plain values and an sdb::EngineError, and only then, with the C++
+// returns plain values and an zug::EngineError, and only then, with the C++
 // frames gone, does the entry point build R objects. Errors are returned to
-// R, never raised here: sdb_abort() in R turns them into zuslothdb_error
+// R, never raised here: zug_abort() in R turns them into zug_error
 // conditions. Nothing in the glue calls Rf_error().
 
-#include "sdb_common.h"
+#include "zug_common.h"
 
 #include <cstdint>
 
-#include "sdb_provenance.h"
+#include "zug_provenance.h"
 
 namespace {
 
@@ -27,7 +27,7 @@ struct ScalarInt {
 
 // Opens an in-memory database, runs `sql`, and reads the first column of
 // the first row as an integer.
-void EngineScalarInt(const char *sql, ScalarInt *out, sdb::EngineError *err) {
+void EngineScalarInt(const char *sql, ScalarInt *out, zug::EngineError *err) {
   try {
     zugodb::Database db;
     zugodb::Connection con(db);
@@ -73,91 +73,91 @@ void EngineScalarInt(const char *sql, ScalarInt *out, sdb::EngineError *err) {
 
 extern "C" {
 
-SEXP sdb_scalar_int(SEXP sql) {
-  sdb::EngineError err;
+SEXP zug_scalar_int(SEXP sql) {
+  zug::EngineError err;
   if (TYPEOF(sql) != STRSXP || XLENGTH(sql) != 1 ||
       STRING_ELT(sql, 0) == NA_STRING) {
     err.set("sql must be a single string", "argument");
-    return sdb::ResultList(R_NilValue, err);
+    return zug::ResultList(R_NilValue, err);
   }
   // Translated to UTF-8 before any C++ object exists: Rf_translateCharUTF8
   // allocates and can longjmp.
   const char *text = Rf_translateCharUTF8(STRING_ELT(sql, 0));
   ScalarInt v;
   EngineScalarInt(text, &v, &err);
-  if (err.failed) return sdb::ResultList(R_NilValue, err);
+  if (err.failed) return zug::ResultList(R_NilValue, err);
   switch (v.kind) {
   case ScalarKind::kNull:
-    return sdb::ResultList(Rf_ScalarInteger(NA_INTEGER), err);
+    return zug::ResultList(Rf_ScalarInteger(NA_INTEGER), err);
   case ScalarKind::kTooWide:
     err.set("the value does not fit an R integer", "type");
-    return sdb::ResultList(R_NilValue, err);
+    return zug::ResultList(R_NilValue, err);
   case ScalarKind::kInt:
     break;
   }
-  return sdb::ResultList(Rf_ScalarInteger(v.value), err);
+  return zug::ResultList(Rf_ScalarInteger(v.value), err);
 }
 
-// sdb_info(): the source the engine was compiled from (src/sdb_provenance.h,
+// zug_c_info(): the source the engine was compiled from (src/zug_provenance.h,
 // from tools/vendor.yaml): libzugodb's repository, commit and tag, and the
 // SlothDB commit it descends from.
-SEXP sdb_info(void) {
+SEXP zug_c_info(void) {
   const unsigned int threads = zugodb::ThreadCap();
   const char *names[] = {"engine",   "repository", "commit",        "tag",
                          "origin",   "origin_commit", "describe",   "threads",
                          ""};
   SEXP out = PROTECT(Rf_mkNamed(VECSXP, names));
   SET_VECTOR_ELT(out, 0, Rf_mkString("libzugodb"));
-  SET_VECTOR_ELT(out, 1, Rf_mkString(SDB_SOURCE_REPOSITORY));
-  SET_VECTOR_ELT(out, 2, Rf_mkString(SDB_SOURCE_COMMIT));
-  SET_VECTOR_ELT(out, 3, Rf_mkString(SDB_SOURCE_TAG));
-  SET_VECTOR_ELT(out, 4, Rf_mkString(SDB_ORIGIN_REPOSITORY));
-  SET_VECTOR_ELT(out, 5, Rf_mkString(SDB_ORIGIN_COMMIT));
-  SET_VECTOR_ELT(out, 6, Rf_mkString(SDB_ORIGIN_DESCRIBE));
+  SET_VECTOR_ELT(out, 1, Rf_mkString(ZUG_SOURCE_REPOSITORY));
+  SET_VECTOR_ELT(out, 2, Rf_mkString(ZUG_SOURCE_COMMIT));
+  SET_VECTOR_ELT(out, 3, Rf_mkString(ZUG_SOURCE_TAG));
+  SET_VECTOR_ELT(out, 4, Rf_mkString(ZUG_ORIGIN_REPOSITORY));
+  SET_VECTOR_ELT(out, 5, Rf_mkString(ZUG_ORIGIN_COMMIT));
+  SET_VECTOR_ELT(out, 6, Rf_mkString(ZUG_ORIGIN_DESCRIBE));
   SET_VECTOR_ELT(out, 7, Rf_ScalarInteger(static_cast<int>(threads)));
   UNPROTECT(1);
   return out;
 }
 
-// sdb_database.cpp
-SEXP sdb_db_open(SEXP path, SEXP read_only);
-SEXP sdb_db_close(SEXP ptr);
-SEXP sdb_db_is_open(SEXP ptr);
-SEXP sdb_db_connections(SEXP ptr);
-SEXP sdb_connect(SEXP dbptr);
-SEXP sdb_conn_is_open(SEXP ptr);
-SEXP sdb_disconnect(SEXP ptr);
-SEXP sdb_execute(SEXP ptr, SEXP sql);
-SEXP sdb_set_threads(SEXP n);
+// zug_database.cpp
+SEXP zug_db_open(SEXP path, SEXP read_only);
+SEXP zug_db_close(SEXP ptr);
+SEXP zug_db_is_open(SEXP ptr);
+SEXP zug_db_connections(SEXP ptr);
+SEXP zug_connect(SEXP dbptr);
+SEXP zug_conn_is_open(SEXP ptr);
+SEXP zug_disconnect(SEXP ptr);
+SEXP zug_execute(SEXP ptr, SEXP sql);
+SEXP zug_set_threads(SEXP n);
 
-// sdb_result.cpp
-SEXP sdb_send(SEXP conptr, SEXP sql);
-SEXP sdb_result_info(SEXP ptr);
-SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz);
-SEXP sdb_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
+// zug_result.cpp
+SEXP zug_send(SEXP conptr, SEXP sql);
+SEXP zug_result_info(SEXP ptr);
+SEXP zug_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz);
+SEXP zug_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
                 SEXP names, SEXP check_only);
-SEXP sdb_result_clear(SEXP ptr);
+SEXP zug_result_clear(SEXP ptr);
 
 static const R_CallMethodDef call_methods[] = {
-    {"sdb_scalar_int", (DL_FUNC)&sdb_scalar_int, 1},
-    {"sdb_info", (DL_FUNC)&sdb_info, 0},
-    {"sdb_db_open", (DL_FUNC)&sdb_db_open, 2},
-    {"sdb_db_close", (DL_FUNC)&sdb_db_close, 1},
-    {"sdb_db_is_open", (DL_FUNC)&sdb_db_is_open, 1},
-    {"sdb_db_connections", (DL_FUNC)&sdb_db_connections, 1},
-    {"sdb_connect", (DL_FUNC)&sdb_connect, 1},
-    {"sdb_conn_is_open", (DL_FUNC)&sdb_conn_is_open, 1},
-    {"sdb_disconnect", (DL_FUNC)&sdb_disconnect, 1},
-    {"sdb_execute", (DL_FUNC)&sdb_execute, 2},
-    {"sdb_set_threads", (DL_FUNC)&sdb_set_threads, 1},
-    {"sdb_send", (DL_FUNC)&sdb_send, 2},
-    {"sdb_result_info", (DL_FUNC)&sdb_result_info, 1},
-    {"sdb_fetch", (DL_FUNC)&sdb_fetch, 4},
-    {"sdb_append", (DL_FUNC)&sdb_append, 7},
-    {"sdb_result_clear", (DL_FUNC)&sdb_result_clear, 1},
+    {"zug_scalar_int", (DL_FUNC)&zug_scalar_int, 1},
+    {"zug_c_info", (DL_FUNC)&zug_c_info, 0},
+    {"zug_db_open", (DL_FUNC)&zug_db_open, 2},
+    {"zug_db_close", (DL_FUNC)&zug_db_close, 1},
+    {"zug_db_is_open", (DL_FUNC)&zug_db_is_open, 1},
+    {"zug_db_connections", (DL_FUNC)&zug_db_connections, 1},
+    {"zug_connect", (DL_FUNC)&zug_connect, 1},
+    {"zug_conn_is_open", (DL_FUNC)&zug_conn_is_open, 1},
+    {"zug_disconnect", (DL_FUNC)&zug_disconnect, 1},
+    {"zug_execute", (DL_FUNC)&zug_execute, 2},
+    {"zug_set_threads", (DL_FUNC)&zug_set_threads, 1},
+    {"zug_send", (DL_FUNC)&zug_send, 2},
+    {"zug_result_info", (DL_FUNC)&zug_result_info, 1},
+    {"zug_fetch", (DL_FUNC)&zug_fetch, 4},
+    {"zug_append", (DL_FUNC)&zug_append, 7},
+    {"zug_result_clear", (DL_FUNC)&zug_result_clear, 1},
     {NULL, NULL, 0}};
 
-void attribute_visible R_init_zuslothdb(DllInfo *dll) {
+void attribute_visible R_init_zugodb(DllInfo *dll) {
   R_registerRoutines(dll, NULL, call_methods, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
   R_forceSymbols(dll, TRUE);

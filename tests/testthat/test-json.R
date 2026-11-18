@@ -4,7 +4,7 @@
 # (json_rows() in helper-results.R).
 
 test_that("flat records read as written, with nulls and missing keys", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   got <- json_rows(con, c(
     '{"i": 1, "x": 1.5, "s": "a", "b": true, "n": "z"}',
@@ -19,14 +19,14 @@ test_that("flat records read as written, with nulls and missing keys", {
 })
 
 test_that("one array of objects reads as written", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   got <- json_rows(con, '[{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]')
   expect_identical(got[order(names(got))], data.frame(a = 1:2, b = c("x", "y")))
 })
 
 test_that("escapes decode, \\u escapes and surrogate pairs included", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   got <- json_rows(con, c(
     '{"s": "\\u00e9\\ud83d\\ude00"}',
@@ -38,7 +38,7 @@ test_that("escapes decode, \\u escapes and surrogate pairs included", {
 })
 
 test_that("more records than an engine chunk read as written", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con), priority = "first")
   k <- 0:4999
   lines <- sprintf('{"k": %d, "v": "r%d", "x": %s}', k, k,
@@ -51,7 +51,7 @@ test_that("more records than an engine chunk read as written", {
 })
 
 test_that("what the parsers would misread is refused, naming record and key", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   refused <- list(
     nested_array = list(c('{"a": [1, 2], "b": 1}'), "record 1", "nested array"),
@@ -74,7 +74,7 @@ test_that("what the parsers would misread is refused, naming record and key", {
   for (name in names(refused)) {
     case <- refused[[name]]
     err <- expect_error(
-      json_rows(con, case[[1]]), class = "zuslothdb_sql_error", label = name
+      json_rows(con, case[[1]]), class = "zug_sql_error", label = name
     )
     expect_match(conditionMessage(err), case[[2]], fixed = TRUE, label = name)
     expect_match(conditionMessage(err), case[[3]], fixed = TRUE, label = name)

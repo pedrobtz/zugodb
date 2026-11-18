@@ -11,9 +11,9 @@
 #'   integer).
 #' @export
 #' @examples
-#' info <- zuslothdb_info()
+#' info <- zug_info()
 #' info$commit
 #' info$tag
-zuslothdb_info <- function() {
-  .Call(sdb_info)
+zug_info <- function() {
+  .Call(zug_c_info)
 }

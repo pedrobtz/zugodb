@@ -6,7 +6,7 @@
 #' exists. Columns are written as these SQL types, which
 #' [DBI::dbDataType()] reports:
 #'
-#' | R | SlothDB |
+#' | R | Engine |
 #' | --- | --- |
 #' | logical | `BOOLEAN` |
 #' | integer | `INTEGER` |
@@ -23,25 +23,25 @@
 #' before any row is written: the table is as it was. `NA` is written as
 #' `NULL`; `NaN` stays `NaN`.
 #'
-#' SlothDB has no transactions: [DBI::dbBegin()], [DBI::dbCommit()] and
-#' [DBI::dbRollback()] are `zuslothdb_unsupported` errors, and SQL
+#' The engine has no transactions: [DBI::dbBegin()], [DBI::dbCommit()] and
+#' [DBI::dbRollback()] are `zug_unsupported` errors, and SQL
 #' `ROLLBACK` is an error saying that nothing was undone.
 #'
-#' @param conn A `zuslothdb_connection`.
+#' @param conn A `zugodb_connection`.
 #' @param name The table's name: a string, [DBI::Id()] with only a `table`,
-#'   or [DBI::SQL()] of a quoted name. Names are case-sensitive. SlothDB's
+#'   or [DBI::SQL()] of a quoted name. Names are case-sensitive. the engine's
 #'   parser cannot read a name holding `"`, so such a name is an error.
 #' @param value A data frame.
 #' @param overwrite,append `TRUE` to replace or to add to a table that
 #'   exists; at most one of them.
 #' @param field.types A named character vector of SQL types for some or all
 #'   columns, in place of [DBI::dbDataType()]'s.
-#' @param temporary Not supported: SlothDB has no temporary tables.
+#' @param temporary Not supported: the engine has no temporary tables.
 #' @param row.names As in [DBI::sqlRownamesToColumn()]: `FALSE` (the
 #'   default) drops them, `TRUE` or a string writes them as a column.
 #' @param fail_if_missing For `dbRemoveTable()`: `FALSE` to do nothing when
 #'   the table does not exist.
-#' @param dbObj A `zuslothdb_driver` or `zuslothdb_connection`.
+#' @param dbObj A `zugodb_driver` or `zugodb_connection`.
 #' @param obj A vector, or a data frame for the type of each column.
 #' @param x A character vector of identifiers.
 #' @param ... Not used.
@@ -50,9 +50,9 @@
 #'   `dbListFields()`: a character vector. `dbExistsTable()`: `TRUE` or
 #'   `FALSE`. `dbDataType()`: a character vector. `dbQuoteIdentifier()`:
 #'   [DBI::SQL()].
-#' @name zuslothdb_tables
+#' @name zugodb_tables
 #' @examples
-#' con <- DBI::dbConnect(zuslothdb())
+#' con <- DBI::dbConnect(zugodb())
 #' DBI::dbWriteTable(con, "cars", head(mtcars))
 #' DBI::dbListTables(con)
 #' DBI::dbReadTable(con, "cars")
@@ -61,7 +61,7 @@
 #' DBI::dbDisconnect(con)
 NULL
 
-# The payload codes of src/sdb_write.cpp.
+# The payload codes of src/zug_write.cpp.
 payload_codes <- c(
   logical = 0L,
   integer = 1L,
@@ -119,9 +119,9 @@ payload_of <- function(x) {
 }
 
 cannot_write <- function(x, what, call) {
-  sdb_abort(
+  zug_abort(
     sprintf(
-      "%s is of class %s, which zuslothdb cannot write.",
+      "%s is of class %s, which zugodb cannot write.",
       what,
       paste(class(x), collapse = "/")
     ),
@@ -130,7 +130,7 @@ cannot_write <- function(x, what, call) {
   )
 }
 
-# Column `x` as the plain vector src/sdb_write.cpp reads.
+# Column `x` as the plain vector src/zug_write.cpp reads.
 payload_value <- function(x, payload, name, call) {
   switch(
     payload,
@@ -151,7 +151,7 @@ payload_value <- function(x, payload, name, call) {
       s <- enc2utf8(s)
       bad <- which(!is.na(s) & !validUTF8(s))
       if (length(bad)) {
-        sdb_abort(
+        zug_abort(
           sprintf(
             "Column `%s`, row %d: the string is not valid UTF-8.",
             name,
@@ -166,18 +166,18 @@ payload_value <- function(x, payload, name, call) {
   )
 }
 
-# The data frame as sdb_append()'s arguments: every column checked here
+# The data frame as zug_append()'s arguments: every column checked here
 # before anything is written.
 prepare_frame <- function(value, call) {
   if (!is.data.frame(value)) {
-    sdb_abort("`value` must be a data frame.", "argument", call)
+    zug_abort("`value` must be a data frame.", "argument", call)
   }
   nms <- names(value)
   if (is.null(nms) || anyNA(nms) || any(!nzchar(nms))) {
-    sdb_abort("Every column of `value` must have a name.", "argument", call)
+    zug_abort("Every column of `value` must have a name.", "argument", call)
   }
   if (anyDuplicated(nms)) {
-    sdb_abort(
+    zug_abort(
       sprintf("`value` has the column `%s` twice.", nms[anyDuplicated(nms)]),
       "argument",
       call
@@ -216,8 +216,8 @@ table_name <- function(conn, name, call) {
     table <- if (named) parts[names(parts) == "table"] else parts[length(parts)]
     rest <- if (named) parts[names(parts) != "table"] else parts[-length(parts)]
     if (length(rest) && any(nzchar(rest))) {
-      sdb_abort(
-        "SlothDB has no schemas or catalogs: give the table's name alone.",
+      zug_abort(
+        "The engine has no schemas or catalogs: give the table's name alone.",
         "unsupported",
         call
       )
@@ -232,11 +232,11 @@ table_name <- function(conn, name, call) {
 
 quote_name <- function(x, call) {
   if (anyNA(x)) {
-    sdb_abort("An identifier cannot be NA.", "argument", call)
+    zug_abort("An identifier cannot be NA.", "argument", call)
   }
   if (any(grepl("\"", x, fixed = TRUE))) {
-    sdb_abort(
-      "SlothDB's parser cannot read an identifier holding `\"`.",
+    zug_abort(
+      "the engine's parser cannot read an identifier holding `\"`.",
       "argument",
       call
     )
@@ -245,9 +245,9 @@ quote_name <- function(x, call) {
 }
 
 append_frame <- function(conn, table, prepared, check_only, call) {
-  sdb_value(
+  zug_value(
     .Call(
-      sdb_append,
+      zug_append,
       conn@state$ptr,
       table,
       quote_name(table, call),
@@ -270,7 +270,7 @@ create_sql <- function(table, names, types, call) {
 
 check_open_connection <- function(conn, call) {
   if (!dbIsValid(conn)) {
-    sdb_abort("The connection is closed.", "closed", call)
+    zug_abort("The connection is closed.", "closed", call)
   }
 }
 
@@ -292,30 +292,30 @@ write_table_method <- function(
   append <- check_flag(append, "append", call)
   temporary <- check_flag(temporary, "temporary", call)
   if (temporary) {
-    sdb_abort("SlothDB has no temporary tables.", "unsupported", call)
+    zug_abort("The engine has no temporary tables.", "unsupported", call)
   }
   if (overwrite && append) {
-    sdb_abort(
+    zug_abort(
       "`overwrite` and `append` cannot both be TRUE.",
       "argument",
       call
     )
   }
   if (append && !is.null(field.types)) {
-    sdb_abort(
+    zug_abort(
       "`field.types` cannot be given with `append = TRUE`.",
       "argument",
       call
     )
   }
   if (!is.data.frame(value)) {
-    sdb_abort("`value` must be a data frame.", "argument", call)
+    zug_abort("`value` must be a data frame.", "argument", call)
   }
   value <- DBI::sqlRownamesToColumn(value, row.names)
   prepared <- prepare_frame(value, call)
   exists <- table %in% dbListTables(conn)
   if (exists && !overwrite && !append) {
-    sdb_abort(
+    zug_abort(
       sprintf(
         "The table `%s` exists; use `overwrite = TRUE` or `append = TRUE`.",
         table
@@ -336,7 +336,7 @@ write_table_method <- function(
         anyNA(field.types) ||
         !all(names(field.types) %in% prepared$names)
     ) {
-      sdb_abort(
+      zug_abort(
         "`field.types` must be SQL types named by columns of `value`.",
         "argument",
         call
@@ -345,9 +345,9 @@ write_table_method <- function(
     types[match(names(field.types), prepared$names)] <- unname(field.types)
   }
   # The data is checked against the new table's types in a probe table
-  # before an existing table is dropped: SlothDB has no rollback (its
+  # before an existing table is dropped: the engine has no rollback (its
   # ROLLBACK is an error, design §5) and no rename.
-  probe <- paste0("__zuslothdb_write_", table, "__")
+  probe <- paste0("__zugodb_write_", table, "__")
   while (probe %in% dbListTables(conn)) {
     probe <- paste0(probe, "_")
   }
@@ -371,27 +371,27 @@ write_table_method <- function(
   invisible(TRUE)
 }
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbWriteTable",
-  c("zuslothdb_connection", "character", "ANY"),
+  c("zugodb_connection", "character", "ANY"),
   write_table_method
 )
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbWriteTable",
-  c("zuslothdb_connection", "Id", "ANY"),
+  c("zugodb_connection", "Id", "ANY"),
   write_table_method
 )
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbWriteTable",
-  c("zuslothdb_connection", "SQL", "ANY"),
+  c("zugodb_connection", "SQL", "ANY"),
   write_table_method
 )
 
@@ -401,19 +401,19 @@ append_table_method <- function(conn, name, value, ..., row.names = NULL) {
   check_open_connection(conn, call)
   table <- table_name(conn, name, call)
   if (!is.null(row.names)) {
-    sdb_abort(
+    zug_abort(
       "`row.names` must be NULL for dbAppendTable().",
       "argument",
       call
     )
   }
   if (!is.data.frame(value)) {
-    sdb_abort("`value` must be a data frame.", "argument", call)
+    zug_abort("`value` must be a data frame.", "argument", call)
   }
   fields <- dbListFields(conn, table)
   extra <- setdiff(names(value), fields)
   if (length(extra)) {
-    sdb_abort(
+    zug_abort(
       sprintf(
         "The table `%s` has no column `%s`.",
         table,
@@ -436,34 +436,34 @@ append_table_method <- function(conn, name, value, ..., row.names = NULL) {
   append_frame(conn, table, prepared, FALSE, call)
 }
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbAppendTable",
-  c("zuslothdb_connection", "character", "ANY"),
+  c("zugodb_connection", "character", "ANY"),
   append_table_method
 )
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbAppendTable",
-  c("zuslothdb_connection", "Id", "ANY"),
+  c("zugodb_connection", "Id", "ANY"),
   append_table_method
 )
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbAppendTable",
-  c("zuslothdb_connection", "SQL", "ANY"),
+  c("zugodb_connection", "SQL", "ANY"),
   append_table_method
 )
 
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbListTables", "zuslothdb_connection", function(conn, ...) {
+setMethod("dbListTables", "zugodb_connection", function(conn, ...) {
   call <- sys.call()
   check_open_connection(conn, call)
   out <- DBI::dbGetQuery(conn, "SHOW TABLES")[[1L]]
@@ -476,23 +476,23 @@ exists_table_method <- function(conn, name, ...) {
   table_name(conn, name, call) %in% dbListTables(conn)
 }
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbExistsTable",
-  c("zuslothdb_connection", "character"),
+  c("zugodb_connection", "character"),
   exists_table_method
 )
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbExistsTable", c("zuslothdb_connection", "Id"), exists_table_method)
+setMethod("dbExistsTable", c("zugodb_connection", "Id"), exists_table_method)
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbExistsTable",
-  c("zuslothdb_connection", "SQL"),
+  c("zugodb_connection", "SQL"),
   exists_table_method
 )
 
@@ -502,7 +502,7 @@ list_fields_method <- function(conn, name, ...) {
   check_open_connection(conn, call)
   table <- table_name(conn, name, call)
   if (!table %in% dbListTables(conn)) {
-    sdb_abort(
+    zug_abort(
       sprintf("The table `%s` does not exist.", table),
       "argument",
       call
@@ -516,21 +516,21 @@ list_fields_method <- function(conn, name, ...) {
   dbColumnInfo(res)$name
 }
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbListFields",
-  c("zuslothdb_connection", "character"),
+  c("zugodb_connection", "character"),
   list_fields_method
 )
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbListFields", c("zuslothdb_connection", "Id"), list_fields_method)
+setMethod("dbListFields", c("zugodb_connection", "Id"), list_fields_method)
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbListFields", c("zuslothdb_connection", "SQL"), list_fields_method)
+setMethod("dbListFields", c("zugodb_connection", "SQL"), list_fields_method)
 
 
 remove_table_method <- function(
@@ -547,7 +547,7 @@ remove_table_method <- function(
   fail_if_missing <- check_flag(fail_if_missing, "fail_if_missing", call)
   if (!table %in% dbListTables(conn)) {
     if (fail_if_missing) {
-      sdb_abort(
+      zug_abort(
         sprintf("The table `%s` does not exist.", table),
         "argument",
         call
@@ -559,32 +559,32 @@ remove_table_method <- function(
   invisible(TRUE)
 }
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbRemoveTable",
-  c("zuslothdb_connection", "character"),
+  c("zugodb_connection", "character"),
   remove_table_method
 )
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbRemoveTable", c("zuslothdb_connection", "Id"), remove_table_method)
+setMethod("dbRemoveTable", c("zugodb_connection", "Id"), remove_table_method)
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbRemoveTable",
-  c("zuslothdb_connection", "SQL"),
+  c("zugodb_connection", "SQL"),
   remove_table_method
 )
 
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
 setMethod(
   "dbQuoteIdentifier",
-  c("zuslothdb_connection", "character"),
+  c("zugodb_connection", "character"),
   function(conn, x, ...) {
     DBI::SQL(quote_name(x, sys.call()), names = names(x))
   }
@@ -602,40 +602,40 @@ data_type <- function(obj, call) {
   unname(sql_types[[p]])
 }
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbDataType", "zuslothdb_connection", function(dbObj, obj, ...) {
+setMethod("dbDataType", "zugodb_connection", function(dbObj, obj, ...) {
   data_type(obj, sys.call())
 })
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbDataType", "zuslothdb_driver", function(dbObj, obj, ...) {
+setMethod("dbDataType", "zugodb_driver", function(dbObj, obj, ...) {
   data_type(obj, sys.call())
 })
 
 transactions_unsupported <- function(call) {
-  sdb_abort(
-    "SlothDB has no transactions: ROLLBACK would not undo anything.",
+  zug_abort(
+    "The engine has no transactions: ROLLBACK would not undo anything.",
     "unsupported",
     call
   )
 }
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbBegin", "zuslothdb_connection", function(conn, ...) {
+setMethod("dbBegin", "zugodb_connection", function(conn, ...) {
   transactions_unsupported(sys.call())
 })
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbCommit", "zuslothdb_connection", function(conn, ...) {
+setMethod("dbCommit", "zugodb_connection", function(conn, ...) {
   transactions_unsupported(sys.call())
 })
 
-#' @rdname zuslothdb_tables
+#' @rdname zugodb_tables
 #' @export
-setMethod("dbRollback", "zuslothdb_connection", function(conn, ...) {
+setMethod("dbRollback", "zugodb_connection", function(conn, ...) {
   transactions_unsupported(sys.call())
 })

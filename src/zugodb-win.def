@@ -1,0 +1,3 @@
+LIBRARY zugodb.dll
+EXPORTS
+ R_init_zugodb

@@ -11,6 +11,11 @@ readers), D1's second look, Q15 to Q23 (all decided), §16 with D11:
 extensions through R packages, and D12: the engine as `libzugodb` and
 the package as `zugodb`.
 
+*The name.* This document was written for `zuslothdb`, the package's
+name until 2026-11-18 (Stage 5.2); its `zuslothdb_*` names are now
+`zug_*` and `zugodb_*` as D12 lists, and are left as written above that
+date.
+
 - **Status:** Proposed. Merging this file adopts the design as the starting
   point for the package's own `.agents/design.md`; each decision in
   section 12 stays the maintainer's until the package repository records

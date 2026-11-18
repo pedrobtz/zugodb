@@ -3,7 +3,7 @@
 # rows than an engine chunk (2048).
 
 test_that("every writable type round-trips, with NA, through one chunk and many", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   for (n in c(0L, 1L, 5L, 2048L, 2049L, 5000L)) {
     df <- roundtrip_frame(n)
@@ -17,7 +17,7 @@ test_that("every writable type round-trips, with NA, through one chunk and many"
 })
 
 test_that("POSIXct keeps the microsecond, before 1970 and at the extremes", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   # Values read from duckdb's recorded answer: what a TIMESTAMP holds.
   ts <- oracle_answer("temporal-timestamp")$ts
@@ -30,7 +30,7 @@ test_that("POSIXct keeps the microsecond, before 1970 and at the extremes", {
 })
 
 test_that("doubles keep NaN, Inf and their last bit; NA stays NA", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   x <- c(NaN, Inf, -Inf, NA, .Machine$double.xmin, 5e-324, 0.1 + 0.2, -0)
   DBI::dbWriteTable(con, "t", data.frame(x = x))
@@ -43,7 +43,7 @@ test_that("doubles keep NaN, Inf and their last bit; NA stays NA", {
 
 test_that("integer64 round-trips as BIGINT, at its extremes", {
   skip_if_not_installed("bit64")
-  con <- DBI::dbConnect(zuslothdb(), bigint = "integer64")
+  con <- DBI::dbConnect(zugodb(), bigint = "integer64")
   withr::defer(DBI::dbDisconnect(con))
   x <- bit64::as.integer64(c(
     "9223372036854775807",
@@ -68,7 +68,7 @@ test_that("integer64 round-trips as BIGINT, at its extremes", {
 })
 
 test_that("strings round-trip in UTF-8, whatever their declared encoding", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   s <- c("é", "日本", "a\"b'c", "", NA, strrep("x", 100))
   latin <- iconv("é", "UTF-8", "latin1")
@@ -82,7 +82,7 @@ test_that("strings round-trip in UTF-8, whatever their declared encoding", {
 test_that("a round trip is the same under a hostile locale and options", {
   withr::local_options(OutDec = ",", scipen = -5, digits = 3)
   withr::local_locale(c(LC_COLLATE = "C"))
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   df <- roundtrip_frame(50L)
   DBI::dbWriteTable(con, "t", df)

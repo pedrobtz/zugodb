@@ -5,7 +5,7 @@
 # helper-parquet.R).
 
 test_that("the types the reader decodes faithfully arrive as written", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   utc <- function(x) structure(x, class = c("POSIXct", "POSIXt"), tzone = "UTC")
   want <- list(
@@ -23,7 +23,7 @@ test_that("the types the reader decodes faithfully arrive as written", {
 })
 
 test_that("the types it would read wrongly are refused, naming the column", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   refused <- c(
     dec4 = "DECIMAL", dec18 = "DECIMAL", dec38 = "DECIMAL", time = "TIME",
@@ -32,7 +32,7 @@ test_that("the types it would read wrongly are refused, naming the column", {
   )
   for (name in names(refused)) {
     err <- expect_error(
-      parquet_type(con, name), class = "zuslothdb_sql_error", label = name
+      parquet_type(con, name), class = "zug_sql_error", label = name
     )
     expect_match(conditionMessage(err), "Parquet column 'v'", fixed = TRUE, label = name)
     expect_match(conditionMessage(err), refused[[name]], fixed = TRUE, label = name)
@@ -42,7 +42,7 @@ test_that("the types it would read wrongly are refused, naming the column", {
 })
 
 test_that("a refused column does not stop queries on the other columns", {
-  con <- DBI::dbConnect(zuslothdb(), threads = 4L)
+  con <- DBI::dbConnect(zugodb(), threads = 4L)
   withr::defer(DBI::dbDisconnect(con))
   mixed <- function(sql) parquet_type(con, "mixed", sql)
   # A plan may decode every column (a bare LIMIT, ORDER BY); the refusal
@@ -68,7 +68,7 @@ test_that("a refused column does not stop queries on the other columns", {
     "SELECT t.* FROM '%s' AS t",
     "SELECT ok FROM '%s' ORDER BY dec LIMIT 1"
   )) {
-    expect_error(mixed(sql), class = "zuslothdb_sql_error", label = sql)
+    expect_error(mixed(sql), class = "zug_sql_error", label = sql)
   }
   expect_identical(mixed("SELECT count(*) AS n FROM '%s'")$n, 5000)
 })

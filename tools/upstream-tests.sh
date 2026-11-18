@@ -12,7 +12,7 @@
 set -eu
 here=$(pwd)
 work=${1:-$(mktemp -d)}
-jobs=${SDB_JOBS:-4}
+jobs=${ZUG_JOBS:-4}
 R=${R_HOME:+$R_HOME/bin/}R
 command -v R >/dev/null 2>&1 && R=R
 
@@ -23,7 +23,7 @@ field() {
 }
 repo=$(field repository)
 commit=$(field commit)
-repo=${SDB_SOURCE:-$repo}
+repo=${ZUG_SOURCE:-$repo}
 [ -n "$repo" ] && [ -n "$commit" ] || { echo "cannot read tools/vendor.yaml" >&2; exit 2; }
 
 # The fork's test tree at the vendored commit (a clone left in `workdir`
@@ -84,12 +84,12 @@ exe="$work/slothdb_tests"
 case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) exe="$exe.exe" ;; esac
 $CXX $CXXFLAGS "$obj"/*.o -o "$exe" -pthread
 cd "$up"
-# SDB_TEST_RUNS runs (1 by default), each killed after SDB_TEST_TIMEOUT
+# ZUG_TEST_RUNS runs (1 by default), each killed after ZUG_TEST_TIMEOUT
 # seconds (600): a hang fails the step with a message, not the job's
 # timeout (#32, a lost wakeup that hung 1 run in about 14). perl, because
 # macOS has no timeout(1).
-runs=${SDB_TEST_RUNS:-1}
-limit=${SDB_TEST_TIMEOUT:-600}
+runs=${ZUG_TEST_RUNS:-1}
+limit=${ZUG_TEST_TIMEOUT:-600}
 i=1
 while [ "$i" -le "$runs" ]; do
   [ "$runs" -gt 1 ] && echo "run $i of $runs"

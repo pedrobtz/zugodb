@@ -1,11 +1,11 @@
-Package: zuslothdb
-Title: SQL over Local Files with the Embedded 'SlothDB' Engine
+Package: zugodb
+Title: A Small Embedded SQL Engine with a 'DBI' Driver
 Version: 0.0.0.9000
 Authors@R: c(
     person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
            role = c("aut", "cre", "cph")),
     person("SlothDB Contributors", role = c("ctb", "cph"),
-           comment = "bundled SlothDB engine"),
+           comment = "SlothDB, from which the bundled engine derives"),
     person("Meta Platforms, Inc. and affiliates", role = "cph",
            comment = "bundled Zstandard decompressor"),
     person("Google Inc.", role = "cph", comment = "bundled Snappy"),
@@ -19,9 +19,11 @@ Authors@R: c(
     person("Martin", "Leitner-Ankerl", role = c("ctb", "cph"),
            comment = "bundled unordered_dense")
   )
-Description: A 'DBI' driver for 'SlothDB' (<https://github.com/SouravRoy-ETL/slothdb>),
-    an analytical SQL engine whose C++ source is bundled and compiled when
-    the package is installed. SQL queries over local 'CSV', 'Parquet'
+Description: A 'DBI' driver for 'libzugodb'
+    (<https://github.com/pedrobtz/libzugodb>), a small columnar SQL engine
+    derived from 'SlothDB' (<https://github.com/SouravRoy-ETL/slothdb>),
+    whose C++ source is bundled and compiled when the package is
+    installed. SQL queries over local 'CSV', 'Parquet'
     and 'JSON' files, and over in-memory or file-backed
     databases, then need no system library, no server and no download.
     The engine is experimental, and this package is not a replacement for
@@ -29,9 +31,9 @@ Description: A 'DBI' driver for 'SlothDB' (<https://github.com/SouravRoy-ETL/slo
     engine commit the package bundles.
 License: MIT + file LICENSE
 Copyright: See file inst/COPYRIGHTS.
-URL: https://pedrobtz.github.io/zuslothdb/,
-    https://github.com/pedrobtz/zuslothdb
-BugReports: https://github.com/pedrobtz/zuslothdb/issues
+URL: https://pedrobtz.github.io/zugodb/,
+    https://github.com/pedrobtz/zugodb
+BugReports: https://github.com/pedrobtz/zugodb/issues
 Imports:
     DBI (>= 1.2.0),
     methods
@@ -54,7 +56,7 @@ Collate:
     'result.R'
     'write.R'
     'info.R'
-    'zuslothdb-package.R'
+    'zugodb-package.R'
 Encoding: UTF-8
 Language: en-GB
 Roxygen: list(markdown = TRUE)

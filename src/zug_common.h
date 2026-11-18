@@ -14,10 +14,10 @@
 
 #ifdef _WIN32
 #include <process.h>
-#define SDB_GETPID() static_cast<long>(_getpid())
+#define ZUG_GETPID() static_cast<long>(_getpid())
 #else
 #include <unistd.h>
-#define SDB_GETPID() static_cast<long>(getpid())
+#define ZUG_GETPID() static_cast<long>(getpid())
 #endif
 
 #define R_NO_REMAP
@@ -26,12 +26,12 @@
 #include <R_ext/Visibility.h>
 #include <Rinternals.h>
 
-namespace sdb {
+namespace zug {
 
 // An error to hand back to R. A fixed-size buffer, so the message outlives
 // the C++ frame that produced it without a destructor of its own: entry
 // points keep one on their stack across R API calls, which may longjmp.
-// `kind` names the condition sdb_abort() raises in R: "sql" (the engine's
+// `kind` names the condition zug_abort() raises in R: "sql" (the engine's
 // own error), "type", "argument" or "closed".
 struct EngineError {
   bool failed = false;
@@ -61,4 +61,4 @@ inline SEXP ResultList(SEXP value, const EngineError &err) {
   return out;
 }
 
-} // namespace sdb
+} // namespace zug

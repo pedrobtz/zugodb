@@ -5,7 +5,7 @@
 # (oracle/scalar-nulls-long, in test-oracle-scalar.R).
 
 test_that("a VALUES list longer than a vector keeps its NULLs and values", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   n <- 5000L
   k <- seq_len(n) - 1L
@@ -31,7 +31,7 @@ test_that("a VALUES list longer than a vector keeps its NULLs and values", {
 })
 
 test_that("a table filled by many inserts keeps its NULLs past a vector", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbExecute(con, "CREATE TABLE t (k INTEGER, y DOUBLE)")
   k <- 0:4199

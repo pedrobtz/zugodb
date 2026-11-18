@@ -1,11 +1,11 @@
-# What zuslothdb vendors: a tagged release of libzugodb, its engine.
+# What zugodb vendors: a tagged release of libzugodb, its engine.
 #
 # libzugodb (design D12, 2026-11-18) is the engine's own repository: SlothDB
 # at `origin.commit`, by the SlothDB Contributors, MIT, with the changes in
 # its CHANGELOG.md. tools/vendor.R checks out `source.tag`, checks that it
 # is `source.commit` and that `origin.commit` is an ancestor, copies `copy`
 # minus `exclude` into `destination`, and writes src/Makevars,
-# src/Makevars.win, src/sdb_provenance.h, inst/vendor.yaml and
+# src/Makevars.win, src/zug_provenance.h, inst/vendor.yaml and
 # tools/vendor/checksums.md5. Nothing under `destination` is edited by
 # hand: a change to the engine is a pull request to libzugodb and a release.
 #

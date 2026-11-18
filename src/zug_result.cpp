@@ -3,7 +3,7 @@
 // Two phases, so that design §4.3 holds by construction:
 //
 // 1. EngineSend (C++, inside try/catch): runs the query and copies every
-//    column into plain buffers in an SdbResult on the heap (integers,
+//    column into plain buffers in an ZugResult on the heap (integers,
 //    doubles, 64-bit integers, or string offsets into one byte blob, each
 //    with a validity vector). Vectors are flattened first, so a constant
 //    or dictionary vector reads as a flat one; a result the engine kept as
@@ -11,14 +11,14 @@
 //    freed. A value R cannot hold (an INTEGER of -2^31, which is R's NA; a
 //    string with invalid UTF-8 or an embedded NUL) is found here and
 //    recorded, not raised.
-// 2. sdb_fetch (R API only): reads those buffers for rows [pos, pos + n)
+// 2. zug_fetch (R API only): reads those buffers for rows [pos, pos + n)
 //    and builds R vectors. Only plain data is on the stack, so an R
-//    allocation that longjmps leaks nothing; the SdbResult belongs to its
+//    allocation that longjmps leaks nothing; the ZugResult belongs to its
 //    external pointer.
 //
-// Errors are returned as an sdb::EngineError for R to raise.
+// Errors are returned as an zug::EngineError for R to raise.
 
-#include "sdb_objects.h"
+#include "zug_objects.h"
 
 #include <cinttypes>
 #include <cmath>
@@ -62,7 +62,7 @@ struct Column {
   const char *unsupported_why = nullptr;
 };
 
-struct SdbResult {
+struct ZugResult {
   std::vector<Column> cols;
   uint64_t nrow = 0;
   uint64_t pos = 0;
@@ -107,14 +107,14 @@ Kind KindOf(zugodb::LogicalTypeId id) {
 // Why a type that does not convert is refused (design §6).
 const char *UnsupportedWhy(zugodb::LogicalTypeId id) {
   if (id == zugodb::LogicalTypeId::HUGEINT) {
-    return "which zuslothdb does not read: SlothDB computes HUGEINT values "
+    return "which zugodb does not read: SlothDB computes HUGEINT values "
            "wrongly";
   }
   if (id == zugodb::LogicalTypeId::TIME) {
-    return "which zuslothdb does not read: SlothDB computes every TIME "
+    return "which zugodb does not read: SlothDB computes every TIME "
            "value as midnight";
   }
-  return "which zuslothdb cannot read yet";
+  return "which zugodb cannot read yet";
 }
 
 // The engine keeps a TIMESTAMP as microseconds since 1970; R, as seconds.
@@ -411,10 +411,10 @@ void AppendVector(Column &col, zugodb::LogicalTypeId id,
   }
 }
 
-void EngineSend(sdb::SdbConnection *c, const char *sql, SdbResult *out,
-                sdb::EngineError *err) {
+void EngineSend(zug::ZugConnection *c, const char *sql, ZugResult *out,
+                zug::EngineError *err) {
   try {
-    const bool dml = sdb::LastIsDml(sql);
+    const bool dml = zug::LastIsDml(sql);
     zugodb::QueryResult res = c->con->Query(sql);
     if (dml && res.ColumnCount() == 1 && res.RowCount() == 1 &&
         res.column_names[0] == "Count") {
@@ -475,16 +475,16 @@ void EngineSend(sdb::SdbConnection *c, const char *sql, SdbResult *out,
 
 enum BigInt { kBigNumeric = 0, kBigInteger64 = 1, kBigCharacter = 2 };
 
-// Sets `err` to a zuslothdb_type_error naming the column and the row, the
+// Sets `err` to a zug_type_error naming the column and the row, the
 // first in [from, to) whose value R cannot hold as asked.
 bool CheckSlice(const Column &col, uint64_t from, uint64_t to, int bigint,
-                sdb::EngineError *err) {
+                zug::EngineError *err) {
   char msg[512];
   if (col.kind == Kind::kUnsupported) {
     std::snprintf(msg, sizeof msg, "Column `%s` has type %s, %s.",
                   col.name.c_str(), col.sql_type.c_str(),
                   col.unsupported_why ? col.unsupported_why
-                                      : "which zuslothdb cannot read yet");
+                                      : "which zugodb cannot read yet");
     err->set(msg, "type");
     return false;
   }
@@ -662,13 +662,13 @@ SEXP BuildColumn(const Column &col, uint64_t from, uint64_t to, int bigint,
   return out;
 }
 
-SdbResult *GetResult(SEXP ptr) {
+ZugResult *GetResult(SEXP ptr) {
   if (TYPEOF(ptr) != EXTPTRSXP) return nullptr;
-  return static_cast<SdbResult *>(R_ExternalPtrAddr(ptr));
+  return static_cast<ZugResult *>(R_ExternalPtrAddr(ptr));
 }
 
 void ResultFinalizer(SEXP ptr) {
-  SdbResult *r = GetResult(ptr);
+  ZugResult *r = GetResult(ptr);
   if (!r) return;
   R_ClearExternalPtr(ptr);
   delete r;
@@ -678,27 +678,27 @@ void ResultFinalizer(SEXP ptr) {
 
 extern "C" {
 
-// sdb_send(con, sql): runs `sql`, materialised, as a result pointer.
-SEXP sdb_send(SEXP conptr, SEXP sql) {
-  sdb::EngineError err;
-  sdb::SdbConnection *c = sdb::GetConnection(conptr);
-  if (!sdb::ConnectionOpen(c)) {
-    err.set(sdb::kClosedConnection, "closed");
-    return sdb::ResultList(R_NilValue, err);
+// zug_send(con, sql): runs `sql`, materialised, as a result pointer.
+SEXP zug_send(SEXP conptr, SEXP sql) {
+  zug::EngineError err;
+  zug::ZugConnection *c = zug::GetConnection(conptr);
+  if (!zug::ConnectionOpen(c)) {
+    err.set(zug::kClosedConnection, "closed");
+    return zug::ResultList(R_NilValue, err);
   }
   if (TYPEOF(sql) != STRSXP || XLENGTH(sql) != 1 ||
       STRING_ELT(sql, 0) == NA_STRING) {
     err.set("statement must be a single string", "argument");
-    return sdb::ResultList(R_NilValue, err);
+    return zug::ResultList(R_NilValue, err);
   }
   const char *text = Rf_translateCharUTF8(STRING_ELT(sql, 0));
   SEXP ptr = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ptr, ResultFinalizer, TRUE);
-  SdbResult *r = new (std::nothrow) SdbResult();
+  ZugResult *r = new (std::nothrow) ZugResult();
   if (!r) {
     err.set("out of memory");
     UNPROTECT(1);
-    return sdb::ResultList(R_NilValue, err);
+    return zug::ResultList(R_NilValue, err);
   }
   R_SetExternalPtrAddr(ptr, r);
   EngineSend(c, text, r, &err);
@@ -707,15 +707,15 @@ SEXP sdb_send(SEXP conptr, SEXP sql) {
     R_ClearExternalPtr(ptr);
     delete r;
   }
-  SEXP out = sdb::ResultList(err.failed ? R_NilValue : ptr, err);
+  SEXP out = zug::ResultList(err.failed ? R_NilValue : ptr, err);
   UNPROTECT(1);
   return out;
 }
 
-// sdb_result_info(res): list(names, sql_types, nrow, pos, rows_affected,
+// zug_result_info(res): list(names, sql_types, nrow, pos, rows_affected,
 // is_query), or NULL once cleared.
-SEXP sdb_result_info(SEXP ptr) {
-  SdbResult *r = GetResult(ptr);
+SEXP zug_result_info(SEXP ptr) {
+  ZugResult *r = GetResult(ptr);
   if (!r) return R_NilValue;
   const R_xlen_t ncol = static_cast<R_xlen_t>(r->cols.size());
   const char *fields[] = {"names", "sql_types", "nrow", "pos",
@@ -737,16 +737,16 @@ SEXP sdb_result_info(SEXP ptr) {
   return out;
 }
 
-// sdb_fetch(res, n, bigint, tz): the next `n` rows (all, if n < 0) as a
+// zug_fetch(res, n, bigint, tz): the next `n` rows (all, if n < 0) as a
 // list of columns, advancing the result. bigint: 0 numeric, 1 integer64, 2
 // character; tz: a TIMESTAMP's tzone. Nothing advances if a value cannot
 // be converted.
-SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz) {
-  sdb::EngineError err;
-  SdbResult *r = GetResult(ptr);
+SEXP zug_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz) {
+  zug::EngineError err;
+  ZugResult *r = GetResult(ptr);
   if (!r) {
     err.set("The result is cleared.", "closed");
-    return sdb::ResultList(R_NilValue, err);
+    return zug::ResultList(R_NilValue, err);
   }
   if (TYPEOF(n) != REALSXP || XLENGTH(n) != 1 || ISNAN(REAL(n)[0]) ||
       TYPEOF(bigint) != INTSXP || XLENGTH(bigint) != 1 ||
@@ -755,7 +755,7 @@ SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz) {
       STRING_ELT(tz, 0) == NA_STRING) {
     err.set("n must be a number, bigint 0, 1 or 2 and tz a string",
             "argument");
-    return sdb::ResultList(R_NilValue, err);
+    return zug::ResultList(R_NilValue, err);
   }
   const uint64_t left = r->nrow - r->pos;
   const double want = REAL(n)[0];
@@ -766,7 +766,7 @@ SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz) {
   const int big = INTEGER(bigint)[0];
   for (const Column &col : r->cols) {
     if (!CheckSlice(col, from, to, big, &err)) {
-      return sdb::ResultList(R_NilValue, err);
+      return zug::ResultList(R_NilValue, err);
     }
   }
   const R_xlen_t ncol = static_cast<R_xlen_t>(r->cols.size());
@@ -776,14 +776,14 @@ SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz) {
                    BuildColumn(r->cols[k], from, to, big, STRING_ELT(tz, 0)));
   }
   r->pos = to;
-  SEXP res = sdb::ResultList(out, err);
+  SEXP res = zug::ResultList(out, err);
   UNPROTECT(1);
   return res;
 }
 
-// sdb_result_clear(res): frees the buffers; later calls see it cleared.
-SEXP sdb_result_clear(SEXP ptr) {
-  SdbResult *r = GetResult(ptr);
+// zug_result_clear(res): frees the buffers; later calls see it cleared.
+SEXP zug_result_clear(SEXP ptr) {
+  ZugResult *r = GetResult(ptr);
   if (r) {
     R_ClearExternalPtr(ptr);
     delete r;

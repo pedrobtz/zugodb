@@ -7,7 +7,7 @@
 # the suite with it.
 
 test_that("Parquet queries on decode workers return their rows (#32, #34)", {
-  pkg <- find.package("zuslothdb")
+  pkg <- find.package("zugodb")
   # Under load_all() the package is its source directory, which a child R
   # cannot load; R CMD check and tools/ci-run-tests.R test the installed one.
   skip_if_not(
@@ -16,7 +16,7 @@ test_that("Parquet queries on decode workers return their rows (#32, #34)", {
   )
   # CRAN: two seconds on two threads (its limit). Elsewhere: six threads,
   # which hung the unpatched engine 4 runs in 5 within 20 seconds.
-  slow <- nzchar(Sys.getenv("ZUSLOTHDB_SLOW_TESTS"))
+  slow <- nzchar(Sys.getenv("ZUG_SLOW_TESTS"))
   not_cran <- identical(Sys.getenv("NOT_CRAN"), "true")
   seconds <- if (slow) {
     120

@@ -14,7 +14,7 @@ jobs:
     uses: pedrobtz/r-actions/.github/workflows/alloc-failure.yml@v1
     with:
       run: R_ENABLE_JIT=0 Rscript tools/alloc-exercise.R
-      baseline-run: R_ENABLE_JIT=0 Rscript -e 'suppressPackageStartupMessages(library(zuslothdb))'
+      baseline-run: R_ENABLE_JIT=0 Rscript -e 'suppressPackageStartupMessages(library(zugodb))'
       expect-pattern: "cannot allocate|memory exhausted|bad_alloc|out of memory"
       # The glue's own catch of a failed engine allocation.
       target-pattern: "bad_alloc|out of memory"

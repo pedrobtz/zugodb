@@ -4,7 +4,7 @@
 # holding a double quote, so that one is refused.
 
 test_that("names that need quoting round-trip through every table function", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   names <- c(
     "with space",
@@ -45,7 +45,7 @@ test_that("names that need quoting round-trip through every table function", {
 })
 
 test_that("a name is given as a string, Id(table =) or quoted SQL", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbWriteTable(con, DBI::Id(table = "my t"), data.frame(x = 1L))
   expect_true(DBI::dbExistsTable(con, "my t"))
@@ -61,45 +61,45 @@ test_that("a name is given as a string, Id(table =) or quoted SQL", {
       DBI::Id(schema = "s", table = "t"),
       data.frame(x = 1)
     ),
-    class = "zuslothdb_unsupported"
+    class = "zug_unsupported"
   )
 })
 
 test_that("a name holding a double quote, or NA, is refused", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   expect_error(
     DBI::dbQuoteIdentifier(con, "a\"b"),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_error(
     DBI::dbQuoteIdentifier(con, NA_character_),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_error(
     DBI::dbWriteTable(con, "a\"b", data.frame(x = 1)),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   df <- data.frame(1)
   names(df) <- "a\"b"
   expect_error(
     DBI::dbWriteTable(con, "t", df),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_identical(DBI::dbListTables(con), character())
 })
 
 test_that("removing a missing table is an error unless asked otherwise", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   expect_error(
     DBI::dbRemoveTable(con, "nope"),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_invisible(DBI::dbRemoveTable(con, "nope", fail_if_missing = FALSE))
   expect_error(
     DBI::dbListFields(con, "nope"),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_false(DBI::dbExistsTable(con, "nope"))
 })
