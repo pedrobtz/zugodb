@@ -47,7 +47,15 @@ the short form for a database of its own.</p>
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S4 method for class 'zuslothdb_driver'</span></span>
-<span><span class="fu">dbConnect</span><span class="op">(</span><span class="va">drv</span>, <span class="va">dbdir</span>, <span class="va">read_only</span>, bigint <span class="op">=</span> <span class="st">"numeric"</span>, threads <span class="op">=</span> <span class="fl">2L</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="fu">dbConnect</span><span class="op">(</span></span>
+<span>  <span class="va">drv</span>,</span>
+<span>  <span class="va">dbdir</span>,</span>
+<span>  <span class="va">read_only</span>,</span>
+<span>  bigint <span class="op">=</span> <span class="st">"numeric"</span>,</span>
+<span>  threads <span class="op">=</span> <span class="fl">2L</span>,</span>
+<span>  timezone_out <span class="op">=</span> <span class="st">"UTC"</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S4 method for class 'zuslothdb_connection'</span></span>
 <span><span class="fu">dbIsValid</span><span class="op">(</span><span class="va">dbObj</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -85,6 +93,13 @@ value beyond 2^53 a <code>zuslothdb_type_error</code>; <code>"integer64"</code>,
 from 1. The engine has one thread pool per R process, so this is a cap
 for the whole process, not for this connection: the last
 <code>dbConnect()</code> sets it, and <code><a href="zuslothdb_info.html">zuslothdb_info()</a></code> reports it.</p></dd>
+
+
+<dt id="arg-timezone-out">timezone_out<a class="anchor" aria-label="anchor" href="#arg-timezone-out"></a></dt>
+<dd><p>The time zone a <code>TIMESTAMP</code> column's <code>POSIXct</code> is
+shown in: <code>"UTC"</code> (the default, as in <code>duckdb</code>), another of
+<code><a href="https://rdrr.io/r/base/timezones.html" class="external-link">OlsonNames()</a></code>, or <code>""</code> for the session's. The instant is the same in
+any zone; an unknown zone is an error.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

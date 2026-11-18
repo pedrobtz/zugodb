@@ -8,7 +8,15 @@ is the short form for a database of its own.
 
 ``` r
 # S4 method for class 'zuslothdb_driver'
-dbConnect(drv, dbdir, read_only, bigint = "numeric", threads = 2L, ...)
+dbConnect(
+  drv,
+  dbdir,
+  read_only,
+  bigint = "numeric",
+  threads = 2L,
+  timezone_out = "UTC",
+  ...
+)
 
 # S4 method for class 'zuslothdb_connection'
 dbIsValid(dbObj, ...)
@@ -49,6 +57,14 @@ dbGetInfo(dbObj, ...)
   it, and
   [`zuslothdb_info()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_info.md)
   reports it.
+
+- timezone_out:
+
+  The time zone a `TIMESTAMP` column's `POSIXct` is shown in: `"UTC"`
+  (the default, as in `duckdb`), another of
+  [`OlsonNames()`](https://rdrr.io/r/base/timezones.html), or `""` for
+  the session's. The instant is the same in any zone; an unknown zone is
+  an error.
 
 - ...:
 

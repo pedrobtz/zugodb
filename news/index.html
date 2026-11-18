@@ -35,7 +35,10 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.0.9000" id="zuslothdb-0009000">zuslothdb 0.0.0.9000<a class="anchor" aria-label="anchor" href="#zuslothdb-0009000"></a></h2>
-<ul><li>A set operation (<code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code>, <code>EXCEPT</code>) returns <code>TINYINT</code>, <code>SMALLINT</code> and <code>FLOAT</code> columns with their values; it returned numbers made of unwritten memory (<a href="https://github.com/pedrobtz/zuslothdb/issues/41" class="external-link">#41</a>).</li>
+<ul><li>
+<code>DATE</code> columns arrive as <code>Date</code>, <code>TIMESTAMP</code> as <code>POSIXct</code> and <code>BLOB</code> as a list of raw vectors with <code>blob::blob()</code>’s classes. <code>dbConnect(timezone_out = )</code> sets the time zone a <code>POSIXct</code> is shown in, <code>"UTC"</code> by default as in <code>duckdb</code>; an unknown zone is an error.</li>
+<li>A <code>HUGEINT</code> or <code>TIME</code> column is a <code>zuslothdb_type_error</code>, since SlothDB computes their values wrongly (a <code>TIME</code> is always midnight), as are <code>INTERVAL</code> and <code>UUID</code>. SlothDB produces no <code>DECIMAL</code>, time zone, list, struct, map or union column.</li>
+<li>A set operation (<code>UNION</code>, <code>UNION ALL</code>, <code>INTERSECT</code>, <code>EXCEPT</code>) returns <code>TINYINT</code>, <code>SMALLINT</code> and <code>FLOAT</code> columns with their values; it returned numbers made of unwritten memory (<a href="https://github.com/pedrobtz/zuslothdb/issues/41" class="external-link">#41</a>).</li>
 <li>On Windows, a Parquet query on more than one thread that decodes several row groups no longer ends the R session (<a href="https://github.com/pedrobtz/zuslothdb/issues/34" class="external-link">#34</a>).</li>
 <li>A Parquet query that stops before the file’s last row group, such as a <code>LIMIT</code>, no longer hangs now and then: the engine’s decode workers could miss the signal to stop (<a href="https://github.com/pedrobtz/zuslothdb/issues/32" class="external-link">#32</a>).</li>
 <li>
