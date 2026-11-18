@@ -160,7 +160,9 @@ fork [pedrobtz/slothdb](https://github.com/pedrobtz/slothdb)'s
 decompressor, snappy, fastpforlib and, inside `src/storage/`, miniz;
 `unordered_dense.h` under `include/third_party/`. Left out: `src/ask/`,
 `src/extension/`, `src/api/` (the C API), the HTTP client and upstream's
-CMake files. The changes are listed in `tools/vendor.yaml`'s `changes`
+CMake files. [.agents/VENDORED.md](.agents/VENDORED.md) has the fork's
+branches, the patch ledger and how a change is offered upstream. The
+changes are listed in `tools/vendor.yaml`'s `changes`
 with their reasons; holders in `inst/COPYRIGHTS`. To change the engine:
 commit to the fork's `zuslothdb` branch (one change per commit, its
 reason in the message, the zuslothdb issue as `pedrobtz/zuslothdb#n`),
