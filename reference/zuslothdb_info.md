@@ -1,8 +1,9 @@
 # Information about the bundled engine
 
-Reports which SlothDB source the package was built from and how it was
-changed: the upstream repository and commit, and the patches applied to
-it, in order. A database file is tied to this commit.
+Reports which SlothDB source the package was built from. The engine is
+vendored from pedrobtz/slothdb, zuslothdb's fork of upstream SlothDB: an
+upstream commit and the changes made on top of it, one commit each. A
+database file is tied to this commit.
 
 ## Usage
 
@@ -12,22 +13,30 @@ zuslothdb_info()
 
 ## Value
 
-A list with elements `engine` (`"SlothDB"`), `repository`, `commit` (the
-full upstream commit hash), `describe` (the last upstream release before
-it, as `"v0.2.7+"`), `patches` (a character vector of patch file names,
-in the order they are applied) and `threads` (the engine's thread cap,
-an integer).
+A list with elements `engine` (`"SlothDB"`), `repository` and `commit`
+(the fork and its full commit hash), `tag` (the fork's tag of that
+commit), `upstream` and `upstream_commit` (upstream SlothDB and the
+commit the fork is based on), `describe` (the last upstream release
+before it, as `"v0.2.7+"`), `changes` (a character vector of the fork's
+commit subjects since that commit, oldest first) and `threads` (the
+engine's thread cap, an integer).
 
 ## Examples
 
 ``` r
 info <- zuslothdb_info()
 info$commit
-#> [1] "8180f215847015944c935f56f008d194e2c1494c"
-info$patches
-#>  [1] "0001-mingw.patch"             "0002-no-process-output.patch"
-#>  [3] "0003-offline.patch"           "0004-threads.patch"          
-#>  [5] "0005-strftime-arity.patch"    "0006-compiler-warnings.patch"
-#>  [7] "0007-read-only.patch"         "0008-lost-wakeup.patch"      
-#>  [9] "0009-thread-local.patch"      "0010-validity-capacity.patch"
+#> [1] "db025ddda099cf98c96a4ec3752fe25294a510b9"
+info$changes
+#>  [1] "Take the Windows branch under MinGW, not only MSVC"    
+#>  [2] "Write nothing to stderr, never abort, use no rand()"   
+#>  [3] "Refuse remote paths: offline only"                     
+#>  [4] "Cap every thread pool with one process-wide limit"     
+#>  [5] "Refuse STRFTIME with one argument"                     
+#>  [6] "Fix two warnings R CMD check counts"                   
+#>  [7] "Add a read-only database mode"                         
+#>  [8] "Set stop flags under the mutex their waiters use"      
+#>  [9] "Keep the Parquet decoder's scratch out of thread_local"
+#> [10] "Size validity masks by their holder's capacity"        
+#> [11] "Update seven doctests to DATE as days since 1970"      
 ```

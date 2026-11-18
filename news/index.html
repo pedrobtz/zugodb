@@ -54,7 +54,7 @@
 <code>dbConnect(threads = )</code> caps the engine’s threads, 2 by default; the engine has one thread pool per process, so the cap is process-wide.</li>
 <li>A file database is written when its last connection closes. A connection used in a forked child is a <code>zuslothdb_closed_error</code>.</li>
 <li>Errors are conditions inheriting from <code>zuslothdb_error</code>: <code>zuslothdb_sql_error</code> (the engine’s message), <code>zuslothdb_type_error</code>, <code>zuslothdb_argument_error</code>, <code>zuslothdb_closed_error</code> and <code>zuslothdb_unsupported</code> (<code>params =</code>).</li>
-<li>The SlothDB engine is bundled and compiled with the package: upstream commit <code>8180f21</code> with ten patches, listed by <code><a href="../reference/zuslothdb_info.html">zuslothdb_info()</a></code>. The package is offline only: a remote path in a query is an error.</li>
+<li>The SlothDB engine is bundled and compiled with the package, from pedrobtz/slothdb, zuslothdb’s fork of SlothDB: upstream commit <code>8180f21</code> and zuslothdb’s changes to it, listed by <code><a href="../reference/zuslothdb_info.html">zuslothdb_info()</a></code>. The package is offline only: a remote path in a query is an error.</li>
 </ul></div>
   </main></div>
 
