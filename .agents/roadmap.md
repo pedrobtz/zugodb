@@ -268,22 +268,33 @@ R types the design's table names.
 **Goal.** Every remaining row of the design's type table converts or
 errors as the table says.
 
+**Deviation (2026-11-18, approved by the maintainer).** The engine
+produces no `DECIMAL`, `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP` or
+`UNION` by any route, and its `HUGEINT` values are wrong (design §6, Q1).
+So the stage converts the types the engine delivers, and the rest are
+errors; `decimal =` is not added, and the nested-type tests are dropped
+with it. The readers' wrong answers found here are Stage 6's (#36 to
+#40).
+
 **Work.**
 
-- `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMP_TZ` with `timezone_out`;
-  `DECIMAL` with `decimal`; `BLOB`; `LIST`; `STRUCT`; the errors for
-  `MAP`, `UNION` and `HUGEINT`. Q1 read and recorded.
+- `DATE`, `TIME` and `TIMESTAMP`, with `dbConnect(timezone_out = )`;
+  `BLOB`. A `zuslothdb_type_error` naming the column for `HUGEINT`,
+  `INTERVAL` and `UUID`, the types SQL can reach that do not convert.
+  Q1 read and recorded.
 
 **Tests.**
 
-- Each type, with NULLs at every nesting level and empty lists: the
-  recorded `duckdb` answers, in `test-oracle-types.R`.
+- Each type with NULLs, through a typed table and through a set
+  operation's boxed rows: the recorded `duckdb` answers, in
+  `test-oracle-types.R`.
 - Dates and timestamps before 1970, on leap days and at the type's
-  extremes: the recorded answers, in `test-temporal.R`.
-- `DECIMAL` at the largest precision under both `decimal` values: the
-  literal's decimal string, in `test-decimal.R`.
-- `MAP`, `UNION`, `HUGEINT`: `zuslothdb_type_error` naming the column, in
-  `test-conditions.R`.
+  extremes, and `TIME` at midnight and its last microsecond: the
+  recorded answers, in `test-temporal.R`.
+- `timezone_out`: the same instants under another zone and `""`, and an
+  unknown zone a `zuslothdb_argument_error`, in `test-temporal.R`.
+- `HUGEINT`, `INTERVAL`, `UUID`: `zuslothdb_type_error` naming the
+  column, in `test-conditions.R`.
 
 **Exit criteria.**
 
@@ -590,5 +601,4 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- [Q1](design.md#14-open-questions) blocks Stage 4.
 - [Q7, Q12](design.md#14-open-questions) block Stage 6.
