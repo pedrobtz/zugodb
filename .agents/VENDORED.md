@@ -129,8 +129,8 @@ and `tools/upstream-tests.sh`. If the change is upstream's defect too, cut its
 
 **Reported on 2026-11-18** (maintainer's say): fourteen issues, each
 reproduced first on pristine upstream `8180f21` with upstream's own CMake
-build and shell, listed below. **No pull request has been opened**; each
-issue with a prepared branch offers one. Opening one still needs the
+build and shell, listed below. The six fix branches were then opened as
+upstream pull requests (SouravRoy-ETL/slothdb#43 to #48), on the
 maintainer's say.
 
 A branch is cut from `main`, not from `zuslothdb`, so that it carries one
@@ -175,12 +175,12 @@ also passes the STRFTIME case, which crashes on `main`.
 
 | Branch | Commit | Upstream issue | Notes |
 |---|---|---|---|
-| `fix/validity-capacity` | `0028b79` | [#29](https://github.com/SouravRoy-ETL/slothdb/issues/29) | Heap overrun and wrong results past row 2048. Send this one first. Upstream has no test that reaches it; one should come with the pull request. |
-| `fix/lost-wakeup` | `a824493` | [#31](https://github.com/SouravRoy-ETL/slothdb/issues/31) | Intermittent hang, about 1 doctest run in 14 on Linux. No deterministic upstream test. |
-| `fix/strftime-one-argument` | `5905fc9` | [#30](https://github.com/SouravRoy-ETL/slothdb/issues/30) | Crash in upstream's own "Advanced - STRFTIME" case; carries that case's change. |
-| `fix/mingw-thread-local` | `b321a8d` | [#32](https://github.com/SouravRoy-ETL/slothdb/issues/32) | Windows-only crash under MinGW-w64; needs a Windows build to show. |
-| `fix/mingw-time-functions` | `c4cc471` | [#32](https://github.com/SouravRoy-ETL/slothdb/issues/32) | MinGW-w64 build. |
-| `fix/stale-date-tests` | `77cecee` | [#30](https://github.com/SouravRoy-ETL/slothdb/issues/30) | The seven cases that fail on `main`. |
+| `fix/validity-capacity` | `0028b79` | [#29](https://github.com/SouravRoy-ETL/slothdb/issues/29), PR [#43](https://github.com/SouravRoy-ETL/slothdb/pull/43) | Heap overrun and wrong results past row 2048. Send this one first. Upstream has no test that reaches it; one should come with the pull request. |
+| `fix/lost-wakeup` | `a824493` | [#31](https://github.com/SouravRoy-ETL/slothdb/issues/31), PR [#46](https://github.com/SouravRoy-ETL/slothdb/pull/46) | Intermittent hang, about 1 doctest run in 14 on Linux. No deterministic upstream test. |
+| `fix/strftime-one-argument` | `5905fc9` | [#30](https://github.com/SouravRoy-ETL/slothdb/issues/30), PR [#44](https://github.com/SouravRoy-ETL/slothdb/pull/44) | Crash in upstream's own "Advanced - STRFTIME" case; carries that case's change. |
+| `fix/mingw-thread-local` | `b321a8d` | [#32](https://github.com/SouravRoy-ETL/slothdb/issues/32), PR [#48](https://github.com/SouravRoy-ETL/slothdb/pull/48) | Windows-only crash under MinGW-w64; needs a Windows build to show. |
+| `fix/mingw-time-functions` | `c4cc471` | [#32](https://github.com/SouravRoy-ETL/slothdb/issues/32), PR [#47](https://github.com/SouravRoy-ETL/slothdb/pull/47) | MinGW-w64 build. |
+| `fix/stale-date-tests` | `77cecee` | [#30](https://github.com/SouravRoy-ETL/slothdb/issues/30), PR [#45](https://github.com/SouravRoy-ETL/slothdb/pull/45) | The seven cases that fail on `main`. |
 | `fix/compiler-warnings` | `ba661ba` | not reported | Two warnings; no behaviour change. |
 | `feat/read-only-database` | `88d3044` | not reported | API addition, not a fix; offer last. |
 
