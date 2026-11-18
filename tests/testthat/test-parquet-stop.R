@@ -1,21 +1,18 @@
 # #32: a Parquet scan that stopped before its last row group stopped its
 # decode workers with a lost wakeup, and dbGetQuery() never returned
-# (patch 0008). The queries run in a child R for a fixed time, so a hang
-# fails this test, after that time and a grace period, instead of hanging
-# the suite.
+# (patch 0008). #34: on Windows, those workers corrupted the heap as they
+# exited, and R died with 0xC0000409, shown as status 1033 (patch 0009).
+# The queries run in a child R for a fixed time, so a hang or a crash
+# fails this test, after that time and a grace period, instead of taking
+# the suite with it.
 
-test_that("Parquet queries that stop early return, with their rows (#32)", {
+test_that("Parquet queries on decode workers return their rows (#32, #34)", {
   pkg <- find.package("zuslothdb")
   # Under load_all() the package is its source directory, which a child R
   # cannot load; R CMD check and tools/ci-run-tests.R test the installed one.
   skip_if_not(
     file.exists(file.path(pkg, "Meta", "package.rds")),
     "needs the installed package: the queries run in a child R"
-  )
-  # Not a hang: the filtered query kills the child R there (exit 1033).
-  skip_if(
-    .Platform$OS.type == "windows",
-    "a filtered Parquet query kills R on Windows (#34)"
   )
   # CRAN: two seconds on two threads (its limit). Elsewhere: six threads,
   # which hung the unpatched engine 4 runs in 5 within 20 seconds.
@@ -44,7 +41,8 @@ test_that("Parquet queries that stop early return, with their rows (#32)", {
     c("child R printed:", out, "its steps:", steps),
     collapse = "\n"
   )
-  # 124: system2() killed the child at its timeout, a query that hung.
+  # 124: system2() killed the child at its timeout, a query that hung;
+  # 1033 on Windows: the child died (#34).
   expect_null(attr(out, "status"), info = said)
   last <- utils::tail(out, 1L)
   expect_match(last, "^ok [0-9]+ iterations$", info = said)

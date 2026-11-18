@@ -60,8 +60,7 @@ One row per boundary the package crosses. An oracle knows the answer:
 | the vendored tree                       | upstream at the pinned commit plus tools/patches, rebuilt and compared file by file | tools/vendor/verify, in vendor.yaml |
 | SQL results as R vectors (scalar types) | recorded `duckdb` answers for the same queries            | tests/testthat/test-oracle-scalar.R |
 | SQL results as R vectors (other types)  | recorded `duckdb` answers for the same queries            | gap #22    |
-| Parquet scan stopped before its last row group (decode workers, #32) | every query returns within a time limit, in a child R, with the rows the `duckdb`-written fixture holds | tests/testthat/test-parquet-stop.R (macOS, Linux) |
-| Parquet scan on Windows                 | the same queries and rows as on macOS and Linux            | gap #34    |
+| Parquet scan on decode workers: stopped before its last row group (#32), and their exit on Windows (#34) | every query returns within a time limit, in a child R, with the rows the `duckdb`-written fixture holds | tests/testthat/test-parquet-stop.R (macOS, Linux, Windows) |
 | CSV, Parquet, JSON, Arrow IPC files     | recorded `duckdb` answers over `duckdb`-written fixtures  | gap #23    |
 | Avro, Excel and SQLite files            | recorded answers from a reference reader                  | gap #23    |
 | database file                           | round trip through a fresh R process                      | gap #23    |
