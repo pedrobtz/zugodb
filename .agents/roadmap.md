@@ -636,10 +636,12 @@ that leaves nothing behind.
   of the fork, with zstd, snappy and fastpforlib. If it fits the stage,
   one fork commit makes it, `tools/vendor.yaml`'s `copy` list loses the
   three libraries, and `inst/COPYRIGHTS` and `Authors@R` lose their
-  holders. If it does not, the cut moves after v0.1.0 and this roadmap
-  records it; nothing forces it, since no reader's archive carries zstd.
-- Q20 decided and recorded: where the codec table comes from. As
-  proposed, `Imports: zukomp`, resolved once at load.
+  holders. If the whole does not fit, the engine's zstd and its Parquet
+  reader are cut here all the same, since `libzukomp.a`'s zstd cannot
+  be linked beside them; the rest moves after v0.1.0, and this roadmap
+  records it.
+- As Q20 decided: the codec table and the codecs come from
+  `libzukomp.a`, fetched once at load and handed to each reader.
 - `LinkingTo: zukomp, zuarrow, zucsv, zujson, qio` with version floors.
   `configure` and `configure.win` resolve the archives; `tools/vendor.R`
   writes the `Makevars` templates they fill.
@@ -869,9 +871,7 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- **Q20** (where the readers' codec table comes from) blocks Stage 10.
-  It has a proposal in [design §14](design.md#14-open-questions).
-- Q15 to Q19, and the database file's checksum, were decided on
+- None. Q15 to Q20, and the database file's checksum, were decided on
   2026-11-18 ([design §14](design.md#14-open-questions) and
   [§8](design.md#8-persistence)).
 - Still to find, inside a stage: how an append to an existing table

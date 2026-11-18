@@ -627,7 +627,7 @@ first submission (maintainer, 2026-11-18):
   the same names, so two archives in one shared object do not collide.
 - **No codec of its own.** An archive holds no zstd or lz4. Its options
   take zukomp's function table, a `const zukomp_api_v1 *`, from whoever
-  opens the stream (Q20).
+  opens the stream. This package gets it from `libzukomp.a` (Q20).
 - **No nanoarrow of its own.** The Arrow structs and the code that
   builds arrays and streams come from `zuarrow`'s header and archive
   (maintainer, 2026-11-18), so the family has one copy to patch. Each
@@ -696,7 +696,8 @@ As `zuxlsx` links `zuxml`, `zukomp` and `zucrypt`:
   floor. R puts each package's `include/` on the compiler's path.
   `zuarrow` is in the list because a static archive does not carry what
   it links: the readers' Arrow code is resolved here, from
-  `libzuarrow.a`, once. `zukomp` is there for the type of its table.
+  `libzuarrow.a`, once. `zukomp` is there for its table and the codecs
+  behind it, from `libzukomp.a`.
 - `configure` and `configure.win` resolve each archive with
   `system.file("lib", package = )` and write it into `src/Makevars`.
   `tools/vendor.R`, which writes `src/Makevars` today, writes the
@@ -711,12 +712,12 @@ As `zuxlsx` links `zuxml`, `zukomp` and `zucrypt`:
   it was built with.
 
 *Corrected 2026-11-18:* no reader's archive carries zstd. `qio` takes
-zstd and lz4 from `zukomp` (pedrobtz/qio#17), and `libzukomp.a` holds
-only a ZIP reader: zukomp's design keeps its codecs in its shared
-object, behind a table of functions that call no R. So there is no
-second copy to clash with the engine's, which is hidden in this
-package's shared object until §7.5 cuts it. Where the table comes from
-is Q20.
+zstd and lz4 from `zukomp` (pedrobtz/qio#17), through a table of
+functions that call no R. `libzukomp.a` holds only a ZIP reader today;
+pedrobtz/zukomp#132 adds the codecs and a getter for the table (Q20).
+Its `ZSTD_*` names are hidden but not prefixed, and the engine compiles
+a zstd of its own into this package's shared object, so the two cannot
+be linked together: the engine's copy goes first (§7.5).
 
 ### 7.5 The engine's own readers (Q17)
 
@@ -735,9 +736,10 @@ Decided 2026-11-18 (maintainer): refused first, then cut.
    still cost every analyser, sanitizer and fuzz run. The cut is not yet
    sized: the planner, the binder and `connection.cpp` name the reader
    classes on 47 lines, and the scan operators are more than that.
-   Sizing it is Stage 10's first task. Should it prove too large there,
-   the cut moves after v0.1.0: nothing forces it, since no reader's
-   archive carries zstd (§7.4).
+   Sizing it is Stage 10's first task. Should the whole of it prove too
+   large there, the rest moves after v0.1.0, but one part cannot wait:
+   the engine's zstd, and with it the Parquet reader that alone uses
+   it, is out before `libzukomp.a` is linked (§7.4).
 
 ### 7.6 Two steps
 
@@ -769,7 +771,7 @@ umbrella for its next version. The order is by what links what.
 <!-- markdownlint-disable MD013 -->
 | Order | Package | Issue | What it adds |
 | --- | --- | --- | --- |
-| 1 | `zukomp` 0.2.0 | [zukomp#132](https://github.com/pedrobtz/zukomp/issues/132) | The function table's type in a header that does not include R |
+| 1 | `zukomp` 0.2.0 | [zukomp#132](https://github.com/pedrobtz/zukomp/issues/132) | The function table's type in a header that does not include R, and the codecs in `libzukomp.a` with a getter for the table |
 | 2 | `zuarrow` 0.1.0 | [zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251) | The family's Arrow layer: nanoarrow's builder, the exact text parsers and an IPC stream reader, as a header and `libzuarrow.a` |
 | 3 | `zucsv` 0.1.1 | [zucsv#23](https://github.com/pedrobtz/zucsv/issues/23) | An R-free two-pass core and `zucsv_open_stream()` |
 | 3 | `qio` 0.1.3 | [qio#71](https://github.com/pedrobtz/qio/issues/71), with [qio#17](https://github.com/pedrobtz/qio/issues/17) | Codecs from zukomp, logical types as Arrow types in C, and `qio_open_stream()` |
@@ -944,6 +946,13 @@ any of them.
   `LinkingTo`, as `zuxlsx` links `zuxml`, `zukomp` and `zucrypt` (§7.4),
   so D6's imports stand. The contract between a reader and the glue is
   Q15, and what becomes of the engine's own readers Q17.
+- **D10 (maintainer, 2026-11-18).** Where an earlier design, here or in
+  a sibling package, conflicts with D9's goal, the design is rewritten
+  to fit, provided what already works does not change. It is why
+  zuarrow gains a C API before v0.1.0, qio maps logical types in C for
+  its stream, zujson's C API comes early and zukomp's archive carries
+  codecs (§7.8). Each package's issue names what must not change, and
+  its existing tests are the check.
 
 ## 13. Acceptance criteria for v0.1.0
 
@@ -1119,8 +1128,9 @@ any of them.
   hides its zstd, since two copies would clash (§7.4). **Decided
   2026-11-18 (maintainer): refuse in Stage 6, then cut every reader in
   Stage 10**, not only Parquet's, with the cut sized first (§7.5).
-  *Corrected the same day:* no reader's archive carries zstd, so there
-  is no clash to avoid and no fallback to need (§7.4).
+  *Corrected the same day:* the clash is with `libzukomp.a`'s zstd, not
+  `qio`'s, and there is no fallback: the engine's zstd and Parquet
+  reader are cut before that archive is linked (§7.4, Q20).
 - **Q18.** What must the core pass before a release, and does v0.1.0
   keep a CRAN date? Proposal: no date. The bar is measured, not
   argued: a pinned sqllogictest subset on which no case gives a wrong
@@ -1157,7 +1167,13 @@ any of them.
 
   Proposal: table mode. `zukomp` is small and has no dependency of
   its own, and the readers' requirements are the same either way.
-  Decide before Stage 10.
+  Decide before Stage 10. **Decided 2026-11-18 (maintainer): codecs in
+  `libzukomp.a`**, by D10: zukomp's design is rewritten to allow it,
+  and its shared object, its table and its R functions do not change.
+  Imports stay `DBI` and `methods`, as for every other reader, whose
+  code is copied into this package's shared object too. The price is
+  that a codec fix reaches users when `zuslothdb` is rebuilt, and that
+  the engine's own zstd must be cut first (§7.4).
 
 ## 15. Sources and verification
 
