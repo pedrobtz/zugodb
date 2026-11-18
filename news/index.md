@@ -2,6 +2,24 @@
 
 ## zuslothdb 0.0.0.9000
 
+- [`dbWriteTable()`](https://dbi.r-dbi.org/reference/dbWriteTable.html),
+  [`dbAppendTable()`](https://dbi.r-dbi.org/reference/dbAppendTable.html),
+  [`dbListTables()`](https://dbi.r-dbi.org/reference/dbListTables.html),
+  [`dbListFields()`](https://dbi.r-dbi.org/reference/dbListFields.html),
+  [`dbExistsTable()`](https://dbi.r-dbi.org/reference/dbExistsTable.html),
+  [`dbRemoveTable()`](https://dbi.r-dbi.org/reference/dbRemoveTable.html),
+  [`dbDataType()`](https://dbi.r-dbi.org/reference/dbDataType.html) and
+  [`dbQuoteIdentifier()`](https://dbi.r-dbi.org/reference/dbQuoteIdentifier.html)
+  write and manage tables. Logical, integer, double, character, factor,
+  `Date`, `POSIXct`, `integer64` and `blob` columns are written and read
+  back identical; a column of another class, or a value its column
+  cannot hold, is a `zuslothdb_type_error` before any row is written.
+- SlothDB has no transactions, so
+  [`dbBegin()`](https://dbi.r-dbi.org/reference/transactions.html),
+  [`dbCommit()`](https://dbi.r-dbi.org/reference/transactions.html) and
+  [`dbRollback()`](https://dbi.r-dbi.org/reference/transactions.html)
+  are `zuslothdb_unsupported`, and SQL `ROLLBACK` is an error saying
+  that nothing was undone.
 - A table of more than 2048 rows with a `NULL` past row 2048 no longer
   reads back with `NULL`s where there are none, or crashes R: the engine
   kept a whole row group’s `NULL`s in a mask the size of one vector, and

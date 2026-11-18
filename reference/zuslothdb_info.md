@@ -26,7 +26,7 @@ engine's thread cap, an integer).
 ``` r
 info <- zuslothdb_info()
 info$commit
-#> [1] "db025ddda099cf98c96a4ec3752fe25294a510b9"
+#> [1] "6af32c5028ba5e1a94809d562d13b1649ffceeba"
 info$changes
 #>  [1] "Take the Windows branch under MinGW, not only MSVC"    
 #>  [2] "Write nothing to stderr, never abort, use no rand()"   
@@ -39,4 +39,5 @@ info$changes
 #>  [9] "Keep the Parquet decoder's scratch out of thread_local"
 #> [10] "Size validity masks by their holder's capacity"        
 #> [11] "Update seven doctests to DATE as days since 1970"      
+#> [12] "Make ROLLBACK say that nothing was undone"             
 ```
