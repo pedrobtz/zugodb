@@ -100,6 +100,10 @@ struct ParquetFileMeta {
     // 0=REQUIRED (max_def_level=0), 1=OPTIONAL (max_def_level=1), 2=REPEATED.
     // Only populated for files parsed via the standard-Parquet thrift path.
     std::vector<int32_t> column_repetition;
+    // zuslothdb: per leaf, why the reader cannot decode the column
+    // faithfully (empty if it can): an annotation it does not apply, such
+    // as DECIMAL's scale or a TIMESTAMP's unit, would give wrong values.
+    std::vector<std::string> column_unsupported;
 };
 
 // ============================================================================
@@ -232,6 +236,11 @@ public:
                    : meta_.column_types;
     }
     int64_t NumRows() const { return meta_.num_rows; }
+
+    // zuslothdb: throws NotImplementedException naming the column if the
+    // reader cannot decode column `col` faithfully. Call it on the thread
+    // that runs the query, before any decode work starts.
+    void CheckReadable(idx_t col) const;
 
     // Read all rows.
     std::vector<std::vector<Value>> ReadAll();

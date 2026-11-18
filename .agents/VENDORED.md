@@ -7,7 +7,7 @@ it on the SlothDB fork, then re-vendor from it.
 | Library | Version | Commit | Retrieved | License |
 |---|---|---|---|---|
 | [SlothDB](https://github.com/SouravRoy-ETL/slothdb) | v0.2.7+ | `8180f215847015944c935f56f008d194e2c1494c` | 2026-11-17 | MIT (`src/vendor/slothdb/LICENSE`) |
-| [SlothDB fork](https://github.com/pedrobtz/slothdb) | `zuslothdb` branch, tag `zuslothdb-2` | `6af32c5028ba5e1a94809d562d13b1649ffceeba` | 2026-11-18 | MIT (`src/vendor/slothdb/LICENSE`) |
+| [SlothDB fork](https://github.com/pedrobtz/slothdb) | `zuslothdb` branch, tag `zuslothdb-4` | `1df811d9dbbe4f60e7c5310c03bd27d51e5b0e69` | 2026-11-18 | MIT (`src/vendor/slothdb/LICENSE`) |
 
 The third-party code inside it (zstd's decompressor, snappy, fastpforlib,
 miniz, `unordered_dense.h`) comes with SlothDB at that commit; its holders
@@ -82,6 +82,8 @@ is the *n*-th commit after the upstream pin.
 | 10 | `d8bf307` | Size validity masks by their holder's capacity | memory corruption, wrong results (#45) | `fix/validity-capacity` |
 | 11 | `db025dd` | Update seven doctests to DATE as days since 1970 | stale tests | `fix/stale-date-tests` (its date cases), and the STRFTIME case with `fix/strftime-one-argument` |
 | 12 | `6af32c5` | Make ROLLBACK say that nothing was undone | no undo: a silent wrong result (#7) | none yet: a behaviour choice upstream may make differently (upstream's own test documents the missing undo) |
+| 13 | `89f52bb` | Refuse Parquet columns the reader cannot decode faithfully | silent wrong values (#36, #37, #38) | none yet: a refusal; upstream would want the decoding itself |
+| 14 | `1df811d` | Refuse unreadable Parquet columns when bound, not when scanned | follow-up to 13: the refusal fires exactly when a query names the column | with 13 |
 
 ## Drift
 

@@ -311,6 +311,17 @@ library; it is identical wherever it is instantiated and cannot clash.
   2048-row chunk. Patch 0010 sizes the mask by its holder's capacity and
   the chunk by the list. 31 other chunks keep the default capacity and
   are not yet audited; one filled past 2048 rows would be the same bug.
+- **Parquet columns the reader cannot decode (found 2026-11-18, #36 to
+  #38).** The reader decodes by physical type and honours only `DATE`
+  and `TIMESTAMP_MICROS`, so other annotations came out as wrong values:
+  `DECIMAL` unscaled, `TIME` and millisecond or nanosecond timestamps as
+  raw counts, `UUID` and `INTERVAL` as `NULL`, unsigned 32- and 64-bit
+  integers as signed. The fork's changes 13 and 14 parse the schema's
+  `LogicalType` as well and refuse such a column, naming it and why, in
+  the binder: when a query names it or expands it with `*`. Queries on
+  the file's other columns work whatever the plan decodes. The glob
+  path, which loads every column, refuses the file. Decoding the types
+  properly (a scaled `DECIMAL`, the timestamp units) is left for later.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).
@@ -477,8 +488,9 @@ SlothDB's SQL, so they reach R only from files (Stage 6).
 than its `LogicalTypeId` names. Its SQL casts a `DECIMAL` to `DOUBLE`
 and a column declared `TIMESTAMPTZ` to `TIMESTAMP`; it has no list,
 struct or map syntax, and `LIST_VALUE`, `STRUCT_PACK` and `ROW` are
-"not implemented". Its readers do no better: Parquet reads a `DECIMAL`
-as its unscaled integer (#36) and sees no nested column, JSON drops
+"not implemented". Its readers do no better: Parquet read a `DECIMAL`
+as its unscaled integer (#36; refused since 2026-11-18, below) and sees
+no nested column, JSON drops
 nested keys (#39), and Arrow IPC with a nested column fails (#40). So
 the rows for `DECIMAL`, `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP` and
 `UNION` above, which this design first promised as conversions, are a
