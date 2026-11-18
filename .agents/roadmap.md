@@ -616,12 +616,15 @@ every skip named and explained.
 and a configure script: each platform leg, and the symbol and import
 checks of tools/ci/platform.sh.`
 
-**Blocked on.** A CRAN release of each of `zucsv`, `zujson` and `qio`
-with the header and archive of
-[design §7.2](design.md#72-what-each-reader-provides):
-[zucsv#23](https://github.com/pedrobtz/zucsv/issues/23),
-[zujson#108](https://github.com/pedrobtz/zujson/issues/108) and
-[qio#71](https://github.com/pedrobtz/qio/issues/71).
+**Blocked on.** A release of each package below with the header and
+archive of [design §7.2](design.md#72-what-each-reader-provides), in the
+order of [§7.8](design.md#78-what-each-package-releases-in-order):
+
+1. [zukomp#132](https://github.com/pedrobtz/zukomp/issues/132);
+2. [zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251);
+3. [zucsv#23](https://github.com/pedrobtz/zucsv/issues/23) and
+   [qio#71](https://github.com/pedrobtz/qio/issues/71);
+4. [zujson#108](https://github.com/pedrobtz/zujson/issues/108).
 
 **Goal.** `zuslothdb_read()` loads a CSV, JSON or Parquet file into a
 table with the values a reference gives, and a damaged file is an error
@@ -633,11 +636,13 @@ that leaves nothing behind.
   of the fork, with zstd, snappy and fastpforlib. If it fits the stage,
   one fork commit makes it, `tools/vendor.yaml`'s `copy` list loses the
   three libraries, and `inst/COPYRIGHTS` and `Authors@R` lose their
-  holders. If it does not, `qio`'s archive hides its zstd, the cut moves
-  after v0.1.0, and this roadmap records it.
-- `LinkingTo: zucsv, zujson, qio` with version floors. `configure` and
-  `configure.win` resolve the archives; `tools/vendor.R` writes the
-  `Makevars` templates they fill.
+  holders. If it does not, the cut moves after v0.1.0 and this roadmap
+  records it; nothing forces it, since no reader's archive carries zstd.
+- Q20 decided and recorded: where the codec table comes from. As
+  proposed, `Imports: zukomp`, resolved once at load.
+- `LinkingTo: zukomp, zuarrow, zucsv, zujson, qio` with version floors.
+  `configure` and `configure.win` resolve the archives; `tools/vendor.R`
+  writes the `Makevars` templates they fill.
 - `zuslothdb_read(conn, name, path, format = NULL, columns = NULL)`, as
   Q16 decided: the reader's stream into Stage 7's adapter, and into a
   new table.
@@ -864,7 +869,9 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- None. Q15 to Q19, and the database file's checksum, were decided on
+- **Q20** (where the readers' codec table comes from) blocks Stage 10.
+  It has a proposal in [design §14](design.md#14-open-questions).
+- Q15 to Q19, and the database file's checksum, were decided on
   2026-11-18 ([design §14](design.md#14-open-questions) and
   [§8](design.md#8-persistence)).
 - Still to find, inside a stage: how an append to an existing table

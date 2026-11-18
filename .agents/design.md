@@ -622,18 +622,36 @@ first submission (maintainer, 2026-11-18):
   hands back a stream of column batches (§7.3).
 - **Errors returned, not raised.** A code and a message; never a
   `longjmp`, an `abort()` or a write to `stderr`.
-- **No symbol that can clash.** The code it vendors (zstd and lz4 in
-  `qio`) is hidden or prefixed, so two archives in one shared object do
-  not collide. Each bundles nanoarrow under its own
-  `NANOARROW_NAMESPACE`, as `zuarrow` already does.
+- **No symbol that can clash.** The code it vendors (zsv, yyjson,
+  carquet) is hidden, and prefixed where another archive could carry
+  the same names, so two archives in one shared object do not collide.
+- **No codec of its own.** An archive holds no zstd or lz4. Its options
+  take zukomp's function table, a `const zukomp_api_v1 *`, from whoever
+  opens the stream (Q20).
+- **No nanoarrow of its own.** The Arrow structs and the code that
+  builds arrays and streams come from `zuarrow`'s header and archive
+  (maintainer, 2026-11-18), so the family has one copy to patch. Each
+  reader therefore links `zuarrow`, and `zuarrow`'s release comes before
+  theirs.
 - **An ABI version** in the header. A breaking change to the header or
   the archive is breaking for this package, under the portfolio's rule.
 - **Its own assurance.** The reader's oracle, fuzzing and hostile-input
   tests live in its package; `zuslothdb` tests the join.
 
-Not yet read: how much of each package's type inference and column
-building is in its R glue today. That part has to move into the R-free
-code, and it is the larger share of the work in each sibling.
+*As read on 2026-11-18*, how far each is from that:
+
+- **`zuarrow`**: close. Its IPC reader, UTF-8 checks and exact text
+  parsers already compile without R, and its fuzz harness builds them
+  so. Its design rules a C API out of v0.1.0, which is reversed.
+- **`zucsv`**: close. Inference is in C over the whole file. About 470
+  lines change from R errors to return codes, and the mode that makes
+  its doubles equal R's must be handed in, not found lazily.
+- **`qio`**: a new R-free file over carquet's batch reader. The logical
+  types, mapped in R today, move to C as Arrow types.
+- **`zujson`**: the farthest. It has no code that turns records into
+  columns across records, so most of it is new.
+
+§7.8 has each package's issue and the order.
 
 ### 7.3 The contract (Q15)
 
@@ -674,8 +692,11 @@ it.
 
 As `zuxlsx` links `zuxml`, `zukomp` and `zucrypt`:
 
-- `LinkingTo: zucsv, zujson, qio`, each with a version floor. R puts
-  each package's `include/` on the compiler's path.
+- `LinkingTo: zukomp, zuarrow, zucsv, zujson, qio`, each with a version
+  floor. R puts each package's `include/` on the compiler's path.
+  `zuarrow` is in the list because a static archive does not carry what
+  it links: the readers' Arrow code is resolved here, from
+  `libzuarrow.a`, once. `zukomp` is there for the type of its table.
 - `configure` and `configure.win` resolve each archive with
   `system.file("lib", package = )` and write it into `src/Makevars`.
   `tools/vendor.R`, which writes `src/Makevars` today, writes the
@@ -689,12 +710,13 @@ As `zuxlsx` links `zuxml`, `zukomp` and `zucrypt`:
   new archive, so `zuslothdb_info()` reports the version of each reader
   it was built with.
 
-Two copies of zstd in one shared object would clash: the engine carries
-zstd's decompressor and `qio` carries zstd. In the engine, zstd, snappy
-and fastpforlib are used only by `parquet.cpp`, so cutting the engine's
-readers (§7.5) removes the engine's copy. `qio` has its own open issue
-(pedrobtz/qio#17) to take zstd and lz4 from `zukomp`; if it does,
-`libzukomp.a` is linked here too, once.
+*Corrected 2026-11-18:* no reader's archive carries zstd. `qio` takes
+zstd and lz4 from `zukomp` (pedrobtz/qio#17), and `libzukomp.a` holds
+only a ZIP reader: zukomp's design keeps its codecs in its shared
+object, behind a table of functions that call no R. So there is no
+second copy to clash with the engine's, which is hidden in this
+package's shared object until §7.5 cuts it. Where the table comes from
+is Q20.
 
 ### 7.5 The engine's own readers (Q17)
 
@@ -714,8 +736,8 @@ Decided 2026-11-18 (maintainer): refused first, then cut.
    sized: the planner, the binder and `connection.cpp` name the reader
    classes on 47 lines, and the scan operators are more than that.
    Sizing it is Stage 10's first task. Should it prove too large there,
-   `qio` hiding its zstd (§7.2) is enough to link, and the cut moves
-   after v0.1.0.
+   the cut moves after v0.1.0: nothing forces it, since no reader's
+   archive carries zstd (§7.4).
 
 ### 7.6 Two steps
 
@@ -738,6 +760,31 @@ anyway (§8).
 A path goes to a reader as a C string, not through SQL. The R layer
 expands and encodes it. One local file per call; a remote path is
 refused before any reader sees it (D4).
+
+### 7.8 What each package releases, in order
+
+Each requirement is an issue in its package, under that package's
+umbrella for its next version. The order is by what links what.
+
+<!-- markdownlint-disable MD013 -->
+| Order | Package | Issue | What it adds |
+| --- | --- | --- | --- |
+| 1 | `zukomp` 0.2.0 | [zukomp#132](https://github.com/pedrobtz/zukomp/issues/132) | The function table's type in a header that does not include R |
+| 2 | `zuarrow` 0.1.0 | [zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251) | The family's Arrow layer: nanoarrow's builder, the exact text parsers and an IPC stream reader, as a header and `libzuarrow.a` |
+| 3 | `zucsv` 0.1.1 | [zucsv#23](https://github.com/pedrobtz/zucsv/issues/23) | An R-free two-pass core and `zucsv_open_stream()` |
+| 3 | `qio` 0.1.3 | [qio#71](https://github.com/pedrobtz/qio/issues/71), with [qio#17](https://github.com/pedrobtz/qio/issues/17) | Codecs from zukomp, logical types as Arrow types in C, and `qio_open_stream()` |
+| 4 | `zujson` 0.2.0 | [zujson#108](https://github.com/pedrobtz/zujson/issues/108) | Records to columns across records, and `zujson_open_stream()` |
+| 5 | `zuslothdb` | Stage 10 ([#60](https://github.com/pedrobtz/zuslothdb/issues/60)) | Links them and adds `zuslothdb_read()` |
+<!-- markdownlint-enable MD013 -->
+
+Stage 7's adapter needs none of them: it is built against `nanoarrow`
+as the producer, and takes the readers' streams unchanged when they
+arrive.
+
+Each provider keeps a consumer fixture under `tools/` and a
+`consumer.yaml` workflow, and each `LinkingTo` floor here is the CRAN
+version this package was last checked against (the family's rule
+R10).
 
 ## 8. Persistence
 
@@ -1071,8 +1118,9 @@ any of them.
   the Parquet reader before `qio`'s archive is linked, unless `qio`
   hides its zstd, since two copies would clash (§7.4). **Decided
   2026-11-18 (maintainer): refuse in Stage 6, then cut every reader in
-  Stage 10**, not only Parquet's, with the cut sized first and `qio`
-  hiding its zstd as the fallback (§7.5).
+  Stage 10**, not only Parquet's, with the cut sized first (§7.5).
+  *Corrected the same day:* no reader's archive carries zstd, so there
+  is no clash to avoid and no fallback to need (§7.4).
 - **Q18.** What must the core pass before a release, and does v0.1.0
   keep a CRAN date? Proposal: no date. The bar is measured, not
   argued: a pinned sqllogictest subset on which no case gives a wrong
@@ -1094,6 +1142,22 @@ any of them.
   Proposal: after v0.1.0, once Q18's bar is met. **Decided 2026-11-18
   (maintainer): after v0.1.0.** Stage 7's adapter pulls, so the operator
   can be built on it without changing it (§7.3).
+- **Q20.** Where does the readers' codec table come from? `qio` needs
+  zstd and lz4 for most Parquet files, and reaches them through
+  zukomp's table (§7.2). Two ways to get it:
+  1. *Table mode, as zukomp is designed.* This package imports
+     `zukomp` and resolves the table once, on R's main thread, at
+     load. One copy of each codec in the process, and a codec fix
+     reaches users without a rebuild. It adds a runtime import, which
+     D6 and D9 said would not happen.
+  2. *Codecs in `libzukomp.a`.* Imports stay `DBI` and `methods`.
+     zukomp's design rejects it today: the codec code is copied into
+     every consumer, and a fix reaches a consumer only when it is
+     rebuilt.
+
+  Proposal: table mode. `zukomp` is small and has no dependency of
+  its own, and the readers' requirements are the same either way.
+  Decide before Stage 10.
 
 ## 15. Sources and verification
 
