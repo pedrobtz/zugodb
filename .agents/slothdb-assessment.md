@@ -230,3 +230,38 @@ valgrind over the suite, plus fuzzing in CI with an agreement oracle.
 - **B: continue the roadmap unchanged.** Not advised: Stage 6's own
   fuzzing would find the spike's crashes and force A's engine work
   anyway.
+
+## What option D does to the open defects
+
+Added 2026-11-18, after D was chosen. The tables above mark some defects
+**open**; this is where each goes.
+
+| Defect | After D |
+| --- | --- |
+| An exception on a Parquet decode worker ends the process | The reader is refused in Stage 6 and cut in Stage 10. Catching exceptions on the workers that remain (A1) is Stage 6's |
+| The Parquet spike's crashes, hangs and short reads (A2 to A4) | Gone with the reader. `qio` reads Parquet, and its own fuzz harness is a requirement of pedrobtz/qio#71 |
+| CSV: doubled quotes, types sampled from 100 rows, five quote paths | The reader is refused in Stage 6. `zucsv` reads CSV: zsv handles quoting and inference is over the whole file |
+| CSV: signed overflow in `ParseInt64` | The same; the code leaves with the cut |
+| Database file: no checksum | A checksum, decided 2026-11-18 (design §8), in Stage 6. There is still no write-ahead log, and the README says so |
+| A file cannot be read inside a subquery or `CREATE TABLE … AS` | Nothing reads a file from SQL until design §16.5's step B, which has to make it work |
+
+## Review notes
+
+Added 2026-11-18, from a second read of this document against the
+repository.
+
+- **"Most of them turn a wrong answer into an error"** (Summary) is
+  loose. Of the 16 fork commits, 5 are refusals, 4 are fixes, 6 are
+  packaging or policy and 1 updates stale tests. It holds for the
+  commits a defect drove: 5 of 9, or 6 of 10 with pull request #56.
+- **`test-refused.R` and the spike's `zuslothdb-7` build** exist only in
+  pull request #56, not on `main`.
+- **A doubled quote is ordinary RFC 4180**, so the CSV defect is on the
+  happy path, and the Summary's first bullet undersells it.
+- **A1's size, "S", may be low.** `physical_planner.cpp` starts raw
+  `std::thread`s at a dozen or more sites beyond the ones A1 names. Which
+  of them can throw was not checked.
+- **"What A does not fix" leaves out** that the engine has no prepared
+  statements (Q3), no query cancellation (Q6) and no memory limit (Q4).
+- **The rows marked open had no issue of their own** when this was
+  written. The table above says where each now goes.

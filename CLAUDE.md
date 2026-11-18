@@ -20,7 +20,17 @@ sessions do not load the plugin and run without them.
 source vendored into the package and compiled at install, with a DBI driver
 on top, so that SQL over local CSV, Parquet and JSON files works
 with no system library, no server and no download. Runtime dependencies are
-`DBI` and `methods` only. It is deliberately not a `duckdb` replacement
+`DBI` and `methods` only.
+
+Since 2026-11-18 (design D9 to D11) it aims to be a small engine that other
+R packages extend. Files are read by the zu family's readers (`zucsv`,
+`zujson`, `qio`), linked at build time as static archives over one contract,
+the Arrow C stream, and not by SlothDB's own readers, which are refused and
+then cut (design §7). The engine loads no code itself: an extension is an R
+package that registers table sources and scalar functions with it (design
+§16). The engine's core stays SlothDB's and is fixed on the fork.
+
+It is deliberately not a `duckdb` replacement
 (upstream calls itself experimental), not a network client (HTTP, S3,
 extension loading and the `ask` module are compiled out), and not a `dplyr`
 backend of its own in v0.1.0.
@@ -29,20 +39,39 @@ backend of its own in v0.1.0.
 this file; it records the RFC it came from. Its §5.1 fixes the rule for the
 API: the shape is `duckdb`'s, the scope is upstream's Python binding's. Its
 §12 decisions and §14 open questions are the maintainer's to settle; do not
-settle one in code without recording it there.
+settle one in code without recording it there. D10 is the rule for a
+conflict with an earlier design, here or in a sibling: the design is
+rewritten to fit, provided what already works does not change.
+[.agents/slothdb-assessment.md](.agents/slothdb-assessment.md) is the
+evidence behind D9: what testing found wrong in the engine and its readers.
 
 ## Current state
 
-Stage 1 (the engine spike) vendored the patched engine, which builds and
-answers `SELECT 42` through an internal function; the DBI driver is
-Stage 2's. The roadmap in [.agents/roadmap.md](.agents/roadmap.md) takes it
-to v0.1.0; decision D1 in the design records whether it goes on.
+Stages 0 to 5 are merged: the patched engine, the DBI driver and
+connection, results and scalar types, `DATE`, `TIMESTAMP` and `BLOB`, and
+writing. The roadmap in [.agents/roadmap.md](.agents/roadmap.md) was
+restaged on 2026-11-18 from Stage 6 on:
+
+- Stage 6: persistence, the database file's checksum, and the engine's own
+  readers refused.
+- Stage 7: Arrow C streams in, through DBI's `dbWriteTableArrow()`; the
+  adapter the readers use later.
+- Stage 8: the core measured against sqllogictest. The bar for v0.1.0 is no
+  wrong answer, crash or hang on a pinned subset (Q18).
+- Stage 10: the zu readers linked, `zuslothdb_read()`, readers registered
+  by other packages, and the engine's readers cut.
+
+v0.1.0 has no CRAN date. D1 in the design records why the package goes on.
 
 ## Versions and dependents
 
 The current version's parent issue is
 [#1](https://github.com/pedrobtz/zuslothdb/issues/1) for `v0.1.0`.
 Sibling packages that depend on this one before CRAN does: none.
+
+It waits on a release of each of `zukomp`, `zuarrow`, `zucsv`, `qio` and
+`zujson` with a C header and a static archive. Design §7.8 has their
+issues, in the order they link; Stage 7 needs none of them.
 
 ## Commands
 

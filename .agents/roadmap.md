@@ -616,16 +616,20 @@ every skip named and explained.
 and a configure script: each platform leg, and the symbol and import
 checks of tools/ci/platform.sh.`
 
-**Blocked on.** A CRAN release of each of `zucsv`, `zujson` and `qio`
-with the header and archive of
-[design §7.2](design.md#72-what-each-reader-provides):
-[zucsv#23](https://github.com/pedrobtz/zucsv/issues/23),
-[zujson#108](https://github.com/pedrobtz/zujson/issues/108) and
-[qio#71](https://github.com/pedrobtz/qio/issues/71).
+**Blocked on.** A release of each package below with the header and
+archive of [design §7.2](design.md#72-what-each-reader-provides), in the
+order of [§7.8](design.md#78-what-each-package-releases-in-order):
+
+1. [zukomp#132](https://github.com/pedrobtz/zukomp/issues/132);
+2. [zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251);
+3. [zucsv#23](https://github.com/pedrobtz/zucsv/issues/23) and
+   [qio#71](https://github.com/pedrobtz/qio/issues/71);
+4. [zujson#108](https://github.com/pedrobtz/zujson/issues/108).
 
 **Goal.** `zuslothdb_read()` loads a CSV, JSON or Parquet file into a
-table with the values a reference gives, and a damaged file is an error
-that leaves nothing behind.
+table with the values a reference gives, a damaged file is an error
+that leaves nothing behind, and another package can register a reader
+for a format of its own.
 
 **Work.**
 
@@ -633,15 +637,37 @@ that leaves nothing behind.
   of the fork, with zstd, snappy and fastpforlib. If it fits the stage,
   one fork commit makes it, `tools/vendor.yaml`'s `copy` list loses the
   three libraries, and `inst/COPYRIGHTS` and `Authors@R` lose their
-  holders. If it does not, `qio`'s archive hides its zstd, the cut moves
-  after v0.1.0, and this roadmap records it.
-- `LinkingTo: zucsv, zujson, qio` with version floors. `configure` and
-  `configure.win` resolve the archives; `tools/vendor.R` writes the
-  `Makevars` templates they fill.
+  holders. If the whole does not fit, the engine's zstd and its Parquet
+  reader are cut here all the same, since `libzukomp.a`'s zstd cannot
+  be linked beside them; the rest moves after v0.1.0, and this roadmap
+  records it.
+- As Q20 decided: the codec table and the codecs come from
+  `libzukomp.a`, fetched once at load and handed to each reader.
+- `LinkingTo: zukomp, zuarrow, zucsv, zujson, qio` with version floors.
+  `configure` and `configure.win` resolve the archives; `tools/vendor.R`
+  writes the `Makevars` templates they fill.
 - `zuslothdb_read(conn, name, path, format = NULL, columns = NULL)`, as
   Q16 decided: the reader's stream into Stage 7's adapter, and into a
   new table.
 - `zuslothdb_info()` reports each reader's version.
+- Registered readers, step A of
+  [design §16.5](design.md#165-steps) (Q21 and Q22, decided
+  2026-11-18):
+  - `inst/include/zuslothdb.h`: plain C, no R header, no engine type,
+    an ABI version, and the versioned struct a reader registers (its
+    format name, its file extensions, and an open function that takes
+    a path and options as strings and fills a stream);
+  - an exported function an extension calls from `.onLoad` with an
+    external pointer to that struct, and one registry for the process;
+  - `zuslothdb_read(format = )` looks a format up there after the
+    built-in ones, and `zuslothdb_info()` lists what is registered;
+  - what unloading an extension's namespace does (refused, or the
+    reader unregistered), settled here and recorded in design §16.4;
+  - a fixture extension package under `tools/` and a `consumer.yaml`
+    workflow, since this package is now a provider (family rule
+    R10.4).
+- The Objects row for a registered reader: who owns the struct, and
+  what holds its code in memory.
 - File fixtures written by `tools/oracle.R` with `duckdb` as the
   reference writer, small enough for the tarball, with their provenance,
   joining those Stage 6 kept.
@@ -675,6 +701,20 @@ that leaves nothing behind.
 - Truncated and bit-flipped files of each format, and invalid UTF-8 in
   CSV: a classed error, no table left, and the connection then loads an
   intact file, in `test-hostile.R`.
+- A registered reader, from the fixture extension, for a format of its
+  own: `zuslothdb_read()` gives the table `dbWriteTable()` makes of the
+  same data, in `test-extension.R`.
+- Registration refused: a format registered twice, a built-in format's
+  name, a struct of another ABI version and a null open function are
+  each a classed error and leave the registry as it was, in
+  `test-extension.R`.
+- A registered reader whose stream fails at its third batch: its
+  message in a classed error and no table left, in `test-extension.R`.
+- The extension's namespace unloaded: the outcome design §16.4 records,
+  and then the format is unknown or still works, never a crash, in
+  `test-extension.R`.
+- The fixture extension builds with only `LinkingTo: zuslothdb` for the
+  header, on each OS: `consumer.yaml`.
 - With the archives linked, only `R_init_zuslothdb` is exported and no
   forbidden symbol is imported: `nm`, in `tools/ci/platform.sh`, once
   per OS.
@@ -686,8 +726,10 @@ that leaves nothing behind.
 - The package installs from source on a machine with only the CRAN
   releases of the three readers.
 
-**Design.** [§7](design.md#7-files), [D9](design.md#12-decisions) and
-[Q16 and Q17](design.md#14-open-questions).
+**Design.** [§7](design.md#7-files),
+[§16](design.md#16-extensions-through-r-packages),
+[D9 and D11](design.md#12-decisions) and
+[Q16, Q17 and Q20 to Q22](design.md#14-open-questions).
 
 ## Stage 11 — Documentation and measured claims
 
@@ -849,8 +891,11 @@ twice and what the reviews required is fixed.
 - [§2](design.md#2-scope): parameter binding (Q3), Arrow export through
   `nanoarrow`, ALTREP results, R functions as SQL functions and `dbplyr`
   translations (Q5) wait, as the design says.
-- [§7.6](design.md#76-two-steps): scanning a reader's stream from SQL
-  (Q19), which brings back `SELECT ... FROM read_csv('x')`.
+- [§16.5](design.md#165-steps), extensions through R packages (D11),
+  one release each, in the order Q21 decided: B,
+  table functions in SQL over a stream (Q19), which brings back
+  `SELECT ... FROM read_csv('x')`; C, registered scalar functions;
+  D, results out as Arrow streams.
 - [§7.1](design.md#71-the-readers): Excel through `zuxlsx` and Arrow IPC
   through `zuarrow`
   ([zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251)), once
@@ -864,9 +909,9 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- None. Q15 to Q19, and the database file's checksum, were decided on
+- None. Q15 to Q23, and the database file's checksum, were decided on
   2026-11-18 ([design §14](design.md#14-open-questions) and
   [§8](design.md#8-persistence)).
 - Still to find, inside a stage: how an append to an existing table
-  stays whole without undo (Stage 7), and how large the cut of the
-  engine's readers is (Stage 10).
+  stays whole without undo (Stage 7); how large the cut of the engine's
+  readers is, and what unloading an extension does (Stage 10).
