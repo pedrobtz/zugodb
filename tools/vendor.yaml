@@ -1,13 +1,21 @@
 # What zuslothdb vendors from SlothDB, and every change made to it.
 #
-# tools/vendor.R reads this file: it checks out `upstream.commit`, applies
-# `patches` in order, copies `copy` minus `exclude` into `destination`,
-# and writes src/Makevars, src/Makevars.win, src/sdb_provenance.h,
-# inst/vendor.yaml and tools/vendor/checksums.md5 from the result.
-# Nothing under `destination` is edited by hand (design §4.2).
+# The engine comes from pedrobtz/slothdb, zuslothdb's fork of upstream
+# SlothDB (design §4.2, decided 2026-11-18): its `zuslothdb` branch is
+# upstream at `upstream.commit` plus one commit per change, listed in
+# `changes`. tools/vendor.R checks out `source.commit`, checks that its
+# history since `upstream.commit` is exactly `changes`, copies `copy` minus
+# `exclude` into `destination`, and writes src/Makevars, src/Makevars.win,
+# src/sdb_provenance.h, inst/vendor.yaml and tools/vendor/checksums.md5.
+# Nothing under `destination` is edited by hand.
 #
-# tools/upstream-tests.sh builds upstream's doctest suite against the
-# vendored tree, with `test_patches` applied and `test_exclude` left out.
+# tools/upstream-tests.sh builds the fork's doctest suite, at the same
+# commit, against the vendored tree, with `test_exclude` left out.
+
+source:
+  repository: https://github.com/pedrobtz/slothdb
+  tag: zuslothdb-1
+  commit: db025ddda099cf98c96a4ec3752fe25294a510b9
 
 upstream:
   repository: https://github.com/SouravRoy-ETL/slothdb
@@ -68,76 +76,87 @@ exclude:
   - path: third_party/snappy/config.h
     reason: Unused; nothing defines HAVE_CONFIG_H, as upstream's build does not.
 
-patches:
-  - file: 0001-mingw.patch
+changes:
+  - commit: 2ac3d1cffde3dffa5ec72ad9a885ebd02d248839
+    subject: "Take the Windows branch under MinGW, not only MSVC"
     reason: >-
       Rtools' GCC takes the POSIX branch of guards written for MSVC
       (_MSC_VER), where MinGW lacks gmtime_r, localtime_r, timegm and the
       two-argument mkdir. The Windows branch is gated on _WIN32 instead.
-  - file: 0002-no-process-output.patch
+  - commit: c99149ef11cd2814af5ba3efb239ff2aa227e90e
+    subject: "Write nothing to stderr, never abort, use no rand()"
     reason: >-
-      A package must not write to stderr, call abort() or use rand() (CRAN's
-      compiled-code check). SLOTH_PROFILE timings are discarded, the
-      no-exceptions branch of unordered_dense.h throws, and RANDOM() and
-      UUID() use a per-thread std::mt19937_64.
-  - file: 0003-offline.patch
+      A package must not write to stderr, call abort() or use rand()
+      (CRAN's compiled-code check). SLOTH_PROFILE timings are discarded,
+      the no-exceptions branch of unordered_dense.h throws, and RANDOM()
+      and UUID() use a per-thread std::mt19937_64.
+  - commit: b850a18c4df2e94f98f8d7faaa84306185294175
+    subject: "Refuse remote paths: offline only"
     reason: >-
-      Offline only (D4): an http://, https:// or s3:// path is an error, not
-      a download to the system temp directory.
-  - file: 0004-threads.patch
+      Offline only (D4): an http://, https:// or s3:// path is an error,
+      not a download to the system temp directory.
+  - commit: c3255c609fe52091c29f9b1ae41730e6ad26b33d
+    subject: "Cap every thread pool with one process-wide limit"
     reason: >-
       Two threads unless the user sets threads (D5): one process-wide cap,
       read by every pool and parallel split, in place of
       hardware_concurrency() and SLOTHDB_MAX_THREADS.
-  - file: 0005-strftime-arity.patch
+  - commit: efcaea8678b486fe37b0be38731eb7d4740baa32
+    subject: "Refuse STRFTIME with one argument"
     reason: >-
       STRFTIME with one argument read past its argument list and crashed
       (upstream's own "Advanced - STRFTIME" case); it is now an error.
-  - file: 0006-compiler-warnings.patch
+  - commit: 87a5a57c42d06e462f2e35a84ff4cc68b8757711
+    subject: "Fix two warnings R CMD check counts"
     reason: >-
       Two warnings R CMD check counts as significant: a discarded
-      [[nodiscard]] std::signbit() call in value.cpp (clang
-      -Wunused-result) and ConstantExpression's NULL constructor
-      initialising its members out of declaration order (gcc -Wreorder).
-      Neither changes behaviour.
-  - file: 0007-read-only.patch
+      [[nodiscard]] std::signbit() call in value.cpp (clang -Wunused-
+      result) and ConstantExpression's NULL constructor initialising its
+      members out of declaration order (gcc -Wreorder). Neither changes
+      behaviour.
+  - commit: b963b8e6c1a873c41bc7d8723549fccc5ce1bee6
+    subject: "Add a read-only database mode"
     reason: >-
       dbConnect(read_only = TRUE): the engine has no read-only mode, and a
-      file-backed database is saved whenever it closes. A read_only flag in
-      DatabaseConfig makes Connection::Query refuse any batch with a
-      statement that changes the database, before any of it runs, and stops
-      the destructor saving the file.
-  - file: 0008-lost-wakeup.patch
+      file-backed database is saved whenever it closes. A read_only flag
+      in DatabaseConfig makes Connection::Query refuse any batch with a
+      statement that changes the database, before any of it runs, and
+      stops the destructor saving the file.
+  - commit: 1f52a05d7fc63526c2ba33c0ba3f8a47aca7caf1
+    subject: "Set stop flags under the mutex their waiters use"
     reason: >-
-      A lost wakeup hung the session (#32): PhysicalParquetScan::StopWorkers
-      and ThreadPool's destructor set their stop flag outside the mutex
-      their workers wait with, so a worker between its predicate and its
-      wait missed the notify and join() never returned. A Parquet query
-      that stops early (LIMIT over several row groups) reached it. Each
-      flag is now set under that mutex, as are ThreadPool's active-task
-      count changes that WaitAll() waits on.
-  - file: 0009-thread-local.patch
+      A lost wakeup hung the session (#32):
+      PhysicalParquetScan::StopWorkers and ThreadPool's destructor set
+      their stop flag outside the mutex their workers wait with, so a
+      worker between its predicate and its wait missed the notify and
+      join() never returned. A Parquet query that stops early (LIMIT over
+      several row groups) reached it. Each flag is now set under that
+      mutex, as are ThreadPool's active-task count changes that WaitAll()
+      waits on.
+  - commit: f976710ba6f8ea05b2750aa05fa8fe174d208fa1
+    subject: "Keep the Parquet decoder's scratch out of thread_local"
     reason: >-
-      A Parquet scan on more than one thread killed R on Windows (#34). Its
-      decode workers keep scratch buffers and a zstd context in
+      A Parquet scan on more than one thread killed R on Windows (#34).
+      Its decode workers keep scratch buffers and a zstd context in
       thread_local objects with destructors; under MinGW those destructors
       run, as the worker exits, after emulated TLS has freed the objects,
-      and the heap is corrupted. The seven scratch objects are now local to
-      their call, which costs an allocation per call and changes no result.
-  - file: 0010-validity-capacity.patch
+      and the heap is corrupted. The seven scratch objects are now local
+      to their call, which costs an allocation per call and changes no
+      result.
+  - commit: d8bf30759de2fd161afd002e1a21e685e0b6f825
+    subject: "Size validity masks by their holder's capacity"
     reason: >-
       NULLs past row 2048 of a table corrupted memory and results (#45):
-      ValidityMask always held one vector's 2048 bits, and ColumnData kept a
-      whole row group's (ROW_GROUP_SIZE rows) in one, so SetInvalid() wrote
-      past the end of a heap buffer and RowIsValid() read past it. The mask
-      now takes its size in words, and ColumnData and Vector size it for
-      their capacity; it is still allocated at the first NULL. PhysicalInsert
-      put a whole VALUES list into one chunk of the default 2048 rows, so a
-      longer list wrote past the chunk's data too; the chunk is sized for
-      the list.
-
-test_patches:
-  - file: tests/0001-stale-date-tests.patch
+      ValidityMask always held one vector's 2048 bits, and ColumnData kept
+      a whole row group's (ROW_GROUP_SIZE rows) in one, so SetInvalid()
+      wrote past the end of a heap buffer and RowIsValid() read past it.
+      The mask now takes its size in words, and ColumnData and Vector size
+      it for their capacity; it is still allocated at the first NULL.
+      PhysicalInsert put a whole VALUES list into one chunk of the default
+      2048 rows, so a longer list wrote past the chunk's data too; the
+      chunk is sized for the list.
+  - commit: db025ddda099cf98c96a4ec3752fe25294a510b9
+    subject: "Update seven doctests to DATE as days since 1970"
     reason: >-
       Seven doctest cases still expect DATE as a YYYYMMDD integer and
       LAST_DAY as TIMESTAMP micros; the engine returns DATE as days since

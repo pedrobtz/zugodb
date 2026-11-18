@@ -215,6 +215,15 @@ a choice rather than a surprise.
 
 ### 4.2 Patches
 
+*Since 2026-11-18 (D3)*, each change is a commit on the fork's
+`zuslothdb` branch, listed in `tools/vendor.yaml`'s `changes` with its
+reason, and `tools/patches/` is gone: patch *n* below is the fork's
+*n*-th commit after `8180f21`, and the doctest update its eleventh.
+`tools/vendor/verify` checks that the vendored tree is the fork's
+pinned commit, file by file, and that the fork's history since upstream
+is exactly `changes`. What follows was written for patches and holds for
+the commits.
+
 Each is recorded in `tools/vendor.yaml` with its reason. If they
 together pass a few thousand lines, or Stage 1 finds the engine wrong
 on its own tests, D1's stop condition applies.
@@ -590,7 +599,15 @@ any of them.
 - **D3 (C).** Vendor at a pinned commit, not a release tag: v0.2.7
   predates the last two weeks of fixes, and `main` has been frozen
   since 2026-06-03. Treat the vendored tree as a fork, and offer
-  upstream every portability patch as a pull request.
+  upstream every portability patch as a pull request. **Decided
+  2026-11-18 (maintainer): a real fork.** Upstream has no commit since
+  the pin, five months on, and the changes outgrow a patch stack. The
+  engine is vendored from [pedrobtz/slothdb](https://github.com/pedrobtz/slothdb),
+  whose `zuslothdb` branch is upstream's `8180f21` plus one commit per
+  change, tagged for each vendoring (`zuslothdb-1` first). The fork is
+  patched for as long as upstream stays quiet; should upstream move,
+  the branch is rebased onto it. Nothing is offered upstream without
+  the maintainer's say.
 - **D4 (C).** Offline only: no HTTP, S3, extensions or `ask` (§4.2).
 - **D5 (C).** Two threads by default.
 - **D6 (C).** `Imports: DBI, methods`, not `Depends: DBI` as `duckdb`

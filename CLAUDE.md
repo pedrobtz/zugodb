@@ -48,16 +48,16 @@ Sibling packages that depend on this one before CRAN does: none.
 
 ```sh
 Rscript tools/vendor.R                    # re-vendor from tools/vendor.yaml
-Rscript tools/vendor.R --upstream <clone> # the same from a local clone
+Rscript tools/vendor.R --source <clone>   # the same from a local clone
 tools/vendor/verify                       # rebuild in tempdir and compare
 MAKEFLAGS=-j8 R CMD INSTALL . && Rscript tools/ci-run-tests.R
-sh tools/upstream-tests.sh [workdir]      # upstream's doctests, patched tree
+sh tools/upstream-tests.sh [workdir]      # the fork's doctests, vendored tree
 bash tools/ci/platform.sh <macos|windows|ubuntu>  # the per-OS checks
 ```
 
 `src/Makevars`, `src/Makevars.win`, `src/sdb_provenance.h`,
 `inst/vendor.yaml` and `tools/vendor/checksums.md5` are written by
-`tools/vendor.R`: change `tools/vendor.yaml` or a patch and re-run it,
+`tools/vendor.R`: change `tools/vendor.yaml` and re-run it,
 never edit them. Set `MAKEFLAGS=-jN` for any local build; the engine is
 about four CPU-minutes serial. `ZUSLOTHDB_TEST_SEED` replays a shuffled
 test order.
@@ -66,7 +66,7 @@ test order.
 
 Three layers ([.agents/design.md](.agents/design.md) §4):
 
-- `src/vendor/slothdb/`: the engine, upstream plus `tools/patches/`.
+- `src/vendor/slothdb/`: the engine, from the fork pedrobtz/slothdb.
 - [src/sdb_glue.cpp](src/sdb_glue.cpp): every `.Call` entry point and
   `R_init_zuslothdb`. Engine work happens in `Engine*` helpers inside
   `try`/`catch` with all C++ objects scoped there; entry points get back
@@ -99,14 +99,16 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
   `duckdb_fastpforlib` namespace copied from DuckDB, and zstd, which
   other packages bundle too. `platform.sh` checks it on each OS, and
   `tools/ci/coexist.R` runs both packages in one session.
-- Nothing vendored is edited by hand: every change to upstream is a patch
-  recorded in `tools/vendor.yaml` with its reason (§4.2).
-  `tools/vendor/verify` and the vendor workflow fail otherwise.
+- Nothing vendored is edited by hand: every change to upstream is a
+  commit on the fork's `zuslothdb` branch, listed in `tools/vendor.yaml`'s
+  `changes` with its reason (§4.2, D3). `tools/vendor/verify` and the
+  vendor workflow fail otherwise.
 - No `stderr`, `stdout`, `printf`, `abort`, `exit` or `rand` linked:
   `platform.sh` checks the shared object's imports.
 - Offline only (D4), and no file written outside `tempdir()` and the
-  user's `dbdir`: patch 0003 makes a remote path an error.
-- Two threads unless the user sets `threads` (D5): patch 0004's
+  user's `dbdir`: the fork's "Refuse remote paths" change makes a remote
+  path an error.
+- Two threads unless the user sets `threads` (D5): the fork's
   process-wide cap, `slothdb::SetThreadCap()`.
 - A 64-bit integer that does not fit a double is a `zuslothdb_type_error`,
   never a silent rounding (§6).
@@ -129,7 +131,7 @@ file-scope code. A finalizer's warning
 cannot be caught around `gc()` (R runs finalizers through
 `R_ToplevelExec`): test the effect of collection, and call the finalizer
 for the warning. Upstream's own doctest suite runs
-on the patched tree through `tools/upstream-tests.sh` (378 cases), and
+on the vendored tree through `tools/upstream-tests.sh` (378 cases), and
 `tools/ci/coexist.R` runs `duckdb` in the same session: both from
 `tools/ci/platform.sh`, never from testthat, because §10 keeps `duckdb`
 out of `Suggests`. The design's §10 plans DuckDB's recorded answers as the
@@ -150,15 +152,19 @@ besides the three closing stages.
 
 ## Vendored native code
 
-[SlothDB](https://github.com/SouravRoy-ETL/slothdb) (MIT) at commit
-`8180f215847015944c935f56f008d194e2c1494c` ("v0.2.7+"), in
+[SlothDB](https://github.com/SouravRoy-ETL/slothdb) (MIT), from the
+fork [pedrobtz/slothdb](https://github.com/pedrobtz/slothdb)'s
+`zuslothdb` branch: upstream `8180f215847015944c935f56f008d194e2c1494c`
+("v0.2.7+") plus zuslothdb's changes, one commit each (D3), in
 `src/vendor/slothdb/`, with its `third_party/` subset: the zstd
 decompressor, snappy, fastpforlib and, inside `src/storage/`, miniz;
 `unordered_dense.h` under `include/third_party/`. Left out: `src/ask/`,
 `src/extension/`, `src/api/` (the C API), the HTTP client and upstream's
-CMake files. Ten
-patches in `tools/patches/`, each with its reason in `tools/vendor.yaml`;
-holders in `inst/COPYRIGHTS`. To update: change `upstream.commit` (and
-`describe`) in `tools/vendor.yaml`, run `Rscript tools/vendor.R`, refresh
-any patch that no longer applies (`git apply` fails loudly), and run
-`tools/upstream-tests.sh`.
+CMake files. The changes are listed in `tools/vendor.yaml`'s `changes`
+with their reasons; holders in `inst/COPYRIGHTS`. To change the engine:
+commit to the fork's `zuslothdb` branch (one change per commit, its
+reason in the message, the zuslothdb issue as `pedrobtz/zuslothdb#n`),
+tag it `zuslothdb-<n+1>`, push both, add the commit to `changes` and set
+`source.tag` and `source.commit`, then run `Rscript tools/vendor.R` and
+`tools/upstream-tests.sh`. Should upstream move, rebase the branch onto
+it and update `upstream.commit` (and `describe`) too.

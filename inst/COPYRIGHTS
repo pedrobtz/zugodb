@@ -1,11 +1,14 @@
 zuslothdb bundles, under src/vendor/slothdb, the SlothDB SQL engine and
-the third-party code it carries. They are copied from
+the third-party code it carries. They are copied by tools/vendor.R from
+
+  https://github.com/pedrobtz/slothdb (zuslothdb's fork of SlothDB)
+
+at the commit tools/vendor.yaml (installed as vendor.yaml) names: upstream
 
   https://github.com/SouravRoy-ETL/slothdb
   commit 8180f215847015944c935f56f008d194e2c1494c
 
-by tools/vendor.R, with the patches listed in tools/vendor.yaml (installed
-as vendor.yaml) applied. Each component keeps its own licence, whose full
+and zuslothdb's changes to it, which that file lists. Each component keeps its own licence, whose full
 text is in the file named.
 
 SlothDB (src/vendor/slothdb/src, src/vendor/slothdb/include)

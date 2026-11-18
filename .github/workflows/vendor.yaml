@@ -1,8 +1,8 @@
-# The vendored SlothDB tree is upstream at the pinned commit plus
-# tools/patches, and nothing else: tools/vendor/verify rebuilds it from
-# tools/vendor.yaml and compares every file. On pull requests, a change
-# under src/vendor must come with a change to the manifest or a patch, and
-# to the checksums.
+# The vendored SlothDB tree is the fork (pedrobtz/slothdb) at the commit
+# tools/vendor.yaml pins, and nothing else: tools/vendor/verify rebuilds it,
+# checks that the fork's history since upstream is the manifest's
+# `changes`, and compares every file. On pull requests, a change under
+# src/vendor must come with a change to the manifest and to the checksums.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
@@ -29,5 +29,5 @@ jobs:
       vendor-dir: src/vendor
       verify: tools/vendor/verify
       must-update: |
-        tools/vendor.yaml | tools/patches/
+        tools/vendor.yaml
         tools/vendor/checksums.md5
