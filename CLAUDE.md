@@ -147,8 +147,8 @@ UTC slot: `R-CMD-check.yaml` (plus Windows R-devel in the full profile),
 `tools/ci/platform.sh` on macOS, Windows and Ubuntu), `native-checks.yaml`
 (sanitizers, valgrind, LTO, rchk, analyzers, cran-special),
 `gctorture.yaml` (wide step on pull requests, step 20 daily), `vendor.yaml`
-and `vendor-upstream.yaml`. The roadmap marks Stages 1, 2, 3 and 6 `full`,
-besides the three closing stages.
+and `vendor-upstream.yaml`. The roadmap marks Stages 1, 2, 3, 6, 7, 8
+and 10 `full`, besides the three closing stages.
 
 ## Vendored native code
 

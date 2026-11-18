@@ -1,6 +1,7 @@
 # zuslothdb: roadmap
 
-Status: draft 2026-11-17. Implements [design.md](design.md).
+Status: draft 2026-11-17, restaged 2026-11-18 from Stage 6 on (design
+D9). Implements [design.md](design.md).
 Target: v0.1.0, the first CRAN release.
 Tracking: [v0.1.0 (#1)](https://github.com/pedrobtz/zuslothdb/issues/1),
 with one sub-issue per stage;
@@ -10,6 +11,17 @@ Stage 1 is a go/no-go spike. If its numbers meet the stop condition of
 [D1](design.md#12-decisions), the package stops there: the reason is
 recorded in the design and the remaining stage issues are closed as not
 planned.
+
+**Restaged 2026-11-18.** D1 was looked at again on the evidence in
+[slothdb-assessment.md](slothdb-assessment.md): the package goes on, by
+another route. The engine's file readers are refused and the zu family's
+readers take their place ([design §7](design.md#7-files), D9), and the
+engine's core is measured and fixed on the fork. Stage 6 was rewritten,
+Stages 7, 8 and 10 are new, and the old Stages 7 to 12 are now 9 and 11
+to 15. v0.1.0 has no CRAN date
+([Q18](design.md#14-open-questions), decided 2026-11-18): it is submitted
+when Stage 8's bar holds, and until then the package is installed from
+GitHub or the maintainer's r-universe.
 
 ## Stages
 
@@ -22,13 +34,16 @@ planned.
 | 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/zuslothdb/issues/5) | [#31](https://github.com/pedrobtz/zuslothdb/pull/31) | 2026-11-17 |
 | 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | [#44](https://github.com/pedrobtz/zuslothdb/pull/44) | 2026-11-18 |
 | 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | [#50](https://github.com/pedrobtz/zuslothdb/pull/50) | 2026-11-18 |
-| 6 | [Files and persistence](#stage-6--files-and-persistence) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | |
-| 7 | [DBItest conformance](#stage-7--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
-| 8 | [Documentation and measured claims](#stage-8--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/zuslothdb/issues/10) | | |
-| 9 | [Assurance](#stage-9--assurance) | quick | [#11](https://github.com/pedrobtz/zuslothdb/issues/11) | | |
-| 10 | [Full CI](#stage-10--full-ci) | full | [#12](https://github.com/pedrobtz/zuslothdb/issues/12) | | |
-| 11 | [v0.1.0 readiness](#stage-11--v010-readiness) | full | [#13](https://github.com/pedrobtz/zuslothdb/issues/13) | | |
-| 12 | [Review](#stage-12--review) | full | [#14](https://github.com/pedrobtz/zuslothdb/issues/14) | | |
+| 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | |
+| 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | | |
+| 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | | |
+| 9 | [DBItest conformance](#stage-9--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
+| 10 | [Readers from the zu family](#stage-10--readers-from-the-zu-family) | full | [#60](https://github.com/pedrobtz/zuslothdb/issues/60) | | |
+| 11 | [Documentation and measured claims](#stage-11--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/zuslothdb/issues/10) | | |
+| 12 | [Assurance](#stage-12--assurance) | quick | [#11](https://github.com/pedrobtz/zuslothdb/issues/11) | | |
+| 13 | [Full CI](#stage-13--full-ci) | full | [#12](https://github.com/pedrobtz/zuslothdb/issues/12) | | |
+| 14 | [v0.1.0 readiness](#stage-14--v010-readiness) | full | [#13](https://github.com/pedrobtz/zuslothdb/issues/13) | | |
+| 15 | [Review](#stage-15--review) | full | [#14](https://github.com/pedrobtz/zuslothdb/issues/14) | | |
 <!-- markdownlint-enable MD013 -->
 
 ## Stage 0 — Package identity
@@ -353,55 +368,78 @@ past 2048 rows with a `NULL` corrupted memory (#45, fixed first).
 **Design.** [§5](design.md#5-public-r-api-proposed) and
 [§6](design.md#6-types).
 
-## Stage 6 — Files and persistence
+## Stage 6 — Persistence and the engine's own readers
 
 **Issue.** [#8](https://github.com/pedrobtz/zuslothdb/issues/8), sub-issue of
-[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1). Retitled
+2026-11-18 from "Files and persistence".
 
-**CI.** `full — the file readers and the database file parse bytes the
-package did not write: ASan, valgrind and the fuzz harnesses.`
+**CI.** `full — fork commits to the engine, and the database file is
+bytes the package did not write: ASan, valgrind and its fuzz harness.`
 
-**Goal.** SQL reads CSV, Parquet and JSON files with the
-answers a reference gives, a database file survives a restart, and
-damaged input is an error the session survives.
+**Goal.** A database file survives a restart and a damaged one is an
+error; no query reaches one of the engine's file readers; and an error
+on an engine worker thread is an error, not the end of the session.
+
+**Restaged (2026-11-18, design D9).** The stage first covered reading
+files through the engine's readers. Those are refused here, and files
+come back in Stage 10 through the zu family's readers. What the stage had
+already landed stays: #36 to #40 (fork changes 13 to 16) and #55 (pull
+request #56).
 
 **Work.**
 
-- `zuslothdb_read()` as Q12 decided (2026-11-18). The database file's
-  format version, as Q7 decided: a classed error for another version,
-  zuslothdb's range from 1001 by a fork commit, and a golden database
-  file read back in CI.
-- #36 to #40: each reader's wrong answers fixed by a fork commit, or the
-  column refused with a classed error.
-- File fixtures written by `tools/oracle.R` with `duckdb` as the
-  reference writer, small enough for the tarball, with their provenance.
-- `fuzz.yaml` caller and one harness per compiled reader, linked against
-  the vendored engine without R, with a `reach-floor`.
-- The Boundaries rows for each file format and the database file.
+- The database file's format version, as Q7 decided: a classed error for
+  another version, zuslothdb's range from 1001 by a fork commit, and a
+  golden database file read back in CI.
+- As Q17 decided: a fork commit refuses the engine's CSV, Parquet and
+  JSON readers, as #56 does SQLite, Excel and Avro, with an error that
+  names `zuslothdb_read()`. Cutting them is Stage 10's.
+- Upstream's doctest cases that read files become checks of the
+  refusals, or go to `test_exclude` with the reason.
+- The package's tests that read files through SQL
+  (`test-parquet-types.R`, `test-parquet-stop.R`, `test-json.R`,
+  `test-arrow.R`) become refusal tests. Their fixtures and recorded
+  answers are kept for Stage 10.
+- A fork commit: an exception on an engine worker thread is caught there
+  and re-thrown on the query's thread after the join (the assessment's
+  A1).
+- A checksum over the database file, written and checked by the fork
+  commit that takes the format version to 1001 (design §8, decided
+  2026-11-18).
+- `Checkpoint::Load` hardened against a damaged file (the assessment's
+  A8): the checksum stops accidents, not a file made to pass it.
+- `fuzz.yaml` caller and one harness, for the database file, linked
+  against the vendored engine without R, with a `reach-floor`. The
+  harness recomputes the checksum of each input, so the fuzzer reaches
+  `Checkpoint::Load` and is not stopped at the check.
+- The Boundaries rows for the database file, and for each of the
+  engine's file formats as refused.
 
 **Tests.**
 
-- Each format, each Parquet codec (gzip, zstd, snappy) and an
-  unsupported codec: the recorded `duckdb` answers, or
-  `zuslothdb_sql_error`, in `test-oracle-files.R`. The formats include
-  Avro, Excel and SQLite, which Q11 compiled in (2026-11-17), with a
-  reference reader's recorded answers for each.
-- Paths with spaces, quotes and non-ASCII characters: the same answer as
-  the plain path, in `test-paths.R`.
 - Persistence: write, `shutdown`, reopen in a fresh R process
   (`callr`-free, through `Rscript`), read back `identical()`, in
-  `test-persist.R`; the golden database file read back against its
-  recorded rows, and a file of another format version a classed error
-  naming both, in `test-persist.R` (Q7).
-- `zuslothdb_read()`: each format by its extension, `format =` over it,
-  and an unknown or missing extension, a glob and two paths each a
-  `zuslothdb_argument_error`, in `test-read.R` (Q12).
-- Truncated and bit-flipped files of each format, invalid UTF-8 in CSV,
-  a corrupted database file: `zuslothdb_sql_error`, and the same
-  connection then returns the recorded answer for an intact file, in
-  `test-hostile.R`; the large cases behind `ZUSLOTHDB_SKIP_HEAVY`.
-- Each fuzz harness: rows returned equal `count(*)` over the same bytes
-  and a second read is identical, in `fuzz/`.
+  `test-persist.R`.
+- The golden database file read back against its recorded rows, and a
+  file of another format version a classed error naming both, in
+  `test-persist.R` (Q7).
+- Each `read_*` table function and each file extension as a bare path,
+  for CSV, Parquet and JSON: `zuslothdb_sql_error` naming
+  `zuslothdb_read()`, and the connection then answers a query, in
+  `test-refused.R`.
+- A database file with one bit flipped, at each of a spread of offsets
+  from the header to the last byte, and one truncated at each of them:
+  every one a classed error, none opens, and a new connection then
+  works, in `test-hostile.R`; the large cases behind
+  `ZUSLOTHDB_SKIP_HEAVY`.
+- The fuzz harness: a file that opens gives the same rows on a second
+  open, and each table's rows equal its `count(*)`, in `fuzz/`.
+- An error thrown on a worker thread: `zuslothdb_sql_error` carrying the
+  engine's message, and the connection then answers a query, in
+  `test-conditions.R`. The stage finds a query that throws in a parallel
+  operator; if none does once the readers are refused, the fork commit's
+  own doctest case carries it and this line says so.
 - No file written outside `tempdir()` and `dbdir`: a directory listing
   before and after the suite, in `test-hygiene.R`.
 
@@ -410,13 +448,130 @@ damaged input is an error the session survives.
 - A full-profile run is green on the pull request, `fuzz.yaml` included,
   with reach at or above the floor.
 - Every `**Tests.**` line exists and was seen to fail.
-- Every crash the fuzzers found is patched in `tools/vendor.yaml` or the
-  reader is compiled out; the patch total is still within D1.
+- `tools/upstream-tests.sh` passes at the fork's new pin.
+- Every crash the fuzzer found is fixed by a fork commit.
 
-**Design.** [§7](design.md#7-files), [§8](design.md#8-persistence) and
-[§10](design.md#10-testing-and-validation).
+**Design.** [§7.5](design.md#75-the-engines-own-readers-q17),
+[§8](design.md#8-persistence),
+[§10](design.md#10-testing-and-validation) and
+[Q7 and Q17](design.md#14-open-questions).
 
-## Stage 7 — DBItest conformance
+## Stage 7 — Arrow streams in
+
+**Issue.** [#58](https://github.com/pedrobtz/zuslothdb/issues/58), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
+
+**CI.** `full — new glue that walks memory another library owns and
+builds engine chunks from it: sanitizers, valgrind, rchk and step-20
+gctorture.`
+
+**Goal.** An Arrow C stream from any producer becomes a table, exactly
+or with a classed error. This is the adapter the zu readers use in
+Stage 10, built and tested before any of them has a release.
+
+**Work.**
+
+- As Q15 decided: the Arrow C stream is the one contract.
+- `src/sdb_stream.cpp`: a stream's batches become `DataChunk`s and go in
+  through `Connection::Append`. The two Arrow C struct definitions are
+  copied from the specification; nothing is linked. The adapter pulls
+  one chunk at a time, so Q19's scan operator can use it later.
+- `dbWriteTableArrow()`, `dbAppendTableArrow()` and
+  `dbCreateTableArrow()`. `nanoarrow` joins `Suggests` as the tests'
+  producer.
+- Types as design §6. A column of a type the engine cannot hold is
+  refused from the stream's schema, before any row is appended.
+- A load that fails part-way leaves nothing: a new table is dropped.
+  How an append to an existing table stays whole without undo is
+  settled here (a staging table is the proposal) and recorded in design
+  §7.3.
+- The Objects row for a stream (who releases it, and when), the
+  Boundaries row for the Arrow C data interface, and the Limits rows for
+  a batch longer than one chunk and one row group.
+
+**Tests.**
+
+- Each §6 type with NULLs through a `nanoarrow` stream: the table equals
+  what `dbWriteTable()` makes of the same data frame, two routes to one
+  value, in `test-arrow-stream.R`.
+- Batches of 2047, 2048 and 2049 rows, and of 122,879, 122,880 and
+  122,881, with a NULL on each side of the boundary (the class of #45):
+  `identical()` to the input, in `test-arrow-stream.R`.
+- A decimal, a time, a list, a struct and a dictionary column: each a
+  `zuslothdb_type_error` naming the column, and no table made, in
+  `test-arrow-stream.R`.
+- A producer scripted to fail at its third batch: the producer's message
+  in a classed error, no table and no row left, and the stream released
+  once, with valgrind as the leak oracle, in `test-arrow-stream.R`.
+- Stream sequences (a released stream, one consumed twice, a batch whose
+  schema differs from the stream's): each a classed error, in
+  `test-lifecycle.R`.
+
+**Exit criteria.**
+
+- A full-profile run and a dispatched step-20 gctorture run are green on
+  the pull request.
+- Every `**Tests.**` line exists and was seen to fail.
+
+**Design.** [§7.3](design.md#73-the-contract-q15),
+[§6](design.md#6-types) and [Q15](design.md#14-open-questions).
+
+## Stage 8 — Core conformance
+
+**Issue.** [#59](https://github.com/pedrobtz/zuslothdb/issues/59), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
+
+**CI.** `full — fork commits to the engine's core: every platform leg
+and the sanitizers must see each.`
+
+**Goal.** How much of the core's SQL is right is measured and written
+down, and what is wrong fails with an error, not a wrong answer.
+
+**Work.**
+
+- `tools/sqllogictest.R` at a pinned corpus revision, behind
+  `ZUSLOTHDB_SLOW_TESTS`. Each case is counted as passed, refused with an
+  error, wrong, or a crash or hang, and the counts are committed.
+- The bar, as Q18 decided: on the pinned subset no case is wrong, a
+  crash or a hang. The pass rate is reported, not targeted. The subset
+  and its revision are chosen here and recorded with the counts.
+- Every wrong answer, crash and hang is filed as an issue. Each is fixed
+  by a fork commit, turned into an error, or listed in
+  `oracle/known-differences.md`.
+- The recorded-answer corpus widened beyond scalars: joins, `GROUP BY`,
+  window functions, subqueries, `ORDER BY` with `LIMIT`.
+- The 31 chunks still at the default capacity audited (design §4.2,
+  #45).
+- A fuzz harness for SQL text, linked without R.
+
+**Tests.**
+
+- sqllogictest: the corpus's own expected results, by
+  `tools/sqllogictest.R`; the committed counts against a fresh run, in
+  `test-conformance.R` behind `ZUSLOTHDB_SLOW_TESTS`.
+- The widened corpus: the recorded `duckdb` answers, in
+  `test-oracle-sql.R`.
+- The corpus on one thread and on two: the same result, in
+  `test-threads.R`.
+- Each audited chunk filled past 2048 rows: the recorded answer, in
+  `test-chunks.R`.
+- The SQL harness: the same result on one thread and on two, in `fuzz/`.
+
+**Exit criteria.**
+
+- Q18's bar holds: the committed counts show no wrong answer, crash or
+  hang on the pinned subset. If it cannot hold in one pull request, the
+  stage lands the runner and the counts, and each remaining case is an
+  issue that blocks Stage 14.
+- No known wrong answer is without an issue and a row in
+  `known-differences.md`.
+- A full-profile run is green on the pull request.
+- Every `**Tests.**` line exists and was seen to fail.
+
+**Design.** [§10](design.md#10-testing-and-validation),
+[D1](design.md#12-decisions) and [Q18](design.md#14-open-questions).
+
+## Stage 9 — DBItest conformance
 
 **Issue.** [#9](https://github.com/pedrobtz/zuslothdb/issues/9), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
@@ -436,7 +591,8 @@ every skip named and explained.
 **Tests.**
 
 - The DBI specification: `DBItest`, in `test-DBItest.R`.
-- The skip list holds only parameter binding and Arrow: a test that
+- The skip list holds only parameter binding and Arrow results: a test
+  that
   fails when a skipped `DBItest` case starts passing or a new one is
   added without a reason, in `test-DBItest.R`.
 - The deepest nested expression the parser accepts and one level past
@@ -451,7 +607,89 @@ every skip named and explained.
 
 **Design.** [§10](design.md#10-testing-and-validation).
 
-## Stage 8 — Documentation and measured claims
+## Stage 10 — Readers from the zu family
+
+**Issue.** [#60](https://github.com/pedrobtz/zuslothdb/issues/60), sub-issue of
+[v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
+
+**CI.** `full — static archives from other packages linked on every OS,
+and a configure script: each platform leg, and the symbol and import
+checks of tools/ci/platform.sh.`
+
+**Blocked on.** A CRAN release of each of `zucsv`, `zujson` and `qio`
+with the header and archive of
+[design §7.2](design.md#72-what-each-reader-provides):
+[zucsv#23](https://github.com/pedrobtz/zucsv/issues/23),
+[zujson#108](https://github.com/pedrobtz/zujson/issues/108) and
+[qio#71](https://github.com/pedrobtz/qio/issues/71).
+
+**Goal.** `zuslothdb_read()` loads a CSV, JSON or Parquet file into a
+table with the values a reference gives, and a damaged file is an error
+that leaves nothing behind.
+
+**Work.**
+
+- First, the cut Q17 decided is sized: every reader of the engine out
+  of the fork, with zstd, snappy and fastpforlib. If it fits the stage,
+  one fork commit makes it, `tools/vendor.yaml`'s `copy` list loses the
+  three libraries, and `inst/COPYRIGHTS` and `Authors@R` lose their
+  holders. If it does not, `qio`'s archive hides its zstd, the cut moves
+  after v0.1.0, and this roadmap records it.
+- `LinkingTo: zucsv, zujson, qio` with version floors. `configure` and
+  `configure.win` resolve the archives; `tools/vendor.R` writes the
+  `Makevars` templates they fill.
+- `zuslothdb_read(conn, name, path, format = NULL, columns = NULL)`, as
+  Q16 decided: the reader's stream into Stage 7's adapter, and into a
+  new table.
+- `zuslothdb_info()` reports each reader's version.
+- File fixtures written by `tools/oracle.R` with `duckdb` as the
+  reference writer, small enough for the tarball, with their provenance,
+  joining those Stage 6 kept.
+- The Boundaries rows for each format, naming the recorded answers here
+  and the reader's own oracle in its package.
+
+**Tests.**
+
+- Each format and each Parquet codec: the recorded `duckdb` answers, in
+  `test-oracle-files.R`.
+- The inputs the engine's readers got wrong. CSV with doubled quotes, a
+  quoted newline and a value past row 100 that does not fit the first
+  rows' type; JSON with nested values, a key first seen late and mixed
+  types; Parquet `DECIMAL`, `TIME`, millisecond and nanosecond
+  `TIMESTAMP`, `UUID`, unsigned and nested columns. Each is the recorded
+  answer or a `zuslothdb_type_error` naming the column, never another
+  value, in `test-read-types.R`.
+- `zuslothdb_read()` against the sibling's R reader followed by
+  `dbWriteTable()`: the same table, in `test-read.R`.
+- `zuslothdb_read()`: each format by its extension, `format =` over it,
+  and an unknown or missing extension, a glob, two paths and a remote
+  path each a `zuslothdb_argument_error`; `columns =` gives the table
+  those columns in that order, and an unknown one is an error; an
+  existing `name` is an error and the table unchanged, and replaced with
+  `overwrite = TRUE`, in `test-read.R` (Q16).
+- If the engine's readers were cut: `tools/upstream-tests.sh` passes at
+  the new pin, and no zstd, snappy or fastpforlib symbol of the engine's
+  is in the shared object, by `nm` in `tools/ci/platform.sh`.
+- Paths with spaces, quotes and non-ASCII characters: the same answer as
+  the plain path, in `test-paths.R`.
+- Truncated and bit-flipped files of each format, and invalid UTF-8 in
+  CSV: a classed error, no table left, and the connection then loads an
+  intact file, in `test-hostile.R`.
+- With the archives linked, only `R_init_zuslothdb` is exported and no
+  forbidden symbol is imported: `nm`, in `tools/ci/platform.sh`, once
+  per OS.
+
+**Exit criteria.**
+
+- A full-profile run is green on the pull request.
+- Every `**Tests.**` line exists and was seen to fail.
+- The package installs from source on a machine with only the CRAN
+  releases of the three readers.
+
+**Design.** [§7](design.md#7-files), [D9](design.md#12-decisions) and
+[Q16 and Q17](design.md#14-open-questions).
+
+## Stage 11 — Documentation and measured claims
 
 **Issue.** [#10](https://github.com/pedrobtz/zuslothdb/issues/10), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
@@ -467,8 +705,7 @@ engine, and how it differs from `duckdb`, from measured numbers.
 - README: the engine commit, the patch list, the sqllogictest pass rate,
   the known differences from `duckdb`, that SlothDB is experimental, and
   that a database file is tied to the package version.
-- `tools/sqllogictest.R` behind `ZUSLOTHDB_SLOW_TESTS`, at a pinned corpus
-  revision.
+- The sqllogictest counts Stage 8 committed.
 - Reference index grouped in `_pkgdown.yml`; every exported function
   with examples that run.
 
@@ -487,7 +724,7 @@ engine, and how it differs from `duckdb`, from measured numbers.
 
 **Design.** [§13](design.md#13-acceptance-criteria-for-v010).
 
-## Stage 9 — Assurance
+## Stage 12 — Assurance
 
 **Issue.** [#11](https://github.com/pedrobtz/zuslothdb/issues/11), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
@@ -520,7 +757,7 @@ check it names has been read, not only run.
 
 **Design.** [§10](design.md#10-testing-and-validation).
 
-## Stage 10 — Full CI
+## Stage 13 — Full CI
 
 **Issue.** [#12](https://github.com/pedrobtz/zuslothdb/issues/12), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
@@ -549,7 +786,7 @@ on the default branch's code is fixed.
 
 **Design.** [§13](design.md#13-acceptance-criteria-for-v010).
 
-## Stage 11 — v0.1.0 readiness
+## Stage 14 — v0.1.0 readiness
 
 **Issue.** [#13](https://github.com/pedrobtz/zuslothdb/issues/13), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
@@ -576,7 +813,7 @@ on the default branch's code is fixed.
 
 **Design.** [§13](design.md#13-acceptance-criteria-for-v010).
 
-## Stage 12 — Review
+## Stage 15 — Review
 
 **Issue.** [#14](https://github.com/pedrobtz/zuslothdb/issues/14), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
@@ -612,13 +849,24 @@ twice and what the reviews required is fixed.
 - [§2](design.md#2-scope): parameter binding (Q3), Arrow export through
   `nanoarrow`, ALTREP results, R functions as SQL functions and `dbplyr`
   translations (Q5) wait, as the design says.
+- [§7.6](design.md#76-two-steps): scanning a reader's stream from SQL
+  (Q19), which brings back `SELECT ... FROM read_csv('x')`.
+- [§7.1](design.md#71-the-readers): Excel through `zuxlsx` and Arrow IPC
+  through `zuarrow`
+  ([zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251)), once
+  each has a release with its header and archive.
 - [§5.1](design.md#51-the-api-against-its-two-references):
   `duckdb_register()`'s counterpart needs a scan over R memory in the
-  engine.
+  engine, which Q19's table function would give.
 - [Q4](design.md#14-open-questions): `memory_limit` needs engine work.
 - [Q10](design.md#14-open-questions): `zuslothdb_sql()` waits unless it is
-  adopted before Stage 6, which would then carry it.
+  adopted before Stage 10, which would then carry it.
 
 ## Blocking open questions
 
-- None. Q7 and Q12 were decided on 2026-11-18.
+- None. Q15 to Q19, and the database file's checksum, were decided on
+  2026-11-18 ([design §14](design.md#14-open-questions) and
+  [§8](design.md#8-persistence)).
+- Still to find, inside a stage: how an append to an existing table
+  stays whole without undo (Stage 7), and how large the cut of the
+  engine's readers is (Stage 10).

@@ -215,6 +215,13 @@ valgrind over the suite, plus fuzzing in CI with an agreement oracle.
 
 ## The alternatives, for comparison
 
+- **D: keep the core, replace the readers.** Chosen by the maintainer on
+  2026-11-18, after this assessment. The engine's file readers are
+  refused and the zu family's (`zucsv`, `zujson`, `qio`) are linked in
+  their place, which removes A2 to A6; the core is measured and fixed on
+  the fork. The plan is in [design.md](design.md) §7 and D9, and the
+  stages in [roadmap.md](roadmap.md).
+
 - **C: stop the CRAN path.** Record D1 as "stop for CRAN". Keep
   zuslothdb on GitHub as an experimental test bed with the fork, its
   limits documented. Land A1 and A5 anyway, since they are small and stop
