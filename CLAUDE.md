@@ -63,6 +63,10 @@ restaged on 2026-11-18 from Stage 6 on:
 
 v0.1.0 has no CRAN date. D1 in the design records why the package goes on.
 
+Next, before Stage 6 (design D12): the engine moves to its own repository,
+`pedrobtz/libzugodb` (Stage 5.1), and this package is renamed `zugodb`,
+with the prefix `zug_` (Stage 5.2).
+
 ## Versions and dependents
 
 The current version's parent issue is
@@ -176,8 +180,8 @@ UTC slot: `R-CMD-check.yaml` (plus Windows R-devel in the full profile),
 `tools/ci/platform.sh` on macOS, Windows and Ubuntu), `native-checks.yaml`
 (sanitizers, valgrind, LTO, rchk, analyzers, cran-special),
 `gctorture.yaml` (wide step on pull requests, step 20 daily), `vendor.yaml`
-and `vendor-upstream.yaml`. The roadmap marks Stages 1, 2, 3, 6, 7, 8
-and 10 `full`, besides the three closing stages.
+and `vendor-upstream.yaml`. The roadmap marks Stages 1, 2, 3, 5.1, 5.2,
+6, 7, 8 and 10 `full`, besides the three closing stages.
 
 ## Vendored native code
 

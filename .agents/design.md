@@ -7,8 +7,9 @@ signature and method list, the new §5.1, Q9 to Q13 in §14, the
 recorded-answer oracle and fuzzing in §10, §11, whose stages moved
 to [roadmap.md](roadmap.md), and the package's name (Q8, `zuslothdb`).
 On 2026-11-18: where files are read (§7 and D9, the zu family's
-readers), D1's second look, Q15 to Q23 (all decided), and §16 with
-D11: extensions through R packages.
+readers), D1's second look, Q15 to Q23 (all decided), §16 with D11:
+extensions through R packages, and D12: the engine as `libzugodb` and
+the package as `zugodb`.
 
 - **Status:** Proposed. Merging this file adopts the design as the starting
   point for the package's own `.agents/design.md`; each decision in
@@ -975,6 +976,34 @@ any of them.
   and the DuckDB shape that §5.1 is built on. SlothDB stays; if the aim
   were only a small engine that packages extend, SQLite would be the
   lower risk.
+
+- **D12 (maintainer, 2026-11-18).** The engine becomes a project of its
+  own, and the package takes a new name.
+  - **`libzugodb`**, a C++ repository: `pedrobtz/slothdb` renamed, with
+    upstream's history kept. It is an ordinary project with `main`,
+    releases and tags, its own CMake CI (the doctest suite,
+    sqllogictest, the sanitizers, the fuzz harnesses) and the public C
+    header of §16.3. The mirror branch and the one-commit-per-change
+    ledger (D3) end; upstream SlothDB is credited as its origin, MIT,
+    "SlothDB Contributors" kept in `LICENSE` and `inst/COPYRIGHTS`.
+  - **`zugodb`**, the R package: this repository renamed. It vendors a
+    tagged release of `libzugodb`, by `tools/vendor.R`, with a pin and
+    checksums and no ledger, so the vendored tree is again never edited
+    by hand. Nothing is on CRAN, so no user is affected.
+  - **The prefix `zug_`** (maintainer): exported R functions
+    (`zug_read()`, `zug_info()`), condition classes (`zug_error`,
+    `zug_sql_error`, ...), the glue's C symbols (today `sdb_`), the
+    public C API's names, and `ZUG_` for environment variables and
+    macros. The driver is `zugodb()`, as `duckdb()` is `duckdb`'s. The
+    engine's C++ namespace is `zugodb::`, in place of `slothdb::`,
+    from `libzugodb`'s first release.
+  - Why: the engine is now maintained here and diverges for good
+    (cutting the readers, the registries of §16), so "SlothDB plus
+    patches" no longer describes it, and its tests need no R.
+  - The cost: an engine change is a pull request in `libzugodb`, a
+    release, and a re-vendor here. Releasing at each stage boundary
+    keeps that rare. D3's fork and D8's naming of `zuslothdb_*` are
+    superseded; Q8's name is decided again.
 
 ## 13. Acceptance criteria for v0.1.0
 
