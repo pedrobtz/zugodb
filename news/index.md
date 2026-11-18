@@ -2,6 +2,12 @@
 
 ## zuslothdb 0.0.0.9000
 
+- A JSON file the engine would read wrongly is an error naming the
+  record and the key: a nested object or array, a key the first record
+  does not have, or a value whose type is not the first record’s for
+  that key. Before, such values were dropped or coerced
+  ([\#39](https://github.com/pedrobtz/zuslothdb/issues/39)). `\u`
+  escapes are decoded.
 - A Parquet column the engine would read wrongly is an error naming it,
   when a query uses it: `DECIMAL` (read unscaled), `TIME`, millisecond
   and nanosecond `TIMESTAMP` (read as raw counts), `UUID` and `INTERVAL`
