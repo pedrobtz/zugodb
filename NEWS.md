@@ -1,5 +1,9 @@
 # zuslothdb 0.0.0.9000
 
+* SQLite, Excel and Avro files are not supported: SlothDB's readers for
+  the first two returned wrong values against real files, and its Avro
+  reader is untested. `sqlite_scan()`, `read_xlsx()`, `read_avro()` and
+  their file extensions are an error saying so (#55).
 * Arrow IPC files are not supported: SlothDB's Arrow format is its own,
   and reads no file another Arrow tool writes. `read_arrow()` and a
   `.arrow`, `.feather` or `.ipc` path are an error saying so (#40).

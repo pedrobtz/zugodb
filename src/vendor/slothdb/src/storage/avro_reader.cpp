@@ -8,7 +8,14 @@ namespace slothdb {
 
 static const uint8_t AVRO_MAGIC[4] = {'O', 'b', 'j', 0x01};
 
-AvroReader::AvroReader(const std::string &path) : path_(path) {}
+// zuslothdb (pedrobtz/zuslothdb#55): untested against any Avro writer, and
+// the package's other hand-written readers each returned wrong values when
+// they were tested; refused until it is.
+AvroReader::AvroReader(const std::string &path) : path_(path) {
+    throw NotImplementedException(
+        "Avro files are not supported: SlothDB's Avro reader is untested; "
+        "convert the file to Parquet or CSV");
+}
 
 int64_t AvroReader::ReadVarInt(const uint8_t *data, size_t &pos, size_t size) {
     int64_t result = 0;

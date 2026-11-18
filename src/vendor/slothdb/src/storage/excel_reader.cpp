@@ -8,8 +8,15 @@
 
 namespace slothdb {
 
+// zuslothdb (pedrobtz/zuslothdb#55): read against files openxlsx wrote,
+// this parser returned garbage for every column after the first and
+// ignored `sheet`, with no error. Refused until it is rewritten.
 ExcelReader::ExcelReader(const std::string &path, const std::string &sheet)
-    : path_(path), sheet_name_(sheet) {}
+    : path_(path), sheet_name_(sheet) {
+    throw NotImplementedException(
+        "Excel files are not supported: SlothDB's .xlsx reader returns wrong "
+        "values; save the sheet as CSV");
+}
 
 std::string ExcelReader::ExtractZipEntry(const std::vector<uint8_t> &zip_data,
                                           const std::string &entry_name) {

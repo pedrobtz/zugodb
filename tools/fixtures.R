@@ -44,6 +44,35 @@ main <- function() {
 
   parquet_types(con, dir)
   arrow_file(dir)
+  refused_files(dir)
+}
+
+# refused/: one file of each format SlothDB's reader for returns wrong
+# values or is untested (#55), for test-refused.R: a SQLite database
+# Python's sqlite3 wrote, an .xlsx openxlsx wrote, and, with no Avro
+# writer at hand, a file holding Avro's container magic. The readers are
+# refused before parsing, so the test needs only the files' names and
+# leading bytes; the real ones show it on real input.
+refused_files <- function(dir) {
+  out <- file.path(dir, "refused")
+  dir.create(out, showWarnings = FALSE)
+  sqlite <- file.path(out, "t.sqlite")
+  unlink(sqlite)
+  py <- tempfile(fileext = ".py")
+  writeLines(c(
+    "import sqlite3, sys",
+    "c = sqlite3.connect(sys.argv[1])",
+    "c.execute('CREATE TABLE t (i INTEGER, r REAL, s TEXT)')",
+    "c.executemany('INSERT INTO t VALUES (?, ?, ?)', [(k, k / 4, 'r%d' % k) for k in range(100)])",
+    "c.commit()"
+  ), py)
+  system2("python3", c(py, shQuote(sqlite)))
+  if (requireNamespace("openxlsx", quietly = TRUE)) {
+    openxlsx::write.xlsx(data.frame(i = 1:3, s = c("a", "b", "c")),
+                         file.path(out, "t.xlsx"))
+  }
+  writeBin(c(charToRaw("Obj"), as.raw(1)), file.path(out, "t.avro"))
+  message(out, ": ", paste(list.files(out), collapse = ", "))
 }
 
 # arrow/flat.arrow: an Arrow IPC file written by R's arrow, for

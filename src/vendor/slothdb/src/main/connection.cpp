@@ -2440,12 +2440,15 @@ QueryResult Connection::Query(const std::string &sql) {
                             "Arrow IPC is not supported: SlothDB cannot read a file "
                             "from another Arrow implementation; convert it to "
                             "Parquet or CSV");
-                    } else if (ext == "avro") {
-                        sel.from_table->table_name = "READ_AVRO";
-                    } else if (ext == "xlsx" || ext == "xls") {
-                        sel.from_table->table_name = "READ_XLSX";
-                    } else if (ext == "db" || ext == "sqlite" || ext == "sqlite3") {
-                        sel.from_table->table_name = "SQLITE_SCAN";
+                    } else if (ext == "avro" || ext == "xlsx" || ext == "xls" ||
+                               ext == "db" || ext == "sqlite" || ext == "sqlite3") {
+                        // zuslothdb: their readers are refused
+                        // (pedrobtz/zuslothdb#55), rather than routed to a
+                        // table that is never registered.
+                        throw NotImplementedException(
+                            "." + ext + " files are not supported: SlothDB's "
+                            "reader for them returns wrong values or is "
+                            "untested; convert the file to CSV or Parquet");
 #endif
                     } else {
                         throw IOException("Unknown file format: ." + ext

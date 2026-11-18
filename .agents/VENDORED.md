@@ -7,7 +7,7 @@ it on the SlothDB fork, then re-vendor from it.
 | Library | Version | Commit | Retrieved | License |
 |---|---|---|---|---|
 | [SlothDB](https://github.com/SouravRoy-ETL/slothdb) | v0.2.7+ | `8180f215847015944c935f56f008d194e2c1494c` | 2026-11-17 | MIT (`src/vendor/slothdb/LICENSE`) |
-| [SlothDB fork](https://github.com/pedrobtz/slothdb) | `zuslothdb` branch, tag `zuslothdb-6` | `1b126916a47074be6339f64c81d5b3929b2e495e` | 2026-11-18 | MIT (`src/vendor/slothdb/LICENSE`) |
+| [SlothDB fork](https://github.com/pedrobtz/slothdb) | `zuslothdb` branch, tag `zuslothdb-7` | `69917820e317fe8bf4e21dd44baf55d3ba450da8` | 2026-11-18 | MIT (`src/vendor/slothdb/LICENSE`) |
 
 The third-party code inside it (zstd's decompressor, snappy, fastpforlib,
 miniz, `unordered_dense.h`) comes with SlothDB at that commit; its holders
@@ -86,6 +86,7 @@ is the *n*-th commit after the upstream pin.
 | 14 | `1df811d` | Refuse unreadable Parquet columns when bound, not when scanned | follow-up to 13: the refusal fires exactly when a query names the column | with 13 |
 | 15 | `d5c7e62` | Refuse JSON the readers would misread, and decode \u escapes | silent wrong values (#39) | the `\u` decoding could be offered on its own; the refusal is a stopgap |
 | 16 | `1b12691` | Refuse Arrow IPC: SlothDB's Arrow format is its own | no interoperability, garbage on plausible input (#40) | none: upstream would want a real reader |
+| 17 | `6991782` | Refuse the SQLite, Excel and Avro readers | silent wrong values; Avro untested (#55) | none: upstream would want working readers |
 
 ## Drift
 
