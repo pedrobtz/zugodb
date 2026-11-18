@@ -127,9 +127,11 @@ and `tools/upstream-tests.sh`. If the change is upstream's defect too, cut its
 
 ## Upstream reporting
 
-**Nothing has been reported or offered upstream.** That needs the
-maintainer's say each time. The branches below are prepared so that it is a
-push and a pull request, not a reconstruction.
+**Reported on 2026-11-18** (maintainer's say): fourteen issues, each
+reproduced first on pristine upstream `8180f21` with upstream's own CMake
+build and shell, listed below. **No pull request has been opened**; each
+issue with a prepared branch offers one. Opening one still needs the
+maintainer's say.
 
 A branch is cut from `main`, not from `zuslothdb`, so that it carries one
 change and nothing else:
@@ -171,16 +173,37 @@ Every branch fails exactly those seven and nothing else, except
 `fix/stale-date-tests`, which passes all 407; `fix/strftime-one-argument`
 also passes the STRFTIME case, which crashes on `main`.
 
-| Branch | Commit | Notes |
-|---|---|---|
-| `fix/validity-capacity` | `0028b79` | Heap overrun and wrong results past row 2048. Send this one first. Upstream has no test that reaches it; one should come with the pull request. |
-| `fix/lost-wakeup` | `a824493` | Intermittent hang, about 1 doctest run in 14 on Linux. No deterministic upstream test. |
-| `fix/strftime-one-argument` | `5905fc9` | Crash in upstream's own "Advanced - STRFTIME" case; carries that case's change. |
-| `fix/mingw-thread-local` | `b321a8d` | Windows-only crash under MinGW-w64; needs a Windows build to show. |
-| `fix/mingw-time-functions` | `c4cc471` | MinGW-w64 build. |
-| `fix/stale-date-tests` | `77cecee` | The seven cases that fail on `main`. |
-| `fix/compiler-warnings` | `ba661ba` | Two warnings; no behaviour change. |
-| `feat/read-only-database` | `88d3044` | API addition, not a fix; offer last. |
+| Branch | Commit | Upstream issue | Notes |
+|---|---|---|---|
+| `fix/validity-capacity` | `0028b79` | [#29](https://github.com/SouravRoy-ETL/slothdb/issues/29) | Heap overrun and wrong results past row 2048. Send this one first. Upstream has no test that reaches it; one should come with the pull request. |
+| `fix/lost-wakeup` | `a824493` | [#31](https://github.com/SouravRoy-ETL/slothdb/issues/31) | Intermittent hang, about 1 doctest run in 14 on Linux. No deterministic upstream test. |
+| `fix/strftime-one-argument` | `5905fc9` | [#30](https://github.com/SouravRoy-ETL/slothdb/issues/30) | Crash in upstream's own "Advanced - STRFTIME" case; carries that case's change. |
+| `fix/mingw-thread-local` | `b321a8d` | [#32](https://github.com/SouravRoy-ETL/slothdb/issues/32) | Windows-only crash under MinGW-w64; needs a Windows build to show. |
+| `fix/mingw-time-functions` | `c4cc471` | [#32](https://github.com/SouravRoy-ETL/slothdb/issues/32) | MinGW-w64 build. |
+| `fix/stale-date-tests` | `77cecee` | [#30](https://github.com/SouravRoy-ETL/slothdb/issues/30) | The seven cases that fail on `main`. |
+| `fix/compiler-warnings` | `ba661ba` | not reported | Two warnings; no behaviour change. |
+| `feat/read-only-database` | `88d3044` | not reported | API addition, not a fix; offer last. |
 
 Record the upstream issue or pull request number beside any branch that is
 reported, so a re-vendor can tell what upstream already knows about.
+
+### Reported without a branch
+
+The defects zuslothdb refuses rather than fixes, reported so upstream
+knows of them. Each issue names its reproduction.
+
+| Upstream issue | Defect | Here |
+| --- | --- | --- |
+| [#33](https://github.com/SouravRoy-ETL/slothdb/issues/33) | An exception on a Parquet decode worker terminates the process | assessment A1 |
+| [#34](https://github.com/SouravRoy-ETL/slothdb/issues/34) | Parquet logical types ignored | fork changes 13, 14 (#36 to #38) |
+| [#35](https://github.com/SouravRoy-ETL/slothdb/issues/35) | `read_json` misreads nested values, late keys, mixed types, `\u` | fork change 15 (#39) |
+| [#36](https://github.com/SouravRoy-ETL/slothdb/issues/36) | `read_csv`: doubled quotes, sampled types, `ParseInt64` overflow | assessment, open |
+| [#37](https://github.com/SouravRoy-ETL/slothdb/issues/37) | Arrow IPC is a private format | fork change 16 (#40) |
+| [#38](https://github.com/SouravRoy-ETL/slothdb/issues/38) | `sqlite_scan` wrong values | pull request #56 (#55) |
+| [#39](https://github.com/SouravRoy-ETL/slothdb/issues/39) | `ROLLBACK` undoes nothing | fork change 12 (#7) |
+| [#40](https://github.com/SouravRoy-ETL/slothdb/issues/40) | `TIME` all midnight, `HUGEINT` wrong | #43, design Q1 |
+| [#41](https://github.com/SouravRoy-ETL/slothdb/issues/41) | `substr`, `TINYINT` overflow, subnormal literal, `FLOAT` infinity, `BLOB` escapes | `tests/testthat/oracle/known-differences.md` |
+| [#42](https://github.com/SouravRoy-ETL/slothdb/issues/42) | A table function in a subquery or `CREATE TABLE AS` | design D1 |
+
+The Excel reader was not reported: on a file from `openxlsx` it refuses
+compressed worksheets with a clear error, which is not a wrong value.
