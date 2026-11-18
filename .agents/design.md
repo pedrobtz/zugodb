@@ -966,7 +966,15 @@ any of them.
   engine that R packages extend: no extension loader of its own, and
   an extension is a package that registers table sources and scalar
   functions with it (§16). The scope is those two kinds, over the
-  flat types of §6.
+  flat types of §6. *Another core, considered the same day:* no small,
+  mature, columnar SQL engine in C or C++ is known to the maintainer or
+  to this design; DuckDB is mature and not small. SQLite is mature and
+  small, is on CRAN as `RSQLite`, and already has this extension model
+  (virtual tables, registered functions). It is a row store with
+  dynamic typing and its own dialect, so it gives up the columnar speed
+  and the DuckDB shape that §5.1 is built on. SlothDB stays; if the aim
+  were only a small engine that packages extend, SQLite would be the
+  lower risk.
 
 ## 13. Acceptance criteria for v0.1.0
 
