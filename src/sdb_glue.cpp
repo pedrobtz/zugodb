@@ -140,6 +140,8 @@ SEXP sdb_set_threads(SEXP n);
 SEXP sdb_send(SEXP conptr, SEXP sql);
 SEXP sdb_result_info(SEXP ptr);
 SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz);
+SEXP sdb_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
+                SEXP names, SEXP check_only);
 SEXP sdb_result_clear(SEXP ptr);
 
 static const R_CallMethodDef call_methods[] = {
@@ -157,6 +159,7 @@ static const R_CallMethodDef call_methods[] = {
     {"sdb_send", (DL_FUNC)&sdb_send, 2},
     {"sdb_result_info", (DL_FUNC)&sdb_result_info, 1},
     {"sdb_fetch", (DL_FUNC)&sdb_fetch, 4},
+    {"sdb_append", (DL_FUNC)&sdb_append, 7},
     {"sdb_result_clear", (DL_FUNC)&sdb_result_clear, 1},
     {NULL, NULL, 0}};
 

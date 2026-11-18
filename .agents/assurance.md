@@ -65,6 +65,7 @@ One row per boundary the package crosses. An oracle knows the answer:
 | Avro, Excel and SQLite files            | recorded answers from a reference reader                  | gap #23    |
 | database file                           | round trip through a fresh R process                      | gap #23    |
 | DBI specification                       | `DBItest`                                                 | gap #24    |
+| data frames written into tables (`dbWriteTable()`, `dbAppendTable()`) | round trip: what is read back is `identical()` to what went in, for every class written, with `NA`, 0 rows and across 2048-row chunks, and under a hostile locale; SQL `CAST` of what the engine stored, for `integer64` | tests/testthat/test-roundtrip.R, tests/testthat/test-write.R, tests/testthat/test-identifiers.R |
 <!-- markdownlint-enable MD013 -->
 
 ## Objects
@@ -93,4 +94,6 @@ One row per limit the package enforces. "Straddled by" is the test of
 | -2^31, R's integer NA         | integer value | tests/testthat/test-spike.R |
 | R's integer range, 2^31 - 1 and -(2^31 - 1) | integer value | tests/testthat/test-spike.R |
 | `threads`, 1 to 2^31 - 1                     | threads       | tests/testthat/test-connect.R |
+| an append chunk, 2048 rows (`src/sdb_write.cpp`) | rows | tests/testthat/test-roundtrip.R (2048, 2049 and 5000 rows) |
+| `SMALLINT`, `INTEGER` and `BIGINT` ranges on write | integer value | tests/testthat/test-write.R (-32768, 32767 and 32768; -2^63, 2^53 and 2^63) |
 | an engine vector, 2048 rows, inside a table's row group (#45) | rows | tests/testthat/test-storage.R (NULLs at rows 2047 to 2049 and 4095 to 4097, by one VALUES list and by many inserts), oracle/scalar-nulls-long |

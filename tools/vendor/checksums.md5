@@ -110,7 +110,7 @@ fe6223772c41b29568229d47bef0021c  src/execution/str_group_distinct.cpp
 5b2b58a08666145f1816f27bb0f7a08a  src/execution/string_dedup.cpp
 30ad45c38023f994fe6b00260a5af067  src/execution/substring_search.cpp
 90a041f7d77700b167e4077c42a60304  src/execution/topk_varchar.cpp
-96ee57f69f9d57c2021f1988a985703d  src/main/connection.cpp
+194755d6f5a14c93dc1b32f550aed04b  src/main/connection.cpp
 c31bace5a00e736632d185caffa30200  src/main/database.cpp
 e9b244647c95ae51e17a2838cf8eaa91  src/optimizer/optimizer.cpp
 13133c7a5ec8a4d0d67c2de6c2477c7d  src/parser/parser.cpp

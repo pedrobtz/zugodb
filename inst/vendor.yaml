@@ -14,8 +14,8 @@
 
 source:
   repository: https://github.com/pedrobtz/slothdb
-  tag: zuslothdb-1
-  commit: db025ddda099cf98c96a4ec3752fe25294a510b9
+  tag: zuslothdb-2
+  commit: 6af32c5028ba5e1a94809d562d13b1649ffceeba
 
 upstream:
   repository: https://github.com/SouravRoy-ETL/slothdb
@@ -162,6 +162,15 @@ changes:
       LAST_DAY as TIMESTAMP micros; the engine returns DATE as days since
       1970-01-01. The STRFTIME case passes a format and checks that the
       one-argument form is refused (patch 0005).
+  - commit: 6af32c5028ba5e1a94809d562d13b1649ffceeba
+    subject: "Make ROLLBACK say that nothing was undone"
+    reason: >-
+      The engine has no undo: ROLLBACK only closes the transaction, so a
+      statement since BEGIN stays done while ROLLBACK reports success
+      (upstream's own test says so). ROLLBACK now closes the transaction
+      and raises an error saying nothing was undone, and upstream's
+      "Transaction - ROLLBACK" case checks it; dbBegin(), dbCommit() and
+      dbRollback() are zuslothdb_unsupported (#7, design §5).
 
 test_exclude:
   - path: test/unit/ask/test_nl_to_sql.cpp

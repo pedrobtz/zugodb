@@ -7,6 +7,9 @@
 #' @importFrom DBI dbSendQuery dbSendStatement dbFetch dbClearResult
 #' @importFrom DBI dbHasCompleted dbGetRowCount dbGetRowsAffected
 #' @importFrom DBI dbGetStatement dbColumnInfo dbBind
+#' @importFrom DBI dbWriteTable dbAppendTable dbListTables dbListFields
+#' @importFrom DBI dbExistsTable dbRemoveTable dbQuoteIdentifier dbDataType
+#' @importFrom DBI dbBegin dbCommit dbRollback
 #' @useDynLib zuslothdb, .registration = TRUE
 ## usethis namespace: end
 NULL
