@@ -24,9 +24,9 @@ oracle_answer <- function(name) {
 # zuslothdb's answer to a corpus file, in the shape the answers have: the
 # data frame with compact row names, or list(error = <message>) if any
 # statement fails.
-zuslothdb_answer <- function(name, bigint = "numeric") {
+zuslothdb_answer <- function(name, bigint = "numeric", timezone_out = "UTC") {
   statements <- oracle_statements(file.path(oracle_dir(), paste0(name, ".sql")))
-  con <- DBI::dbConnect(zuslothdb(), bigint = bigint)
+  con <- DBI::dbConnect(zuslothdb(), bigint = bigint, timezone_out = timezone_out)
   on.exit(DBI::dbDisconnect(con))
   n <- length(statements)
   tryCatch(

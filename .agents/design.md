@@ -207,7 +207,8 @@ appender, no streaming and no Arrow. The Python binding uses it through
 The C++ API (`include/slothdb/main/connection.hpp`) has `Query`,
 `Append(table, DataChunk)` and `Begin`, `Commit`, `Rollback`, and
 `LogicalTypeId` closely mirrors DuckDB's, with `DECIMAL`, `BLOB`,
-`LIST`, `MAP`, `STRUCT` and `UNION`. `duckdb` binds DuckDB's C++ API for
+`LIST`, `MAP`, `STRUCT` and `UNION`; most of those are type ids the
+engine never produces (§6, *as found in Stage 4*). `duckdb` binds DuckDB's C++ API for
 the same reasons. D2 takes the C++ API; the price is that every
 upstream refactor is a glue change, which a pinned, patched fork makes
 a choice rather than a surprise.
@@ -315,7 +316,7 @@ with a warning.
 drv <- zuslothdb()                          # DBIDriver
 con <- dbConnect(drv, dbdir = ":memory:", read_only = FALSE,
                  threads = 2L, bigint = "numeric",
-                 decimal = "numeric", timezone_out = "UTC")
+                 timezone_out = "UTC")
 dbGetQuery(con, "SELECT * FROM read_csv('x.csv')")
 res <- dbSendQuery(con, sql); dbFetch(res, n = 1e5); dbClearResult(res)
 dbWriteTable(con, "t", df); dbAppendTable(con, "t", df)
@@ -330,9 +331,9 @@ The remaining DBI generics that `DBItest` (§10) exercises are
 implemented without being listed above: `dbIsValid`, `dbGetInfo`,
 `dbDataType`, `dbQuoteIdentifier`, `dbColumnInfo`, `dbHasCompleted`,
 `dbGetRowCount`, `dbGetRowsAffected`, `dbGetStatement`, `dbExistsTable`
-and `show`. `bigint`, `decimal` and `timezone_out` are §6's options;
-`bigint` also takes `"integer64"` and `"character"`, `decimal` also
-takes `"character"`.
+and `show`. `bigint` and `timezone_out` are §6's options; `bigint`
+also takes `"integer64"` and `"character"`. `decimal` is not added in
+v0.1.0, since the engine produces no `DECIMAL` (§6, 2026-11-18).
 
 `dbGetQuery(params = )` and `dbBind()` raise `zuslothdb_unsupported` in
 v0.1.0, since SlothDB has no prepared statements (Q3). Conditions
@@ -397,17 +398,16 @@ package does with those readers.
 | `BOOLEAN` | logical |
 | `TINYINT`, `SMALLINT`, `INTEGER`, `UTINYINT`, `USMALLINT` | integer |
 | `BIGINT`, `UINTEGER`, `UBIGINT` | double, or `integer64` (below) |
-| `HUGEINT` | error unless `bigint = "character"` (Q1) |
+| `HUGEINT` | error (Q1) |
 | `FLOAT`, `DOUBLE` | double |
-| `DECIMAL` | double, or character with `decimal = "character"` |
+| `DECIMAL` | error in v0.1.0: the engine produces none |
 | `VARCHAR` | character, UTF-8 |
 | `BLOB` | `blob`-classed list of raw vectors |
 | `DATE` | `Date` |
-| `TIME` | `difftime` in seconds |
-| `TIMESTAMP`, `TIMESTAMP_TZ` | `POSIXct`, UTC |
-| `LIST` | list column |
-| `STRUCT` | data frame column |
-| `MAP`, `UNION` | error in v0.1.0 |
+| `TIME` | error in v0.1.0: every value the engine makes is midnight (#43) |
+| `TIMESTAMP` | `POSIXct`, its `tzone` set by `timezone_out` |
+| `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP`, `UNION` | error in v0.1.0: the engine produces none |
+| `INTERVAL`, `UUID` | error in v0.1.0 (Q14) |
 
 64-bit integers are doubles by default and `bit64::integer64` with
 `bigint = "integer64"`; a value beyond 2^53 converted to double is a
@@ -425,6 +425,34 @@ buffers before any R vector is made (`src/sdb_result.cpp`), and a
 connection has one open result: sending another clears it with a
 warning, as RSQLite does. The unsigned types cannot be named in
 SlothDB's SQL, so they reach R only from files (Stage 6).
+
+*As found in Stage 4 (2026-11-18)*, the engine produces far fewer types
+than its `LogicalTypeId` names. Its SQL casts a `DECIMAL` to `DOUBLE`
+and a column declared `TIMESTAMPTZ` to `TIMESTAMP`; it has no list,
+struct or map syntax, and `LIST_VALUE`, `STRUCT_PACK` and `ROW` are
+"not implemented". Its readers do no better: Parquet reads a `DECIMAL`
+as its unscaled integer (#36) and sees no nested column, JSON drops
+nested keys (#39), and Arrow IPC with a nested column fails (#40). So
+the rows for `DECIMAL`, `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP` and
+`UNION` above, which this design first promised as conversions, are a
+`zuslothdb_type_error` naming the column, for a value no route yet
+delivers, and `dbConnect(decimal = )` is not added (maintainer,
+2026-11-18). They become conversions when the engine produces the type,
+by upstream or by a patch. `HUGEINT` values reach R only through
+`CAST(column AS HUGEINT)`, and they are wrong (Q1), so it is an error
+whatever `bigint` says. `TIME` is the same case: every `TIME` the
+engine makes, by a cast or from a `TIMESTAMP`, is `00:00:00`, its
+literal is unimplemented and Parquet reads one as a `BIGINT` count
+(#43, #37), so a `TIME` column is an error until the engine computes
+one; it is then a `difftime` in seconds. `DATE` is a `Date` and
+`TIMESTAMP` a `POSIXct`, the engine's microseconds as
+seconds since 1970-01-01 UTC, its `tzone` attribute `timezone_out`
+(`"UTC"` by default; `""` is the session's time zone): the same instant
+whatever the zone, as `duckdb`'s default `tz_out_convert = "with"`.
+`timezone_out` is a time zone from `OlsonNames()` or `""`; another is a
+`zuslothdb_argument_error`, where `duckdb` warns and falls back to UTC.
+A `BLOB` is a list of raw vectors, `NULL` for a missing value, with the
+classes of `blob::blob()`, set without importing `blob`.
 
 Writing goes the other way through `Append` with `DataChunk`s built in
 the glue; factors are written as `VARCHAR`. The `duckdb` choices
@@ -578,7 +606,12 @@ any of them.
 ## 14. Open questions
 
 - **Q1.** Does SlothDB implement `HUGEINT` arithmetic, or only the type
-  id? Read in Stage 4.
+  id? Read in Stage 4. **Answered 2026-11-18: only the type id.** A
+  128-bit literal is refused and a constant cast to `HUGEINT` stays an
+  `INTEGER`; `CAST(column AS HUGEINT)` gives the type, with wrong
+  values: 42 reads as 16, and (2^63 - 1) + (2^63 - 1) as 0. So a
+  `HUGEINT` column is a `zuslothdb_type_error`, with no
+  `bigint = "character"` exception (§6).
 - **Q2.** Runtime dispatch for the AVX2 kernels, or scalar only? Depends
   on how much speed they carry, measured in Stage 1. **Decided
   2026-11-17: scalar only for v0.1.0**, by the maintainer. Every
@@ -668,6 +701,12 @@ any of them.
   the process that made it; from any other, `dbIsValid()` is `FALSE`
   and every call a `zuslothdb_closed_error`, and its finalizers do
   nothing, so a child's exit never writes the parent's file.
+
+- **Q14.** `INTERVAL` and `UUID` columns can be declared, and the
+  engine also names `ENUM` and `ARRAY`; §6 has no row for them. Stage 4
+  (2026-11-18) leaves them a `zuslothdb_type_error`. What should each
+  arrive as? `duckdb`'s answer is the reference to copy, as for §6's
+  other rows. Parquet reads `UUID` and `INTERVAL` as `NULL` (#38).
 
 ## 15. Sources and verification
 

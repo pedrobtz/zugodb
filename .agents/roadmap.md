@@ -20,7 +20,7 @@ planned.
 | 1 | [Engine spike](#stage-1--engine-spike) | full | [#3](https://github.com/pedrobtz/zuslothdb/issues/3) | [#28](https://github.com/pedrobtz/zuslothdb/pull/28) | 2026-11-17 |
 | 2 | [Driver and connection](#stage-2--driver-and-connection) | full | [#4](https://github.com/pedrobtz/zuslothdb/issues/4) | [#30](https://github.com/pedrobtz/zuslothdb/pull/30) | 2026-11-17 |
 | 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/zuslothdb/issues/5) | [#31](https://github.com/pedrobtz/zuslothdb/pull/31) | 2026-11-17 |
-| 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | | |
+| 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | [#44](https://github.com/pedrobtz/zuslothdb/pull/44) | 2026-11-18 |
 | 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | | |
 | 6 | [Files and persistence](#stage-6--files-and-persistence) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | |
 | 7 | [DBItest conformance](#stage-7--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
@@ -268,22 +268,34 @@ R types the design's table names.
 **Goal.** Every remaining row of the design's type table converts or
 errors as the table says.
 
+**Deviation (2026-11-18, approved by the maintainer).** The engine
+produces no `DECIMAL`, `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP` or
+`UNION` by any route, and its `HUGEINT` values are wrong (design §6, Q1).
+So the stage converts the types the engine delivers, and the rest are
+errors; `decimal =` is not added, and the nested-type tests are dropped
+with it. The readers' wrong answers found here are Stage 6's (#36 to
+#40).
+
 **Work.**
 
-- `DATE`, `TIME`, `TIMESTAMP`, `TIMESTAMP_TZ` with `timezone_out`;
-  `DECIMAL` with `decimal`; `BLOB`; `LIST`; `STRUCT`; the errors for
-  `MAP`, `UNION` and `HUGEINT`. Q1 read and recorded.
+- `DATE` and `TIMESTAMP`, with `dbConnect(timezone_out = )`; `BLOB`. A
+  `zuslothdb_type_error` naming the column for `HUGEINT`, `TIME`,
+  `INTERVAL` and `UUID`, the types SQL can reach that do not convert:
+  `TIME` because every value the engine makes is midnight (#43, found
+  2026-11-18 while building the stage). Q1 read and recorded.
 
 **Tests.**
 
-- Each type, with NULLs at every nesting level and empty lists: the
-  recorded `duckdb` answers, in `test-oracle-types.R`.
-- Dates and timestamps before 1970, on leap days and at the type's
-  extremes: the recorded answers, in `test-temporal.R`.
-- `DECIMAL` at the largest precision under both `decimal` values: the
-  literal's decimal string, in `test-decimal.R`.
-- `MAP`, `UNION`, `HUGEINT`: `zuslothdb_type_error` naming the column, in
-  `test-conditions.R`.
+- Each type with NULLs, through a typed table and through a set
+  operation's boxed rows: the recorded `duckdb` answers, in
+  `test-oracle-types.R`.
+- Dates and timestamps before 1970, on leap days, to the microsecond and
+  at the type's extremes: the recorded answers, in `test-temporal.R`.
+- `timezone_out`: the same instants under another zone and `""`, and an
+  unknown zone a `zuslothdb_argument_error`, in `test-temporal.R`.
+- `HUGEINT`, `TIME`, `INTERVAL`, `UUID`: `zuslothdb_type_error` naming
+  the column, in `test-conditions.R`; `TIME` and the `BLOB` escape held
+  as known differences (`oracle/diff-time-cast`, `diff-blob-escape`).
 
 **Exit criteria.**
 
@@ -590,5 +602,4 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- [Q1](design.md#14-open-questions) blocks Stage 4.
 - [Q7, Q12](design.md#14-open-questions) block Stage 6.

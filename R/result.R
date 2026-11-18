@@ -14,12 +14,18 @@
 #' | `BIGINT`, `UINTEGER`, `UBIGINT` | double, `integer64` or character, by `bigint` |
 #' | `FLOAT`, `DOUBLE` | double |
 #' | `VARCHAR` | character, marked UTF-8 |
+#' | `DATE` | `Date` |
+#' | `TIMESTAMP` | `POSIXct`, shown in the connection's `timezone_out` |
+#' | `BLOB` | a list of raw vectors with the classes of `blob::blob()`, `NULL` for a missing value |
 #'
 #' A value R cannot hold as asked is a `zuslothdb_type_error` naming the
 #' column and the row, never a silent change: a 64-bit integer beyond 2^53
 #' with `bigint = "numeric"`, an `INTEGER` of -2^31 (R's `NA`), or a string
-#' that is not valid UTF-8 or holds a NUL. Other types arrive in a later
-#' version; reading one is a `zuslothdb_type_error`.
+#' that is not valid UTF-8 or holds a NUL. A column of another type is a
+#' `zuslothdb_type_error` naming it: `HUGEINT` and `TIME`, whose values
+#' SlothDB computes wrongly, and `INTERVAL` and `UUID`, not read yet.
+#' SlothDB produces no `DECIMAL`, `TIMESTAMP WITH TIME ZONE`, list,
+#' struct, map or union column.
 #'
 #' A connection has one open result: sending another query clears the
 #' first, with a warning.
@@ -162,7 +168,10 @@ setMethod("dbFetch", "zuslothdb_result", function(res, n = -1, ...) {
     return(new_data_frame(list(), character()))
   }
   cols <- sdb_value(
-    .Call(sdb_fetch, res@state$ptr, n, bigint_code(res@connection)),
+    .Call(
+      sdb_fetch, res@state$ptr, n, bigint_code(res@connection),
+      res@connection@state$timezone_out
+    ),
     call
   )
   new_data_frame(cols, info$names)
@@ -257,7 +266,7 @@ r_type <- function(sql_types, bigint) {
     INTEGER = "integer", UTINYINT = "integer", USMALLINT = "integer",
     BIGINT = big, UINTEGER = big, UBIGINT = big,
     FLOAT = "numeric", DOUBLE = "numeric", VARCHAR = "character",
-    "NULL" = "integer"
+    "NULL" = "integer", DATE = "Date", TIMESTAMP = "POSIXct", BLOB = "blob"
   )
   out <- unname(map[sql_types])
   out[is.na(out)] <- NA_character_
