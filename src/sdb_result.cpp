@@ -140,6 +140,53 @@ const char *kIntMin =
 const char *kBadUtf8 = "holds a string that is not valid UTF-8";
 const char *kNul = "holds a string with an embedded NUL";
 
+// A Value keeps its number in a union, and GetValue<T>() returns the member
+// named by T without conversion (#41): each is read through the member of
+// the Value's own type.
+int64_t ValueInt(const slothdb::Value &v) {
+  using T = slothdb::LogicalTypeId;
+  switch (v.type().id()) {
+  case T::BOOLEAN:
+    return v.GetValue<bool>() ? 1 : 0;
+  case T::TINYINT:
+    return v.GetValue<int8_t>();
+  case T::SMALLINT:
+    return v.GetValue<int16_t>();
+  case T::INTEGER:
+  case T::DATE:
+    return v.GetValue<int32_t>();
+  case T::UTINYINT:
+    return v.GetValue<uint8_t>();
+  case T::USMALLINT:
+    return v.GetValue<uint16_t>();
+  case T::UINTEGER:
+    return v.GetValue<uint32_t>();
+  default:
+    return v.GetValue<int64_t>();
+  }
+}
+
+double ValueDouble(const slothdb::Value &v) {
+  using T = slothdb::LogicalTypeId;
+  switch (v.type().id()) {
+  case T::FLOAT:
+    return v.GetValue<float>();
+  case T::DOUBLE:
+    return v.GetValue<double>();
+  case T::UBIGINT:
+    return static_cast<double>(v.GetValue<uint64_t>());
+  default:
+    return static_cast<double>(ValueInt(v));
+  }
+}
+
+uint64_t ValueUInt(const slothdb::Value &v) {
+  if (v.type().id() == slothdb::LogicalTypeId::UBIGINT) {
+    return v.GetValue<uint64_t>();
+  }
+  return static_cast<uint64_t>(ValueInt(v));
+}
+
 // Appends one value, given as a Value (the boxed-rows path).
 void AppendValue(Column &col, const slothdb::Value &v, uint64_t row) {
   const bool null = v.IsNull();
@@ -148,28 +195,28 @@ void AppendValue(Column &col, const slothdb::Value &v, uint64_t row) {
     col.i.push_back(NA_INTEGER);
     break;
   case Kind::kLogical:
-    col.i.push_back(null ? NA_LOGICAL : (v.GetValue<bool>() ? 1 : 0));
+    col.i.push_back(null ? NA_LOGICAL : (ValueInt(v) != 0 ? 1 : 0));
     break;
   case Kind::kInt: {
     if (null) {
       col.i.push_back(NA_INTEGER);
       break;
     }
-    int64_t x = v.GetValue<int64_t>();
+    int64_t x = ValueInt(v);
     if (x == INT32_MIN) MarkBad(col, row, kIntMin);
     col.i.push_back(static_cast<int>(x));
     break;
   }
   case Kind::kDouble:
-    col.d.push_back(null ? NA_REAL : v.GetValue<double>());
+    col.d.push_back(null ? NA_REAL : ValueDouble(v));
     break;
   case Kind::kInt64:
     col.valid.push_back(!null);
-    col.i64.push_back(null ? 0 : v.GetValue<int64_t>());
+    col.i64.push_back(null ? 0 : ValueInt(v));
     break;
   case Kind::kUInt64:
     col.valid.push_back(!null);
-    col.u64.push_back(null ? 0 : v.GetValue<uint64_t>());
+    col.u64.push_back(null ? 0 : ValueUInt(v));
     break;
   case Kind::kString: {
     col.valid.push_back(!null);
@@ -307,7 +354,7 @@ void EngineSend(sdb::SdbConnection *c, const char *sql, SdbResult *out,
       const slothdb::Value &v = res.GetValue(0, 0);
       out->is_query = false;
       out->rows_affected =
-          v.IsNull() ? 0 : static_cast<double>(v.GetValue<int64_t>());
+          v.IsNull() ? 0 : static_cast<double>(ValueInt(v));
       return;
     }
     const uint64_t ncol = res.ColumnCount();
