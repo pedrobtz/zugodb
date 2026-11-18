@@ -15,9 +15,9 @@ backed the native checks and added the engine's own rows.
 `compiled` `untrusted-input` `spec` `lifecycle` `emits`
 
 - compiled: the vendored SlothDB C++20 engine and the glue over it.
-- untrusted-input: the CSV, Parquet, JSON, Avro, Excel and SQLite
-  readers and the database file parse bytes the package did not write;
-  Arrow IPC is refused before any byte is parsed (#40).
+- untrusted-input: the CSV, Parquet and JSON readers and the database
+  file parse bytes the package did not write; Arrow IPC (#40), Avro,
+  Excel and SQLite (#55) are refused before any byte is parsed.
 - spec: the DBI specification, and SQL answers compared with DuckDB.
 - lifecycle: database, connection and result objects behind external
   pointers.
@@ -65,7 +65,7 @@ One row per boundary the package crosses. An oracle knows the answer:
 | Arrow IPC files (#40)                   | refused, for a file R's `arrow` wrote, by every route: `read_arrow()` and a `.arrow`, `.feather` or `.ipc` path | tests/testthat/test-arrow.R |
 | Parquet column types the reader cannot decode (#36 to #38) | the values `duckdb` wrote, for the types it decodes; a `zuslothdb_sql_error` naming the column for the rest, and the file's other columns read, across row groups and four threads | tests/testthat/test-parquet-types.R |
 | JSON files (#39)                        | the values written, for flat records, arrays of objects, `\u` escapes and 5000 records; a `zuslothdb_sql_error` naming the record and the key for each shape the readers would misread, and malformed input | tests/testthat/test-json.R |
-| Avro, Excel and SQLite files            | recorded answers from a reference reader                  | gap #23    |
+| Avro, Excel and SQLite files (#55)      | refused, for a SQLite database Python wrote, an `.xlsx` openxlsx wrote and an Avro header, by every route: the table functions and each file extension | tests/testthat/test-refused.R |
 | database file                           | round trip through a fresh R process                      | gap #23    |
 | DBI specification                       | `DBItest`                                                 | gap #24    |
 | data frames written into tables (`dbWriteTable()`, `dbAppendTable()`) | round trip: what is read back is `identical()` to what went in, for every class written, with `NA`, 0 rows and across 2048-row chunks, and under a hostile locale; SQL `CAST` of what the engine stored, for `integer64` | tests/testthat/test-roundtrip.R, tests/testthat/test-write.R, tests/testthat/test-identifiers.R |

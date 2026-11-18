@@ -1117,6 +1117,14 @@ any of them.
   The three readers are in the source list; Stage 6 gives them what it
   gives the other formats (fixtures with recorded answers, hostile
   inputs, a fuzz harness each), and §2 and §7 gain them there.
+  **Revisited 2026-11-18 (maintainer, #55): refused in v0.1.0.** Read
+  against real files, the SQLite parser read a `REAL` 0 as uninitialised
+  memory, summed a `REAL` column wrongly and cut a long text short at its
+  overflow pages, and the `.xlsx` reader returned garbage for every
+  column after the first and ignored `sheet`; the Avro reader has no
+  writer here to test it against. The fork's change 17 refuses all
+  three, and their file extensions, before any byte is parsed, as
+  Arrow IPC (#40). Working readers are later work.
 - **Q12.** What does `zuslothdb_read()` return, and does it take reader
   options through `...`? §5 and §7 say only that it builds the `SELECT`.
   Proposal: a data frame, as `dbGetQuery()` of that `SELECT`, with

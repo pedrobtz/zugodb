@@ -7,7 +7,14 @@
 
 namespace slothdb {
 
+// zuslothdb (pedrobtz/zuslothdb#55): read against a file Python's sqlite3
+// wrote, this parser read a REAL 0 as uninitialised memory, summed a REAL
+// column wrongly and cut a long text short at its overflow pages, with no
+// error. Refused until it is rewritten.
 SQLiteScanner::SQLiteScanner(const std::string &path) : path_(path) {
+    throw NotImplementedException(
+        "SQLite files are not supported: SlothDB's SQLite file reader returns "
+        "wrong values; export the table to CSV or Parquet");
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file.is_open())
         throw IOException(ErrorCode::FILE_NOT_FOUND, "Cannot open SQLite file: " + path);

@@ -14,8 +14,8 @@
 
 source:
   repository: https://github.com/pedrobtz/slothdb
-  tag: zuslothdb-6
-  commit: 1b126916a47074be6339f64c81d5b3929b2e495e
+  tag: zuslothdb-7
+  commit: 69917820e317fe8bf4e21dd44baf55d3ba450da8
 
 upstream:
   repository: https://github.com/SouravRoy-ETL/slothdb
@@ -206,6 +206,14 @@ changes:
       looked plausible; the writer's files no Arrow tool reads (#40). Both
       are refused, and so is a .arrow, .feather or .ipc path (maintainer,
       2026-11-18: no Arrow IPC in v0.1.0).
+  - commit: 69917820e317fe8bf4e21dd44baf55d3ba450da8
+    subject: "Refuse the SQLite, Excel and Avro readers"
+    reason: >-
+      Against real files the SQLite parser read a REAL 0 as uninitialised
+      memory, summed wrongly and cut long text short, and the .xlsx reader
+      returned garbage after the first column; the Avro reader is untested
+      (#55). All three, and their file extensions, are refused before any
+      byte is parsed (maintainer, 2026-11-18, revisiting Q11).
 
 test_exclude:
   - path: test/unit/ask/test_nl_to_sql.cpp
