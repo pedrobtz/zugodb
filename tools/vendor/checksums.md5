@@ -128,7 +128,7 @@ e64fa350ff2981caf9fc07da5979087f  src/storage/data_table.cpp
 d647f5fd3601cee22a2e03d8b6397076  src/storage/fast_csv_reader.cpp
 e3cfd60aa06e22583b679a9b1cb0f6dd  src/storage/file_handle.cpp
 c6d336369b9c9be7e116ee8ce161d5b9  src/storage/hive_partition.cpp
-b684b0a849248712b361eb6c9934d182  src/storage/json_reader.cpp
+3464e222a2b47d57926aed46c79ae343  src/storage/json_reader.cpp
 173c73e64828e92b901588838fce9ec0  src/storage/miniz.c
 5829bf8be66417e7ef2527290e16147f  src/storage/miniz.h
 e4f784cf1250617a34dd8085801f8e7a  src/storage/parquet.cpp

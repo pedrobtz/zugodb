@@ -322,6 +322,19 @@ library; it is identical wherever it is instantiated and cannot clash.
   the file's other columns work whatever the plan decodes. The glob
   path, which loads every column, refuses the file. Decoding the types
   properly (a scaled `DECIMAL`, the timestamp units) is left for later.
+- **JSON the readers would misread (found 2026-11-18, #39).** The NDJSON
+  reader takes columns and types from the first record and parses the
+  rest by position, so a nested value read as 0 and dropped the keys
+  after it, a key first seen later was dropped, and a value of another
+  type was coerced; `\u` escapes lost their backslash. Neither of its
+  two parsers is a JSON parser. The fork's change 15 scans every file
+  when it is opened, on that thread (some parsers run on workers), with
+  a strict RFC 8259 check, and refuses one they would misread, naming
+  the record and the key; it decodes `\u` escapes. Accepted: NDJSON or
+  one array of flat objects whose keys and value types the first record
+  sets (a `null` first value makes a string column). Decided by the
+  maintainer as the v0.1.0 answer; a real parser, with keys unioned and
+  types widened as `duckdb` does, is later work.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).
@@ -490,8 +503,8 @@ and a column declared `TIMESTAMPTZ` to `TIMESTAMP`; it has no list,
 struct or map syntax, and `LIST_VALUE`, `STRUCT_PACK` and `ROW` are
 "not implemented". Its readers do no better: Parquet read a `DECIMAL`
 as its unscaled integer (#36; refused since 2026-11-18, below) and sees
-no nested column, JSON drops
-nested keys (#39), and Arrow IPC with a nested column fails (#40). So
+no nested column, JSON dropped
+nested keys (#39; refused since 2026-11-18), and Arrow IPC with a nested column fails (#40). So
 the rows for `DECIMAL`, `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP` and
 `UNION` above, which this design first promised as conversions, are a
 `zuslothdb_type_error` naming the column, for a value no route yet

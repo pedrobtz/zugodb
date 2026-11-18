@@ -14,8 +14,8 @@
 
 source:
   repository: https://github.com/pedrobtz/slothdb
-  tag: zuslothdb-4
-  commit: 1df811d9dbbe4f60e7c5310c03bd27d51e5b0e69
+  tag: zuslothdb-5
+  commit: d5c7e62d772890c3d4c4a92e91a60b04937b08ba
 
 upstream:
   repository: https://github.com/SouravRoy-ETL/slothdb
@@ -187,6 +187,16 @@ changes:
       scan-time check refused queries that never name the column. The
       binder now refuses it when a query names it or expands it with *;
       ReadAll() still checks every column for the glob path (#36-#38).
+  - commit: d5c7e62d772890c3d4c4a92e91a60b04937b08ba
+    subject: "Refuse JSON the readers would misread, and decode \\u escapes"
+    reason: >-
+      The NDJSON reader took columns and types from the first record, so a
+      nested value read as 0 and dropped later keys, a later key was
+      dropped and a value of another type was coerced, with no error; \u
+      escapes lost their backslash (#39). Every file is now checked by a
+      strict RFC 8259 scan when it is opened, on that thread, and refused,
+      naming the record and the key, if the parsers would misread it; \u
+      escapes, surrogate pairs included, are decoded.
 
 test_exclude:
   - path: test/unit/ask/test_nl_to_sql.cpp

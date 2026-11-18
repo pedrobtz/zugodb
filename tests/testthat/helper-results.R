@@ -68,3 +68,11 @@ roundtrip_frame <- function(n) {
 table_rows <- function(con, name) {
   DBI::dbGetQuery(con, sprintf("SELECT * FROM \"%s\"", name))
 }
+
+# The rows of `SELECT * FROM '<file>'` for a JSON file holding `lines`
+# (test-json.R).
+json_rows <- function(con, lines, ext = ".json") {
+  path <- withr::local_tempfile(fileext = ext, .local_envir = parent.frame())
+  writeLines(lines, path, useBytes = TRUE)
+  DBI::dbGetQuery(con, sprintf("SELECT * FROM '%s'", normalizePath(path, "/")))
+}
