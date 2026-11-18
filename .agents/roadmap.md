@@ -618,8 +618,10 @@ checks of tools/ci/platform.sh.`
 
 **Blocked on.** A CRAN release of each of `zucsv`, `zujson` and `qio`
 with the header and archive of
-[design §7.2](design.md#72-what-each-reader-provides). An issue in each
-package's repository tracks it and is linked from this stage's issue.
+[design §7.2](design.md#72-what-each-reader-provides):
+[zucsv#23](https://github.com/pedrobtz/zucsv/issues/23),
+[zujson#108](https://github.com/pedrobtz/zujson/issues/108) and
+[qio#71](https://github.com/pedrobtz/qio/issues/71).
 
 **Goal.** `zuslothdb_read()` loads a CSV, JSON or Parquet file into a
 table with the values a reference gives, and a damaged file is an error
@@ -850,8 +852,9 @@ twice and what the reviews required is fixed.
 - [§7.6](design.md#76-two-steps): scanning a reader's stream from SQL
   (Q19), which brings back `SELECT ... FROM read_csv('x')`.
 - [§7.1](design.md#71-the-readers): Excel through `zuxlsx` and Arrow IPC
-  through `zuarrow`, once each has a release with its header and
-  archive.
+  through `zuarrow`
+  ([zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251)), once
+  each has a release with its header and archive.
 - [§5.1](design.md#51-the-api-against-its-two-references):
   `duckdb_register()`'s counterpart needs a scan over R memory in the
   engine, which Q19's table function would give.
