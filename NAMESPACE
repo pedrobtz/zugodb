@@ -5,12 +5,17 @@ export(zuslothdb_info)
 exportClasses(zuslothdb_connection)
 exportClasses(zuslothdb_driver)
 exportClasses(zuslothdb_result)
+exportMethods(dbAppendTable)
+exportMethods(dbBegin)
 exportMethods(dbBind)
 exportMethods(dbClearResult)
 exportMethods(dbColumnInfo)
+exportMethods(dbCommit)
 exportMethods(dbConnect)
+exportMethods(dbDataType)
 exportMethods(dbDisconnect)
 exportMethods(dbExecute)
+exportMethods(dbExistsTable)
 exportMethods(dbFetch)
 exportMethods(dbGetInfo)
 exportMethods(dbGetRowCount)
@@ -18,17 +23,28 @@ exportMethods(dbGetRowsAffected)
 exportMethods(dbGetStatement)
 exportMethods(dbHasCompleted)
 exportMethods(dbIsValid)
+exportMethods(dbListFields)
+exportMethods(dbListTables)
+exportMethods(dbQuoteIdentifier)
+exportMethods(dbRemoveTable)
+exportMethods(dbRollback)
 exportMethods(dbSendQuery)
 exportMethods(dbSendStatement)
+exportMethods(dbWriteTable)
 exportMethods(show)
 import(methods)
 importFrom(DBI,
+  dbAppendTable,
+  dbBegin,
   dbBind,
   dbClearResult,
   dbColumnInfo,
+  dbCommit,
   dbConnect,
+  dbDataType,
   dbDisconnect,
   dbExecute,
+  dbExistsTable,
   dbFetch,
   dbGetInfo,
   dbGetRowCount,
@@ -36,7 +52,13 @@ importFrom(DBI,
   dbGetStatement,
   dbHasCompleted,
   dbIsValid,
+  dbListFields,
+  dbListTables,
+  dbQuoteIdentifier,
+  dbRemoveTable,
+  dbRollback,
   dbSendQuery,
-  dbSendStatement
+  dbSendStatement,
+  dbWriteTable
 )
 useDynLib(zuslothdb, .registration = TRUE)

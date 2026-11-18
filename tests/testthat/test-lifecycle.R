@@ -225,3 +225,42 @@ test_that("show() reports a result and whether it is cleared", {
   DBI::dbClearResult(res)
   expect_output(show(res), "\\(cleared\\)")
 })
+
+test_that("transaction statements out of order are engine errors (Stage 5)", {
+  con <- DBI::dbConnect(zuslothdb())
+  withr::defer(DBI::dbDisconnect(con))
+  expect_error(DBI::dbExecute(con, "COMMIT"), class = "zuslothdb_sql_error")
+  expect_error(DBI::dbExecute(con, "ROLLBACK"), class = "zuslothdb_sql_error")
+  DBI::dbExecute(con, "BEGIN")
+  expect_error(DBI::dbExecute(con, "BEGIN"), class = "zuslothdb_sql_error")
+  expect_identical(DBI::dbExecute(con, "COMMIT"), 0)
+})
+
+test_that("disconnecting inside a transaction keeps its changes in the file", {
+  path <- withr::local_tempfile(fileext = ".db")
+  con <- DBI::dbConnect(zuslothdb(), dbdir = path)
+  DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)")
+  DBI::dbExecute(con, "BEGIN")
+  DBI::dbWriteTable(con, "t", data.frame(x = 1:3), append = TRUE)
+  DBI::dbDisconnect(con)
+  con2 <- DBI::dbConnect(zuslothdb(), dbdir = path)
+  withr::defer(DBI::dbDisconnect(con2))
+  # No undo: the rows written inside the transaction are there, and the new
+  # connection is not inside a transaction.
+  expect_identical(DBI::dbReadTable(con2, "t")$x, 1:3)
+  expect_identical(DBI::dbExecute(con2, "BEGIN"), 0)
+  expect_identical(DBI::dbExecute(con2, "COMMIT"), 0)
+})
+
+test_that("table functions on a closed connection are zuslothdb_closed_error", {
+  con <- DBI::dbConnect(zuslothdb())
+  DBI::dbWriteTable(con, "t", data.frame(x = 1L))
+  DBI::dbDisconnect(con)
+  df <- data.frame(x = 2L)
+  expect_error(DBI::dbWriteTable(con, "t", df, append = TRUE), class = "zuslothdb_closed_error")
+  expect_error(DBI::dbAppendTable(con, "t", df), class = "zuslothdb_closed_error")
+  expect_error(DBI::dbListTables(con), class = "zuslothdb_closed_error")
+  expect_error(DBI::dbListFields(con, "t"), class = "zuslothdb_closed_error")
+  expect_error(DBI::dbExistsTable(con, "t"), class = "zuslothdb_closed_error")
+  expect_error(DBI::dbRemoveTable(con, "t"), class = "zuslothdb_closed_error")
+})

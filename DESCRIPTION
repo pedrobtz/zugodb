@@ -52,6 +52,7 @@ Collate:
     'driver.R'
     'connection.R'
     'result.R'
+    'write.R'
     'info.R'
     'zuslothdb-package.R'
 Encoding: UTF-8

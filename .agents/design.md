@@ -353,7 +353,37 @@ also takes `"integer64"` and `"character"`. `decimal` is not added in
 v0.1.0, since the engine produces no `DECIMAL` (§6, 2026-11-18).
 
 `dbGetQuery(params = )` and `dbBind()` raise `zuslothdb_unsupported` in
-v0.1.0, since SlothDB has no prepared statements (Q3). Conditions
+v0.1.0, since SlothDB has no prepared statements (Q3).
+
+*Transactions, decided 2026-11-18 (maintainer, Stage 5).* SlothDB has
+none: `ROLLBACK` only closes the transaction, so an `INSERT`, `DELETE`,
+`CREATE` or `DROP` since `BEGIN` stays done, with no error (upstream's
+own test says "we don't have full MVCC undo yet"). So `dbBegin()`,
+`dbCommit()` and `dbRollback()` raise `zuslothdb_unsupported`, and with
+them `dbWithTransaction()`; the fork makes SQL `ROLLBACK` an error saying
+nothing was undone, and closes the transaction. Writes stay whole
+without one: `dbWriteTable()` and `dbAppendTable()` check every value
+against the table's column types before the first row is appended, and
+an overwrite checks the data against a probe table of the new types
+before it drops the old one (the engine has no `RENAME`). A real
+rollback is open: a snapshot at `BEGIN` restored at `ROLLBACK`, by a
+commit on the fork, would make `dbWithTransaction()` and `DBItest`'s
+transaction tests work.
+
+*Writing, as built in Stage 5 (2026-11-18).* Columns go in through
+`Connection::Append` in chunks of 2048 rows built by the glue
+(`src/sdb_write.cpp`), in the table's own types: logical, integer,
+double, character and factor (by its labels), `Date`, `POSIXct` (to the
+microsecond), `bit64::integer64` and `blob` or a list of raw vectors.
+Any other class, or a value its column cannot hold (a fraction or an
+out-of-range number for an integer column, a fractional `Date`, a
+string that is not UTF-8), is a `zuslothdb_type_error` naming the
+column and row. `dbAppendTable()` matches columns by name and gives a
+column it lacks `NULL`. Names are always quoted, so they keep their
+case; SlothDB's parser reads no `""` escape, so a name holding `"` is a
+`zuslothdb_argument_error`. SlothDB has no schemas and no temporary
+tables: an `Id` with a schema and `temporary = TRUE` are
+`zuslothdb_unsupported`. Conditions
 inherit from `zuslothdb_error`: `zuslothdb_sql_error` (the engine's
 message), `zuslothdb_type_error`, `zuslothdb_unsupported`,
 `zuslothdb_closed_error`, and `zuslothdb_argument_error` for a bad

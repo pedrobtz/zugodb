@@ -1,5 +1,15 @@
 # zuslothdb 0.0.0.9000
 
+* `dbWriteTable()`, `dbAppendTable()`, `dbListTables()`,
+  `dbListFields()`, `dbExistsTable()`, `dbRemoveTable()`,
+  `dbDataType()` and `dbQuoteIdentifier()` write and manage tables.
+  Logical, integer, double, character, factor, `Date`, `POSIXct`,
+  `integer64` and `blob` columns are written and read back identical; a
+  column of another class, or a value its column cannot hold, is a
+  `zuslothdb_type_error` before any row is written.
+* SlothDB has no transactions, so `dbBegin()`, `dbCommit()` and
+  `dbRollback()` are `zuslothdb_unsupported`, and SQL `ROLLBACK` is an
+  error saying that nothing was undone.
 * A table of more than 2048 rows with a `NULL` past row 2048 no longer
   reads back with `NULL`s where there are none, or crashes R: the engine
   kept a whole row group's `NULL`s in a mask the size of one vector, and

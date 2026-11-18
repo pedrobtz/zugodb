@@ -38,3 +38,33 @@ strip_blob <- function(df) {
   }
   df
 }
+
+# A data frame of every type dbWriteTable() writes, n rows, with NA in each
+# column (Stage 5). Timestamps are whole microseconds, as a TIMESTAMP holds.
+roundtrip_frame <- function(n) {
+  i <- seq_len(n)
+  na <- i %% 7L == 3L
+  pick <- function(x) {
+    x[na] <- NA
+    x
+  }
+  ts <- round(((i - 2500) * 86400.123457) * 1e6) / 1e6
+  blob <- lapply(i, function(k) if (k %% 7L == 3L) NULL else as.raw(c(k %% 256L, 0L, 255L)))
+  df <- data.frame(
+    lgl = pick(i %% 2L == 0L),
+    int = pick(i - 1000L),
+    dbl = pick(i / 3 - 10),
+    chr = pick(sprintf("s%d\u00e9", i)),
+    date = structure(pick(as.double(i - 30000L)), class = "Date"),
+    ts = structure(pick(ts), class = c("POSIXct", "POSIXt"), tzone = "UTC"),
+    stringsAsFactors = FALSE
+  )
+  # A list column, without the AsIs class I() would add.
+  df$blob <- structure(blob, ptype = raw(0), class = blob_classes)
+  df
+}
+
+# Every row of the table `name`, quoted (Stage 5).
+table_rows <- function(con, name) {
+  DBI::dbGetQuery(con, sprintf("SELECT * FROM \"%s\"", name))
+}

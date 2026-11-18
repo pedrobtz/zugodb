@@ -21,7 +21,7 @@ planned.
 | 2 | [Driver and connection](#stage-2--driver-and-connection) | full | [#4](https://github.com/pedrobtz/zuslothdb/issues/4) | [#30](https://github.com/pedrobtz/zuslothdb/pull/30) | 2026-11-17 |
 | 3 | [Results and scalar types](#stage-3--results-and-scalar-types) | full | [#5](https://github.com/pedrobtz/zuslothdb/issues/5) | [#31](https://github.com/pedrobtz/zuslothdb/pull/31) | 2026-11-17 |
 | 4 | [Temporal, decimal and nested types](#stage-4--temporal-decimal-and-nested-types) | quick | [#6](https://github.com/pedrobtz/zuslothdb/issues/6) | [#44](https://github.com/pedrobtz/zuslothdb/pull/44) | 2026-11-18 |
-| 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | | |
+| 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | | 2026-11-18 |
 | 6 | [Files and persistence](#stage-6--files-and-persistence) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | |
 | 7 | [DBItest conformance](#stage-7--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
 | 8 | [Documentation and measured claims](#stage-8--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/zuslothdb/issues/10) | | |
@@ -314,6 +314,14 @@ with it. The readers' wrong answers found here are Stage 6's (#36 to
 **Goal.** Data frames go into tables and come back identical, and
 transactions commit and roll back.
 
+**Deviation (2026-11-18, approved by the maintainer).** SlothDB has no
+transactions: `ROLLBACK` undoes nothing (design §5). So `dbBegin()`,
+`dbCommit()` and `dbRollback()` are `zuslothdb_unsupported`, SQL
+`ROLLBACK` is an error by the fork's commit `6af32c5` (`zuslothdb-2`),
+and the rollback test becomes one that the refusals hold and that a
+refused write leaves no row. Building the stage also found that a table
+past 2048 rows with a `NULL` corrupted memory (#45, fixed first).
+
 **Work.**
 
 - `dbWriteTable()`, `dbAppendTable()`, `dbDataType()`,
@@ -330,8 +338,10 @@ transactions commit and roll back.
   `zuslothdb_type_error` and the table is unchanged, in `test-write.R`.
 - Identifiers that need quoting (spaces, quotes, reserved words, UTF-8):
   round trip through `dbListFields()`, in `test-identifiers.R`.
-- Rollback: the table equals its state before `dbBegin()`; an error
-  mid-append leaves no partial rows, in `test-transactions.R`.
+- `dbBegin()`, `dbCommit()`, `dbRollback()` and `dbWithTransaction()`
+  `zuslothdb_unsupported`, and SQL `ROLLBACK` an error that keeps the
+  rows, in `test-transactions.R`; a value that does not fit, at row 5000
+  of an append, leaves no row, in `test-write.R`.
 - Transaction sequences (commit without begin, begin twice, disconnect
   inside a transaction): in `test-lifecycle.R`.
 
