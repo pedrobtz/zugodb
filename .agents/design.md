@@ -6,6 +6,8 @@ RFC is now a pointer here. Changed since adoption: §5's `dbConnect()`
 signature and method list, the new §5.1, Q9 to Q13 in §14, the
 recorded-answer oracle and fuzzing in §10, §11, whose stages moved
 to [roadmap.md](roadmap.md), and the package's name (Q8, `zuslothdb`).
+On 2026-11-18: where files are read (§7 and D9, the zu family's
+readers), D1's second look, and Q15 to Q19.
 
 - **Status:** Proposed. Merging this file adopts the design as the starting
   point for the package's own `.agents/design.md`; each decision in
@@ -66,6 +68,11 @@ SQLite files and its own single-file storage format.
 
 > **SQL over local files from R, with nothing to install but the
 > package, and the engine never takes R down.**
+
+*Since 2026-11-18 (D9):* the files are read by the zu family's readers,
+linked into the package, and not by SlothDB's own (§7). The example
+above then takes two steps, a load and a query, until the engine can
+scan a reader's stream from SQL (Q19).
 
 ### 1.1 What zuslothdb is not
 
@@ -153,6 +160,12 @@ parameter
 binding (§5, Q3), Arrow C data interface export through `nanoarrow`,
 ALTREP results, R functions as SQL functions, `dbplyr` translations.
 
+*Changed 2026-11-18 (D9, maintainer):* "reading CSV, Parquet and JSON
+files through SQL" becomes "loading CSV, Parquet and JSON files into
+tables through the zu family's readers" (§7), and Arrow C streams go in
+through DBI's `dbWriteTableArrow()` and `dbAppendTableArrow()`. Reading
+a file from inside a query is later work (Q19).
+
 ## 3. Position in the portfolio
 
 - **`zusql`** (RFC 0066) parses PostgreSQL SQL; SlothDB has its own
@@ -176,6 +189,12 @@ which none replaces, so none is adopted for v0.1.0: `qio`, `zucsv` and
 `zujson` as second readers, `decimal` as a `decimal =` output and
 `zuxlsx` or `zuarrow` as fixture writers were considered and set aside.
 
+*Reversed 2026-11-18 (D9, maintainer):* the package now needs them.
+`zucsv`, `zujson` and `qio` are its file readers, linked at build time
+through `LinkingTo` (§7); `zuxlsx` and `zuarrow` follow when they are
+released. They are not imports: the runtime dependencies stay `DBI` and
+`methods`.
+
 ## 4. Architecture
 
 Three layers, as in `duckdb`:
@@ -195,6 +214,10 @@ Three layers, as in `duckdb`:
    SlothDB object with a destructor is live on the stack (§4.3).
 3. **R**: the DBI classes (`zuslothdb_driver`, `zuslothdb_connection`,
    `zuslothdb_result`), argument checks and conditions.
+
+*Since 2026-11-18 (D9):* a fourth piece sits beside the engine, the zu
+family's reader archives, linked into the shared object and reached by
+the glue through one stream adapter (§7).
 
 ### 4.1 Which API to bind
 
@@ -393,6 +416,13 @@ v0.1.0, since the engine produces no `DECIMAL` (§6, 2026-11-18).
 `dbGetQuery(params = )` and `dbBind()` raise `zuslothdb_unsupported` in
 v0.1.0, since SlothDB has no prepared statements (Q3).
 
+*Files and streams, since 2026-11-18 (D9).* The second line of the
+block above, `SELECT * FROM read_csv('x.csv')`, is refused once the
+engine's readers are (§7.5). In its place: `zuslothdb_read()` loads a
+file into a table (Q16 has its new signature), and
+`dbWriteTableArrow()`, `dbAppendTableArrow()` and `dbCreateTableArrow()`
+take an Arrow C stream (§7.3).
+
 *Transactions, decided 2026-11-18 (maintainer, Stage 5).* SlothDB has
 none: `ROLLBACK` only closes the transaction, so an `INSERT`, `DELETE`,
 `CREATE` or `DROP` since `BEGIN` stays done, with no error (upstream's
@@ -509,7 +539,8 @@ column and row, and nothing of the slice is fetched. `bigint` also takes
 buffers before any R vector is made (`src/sdb_result.cpp`), and a
 connection has one open result: sending another clears it with a
 warning, as RSQLite does. The unsigned types cannot be named in
-SlothDB's SQL, so they reach R only from files (Stage 6).
+SlothDB's SQL, so they reach R only from files (Stage 10, since the
+2026-11-18 restage).
 
 *As found in Stage 4 (2026-11-18)*, the engine produces far fewer types
 than its `LogicalTypeId` names. Its SQL casts a `DECIMAL` to `DOUBLE`
@@ -547,12 +578,166 @@ between the two drivers by changing `dbConnect()`'s first argument.
 
 ## 7. Files
 
-SQL table functions read files, so the package adds no reader of its
-own. `zuslothdb_read()` only builds the `SELECT * FROM read_<format>(...)`
-call. Paths are passed as SQL string literals, escaped by
-`DBI::dbQuoteString()`. Parquet decompression covers gzip, zstd and
-snappy; a Parquet file with another codec is a `zuslothdb_sql_error`
-from the engine, tested.
+*As first designed:* SQL table functions read files, so the package adds
+no reader of its own. `zuslothdb_read()` only builds the
+`SELECT * FROM read_<format>(...)` call. Paths are passed as SQL string
+literals, escaped by `DBI::dbQuoteString()`. Parquet decompression
+covers gzip, zstd and snappy; a Parquet file with another codec is a
+`zuslothdb_sql_error` from the engine, tested.
+
+*Since 2026-11-18 (D9, maintainer):* the engine's readers are not used.
+[slothdb-assessment.md](slothdb-assessment.md) has the evidence: every
+one of them, tested against a real writer's files, returned wrong values
+with no error, and the Parquet reader crashed the process on 191 of 600
+damaged files. Files are read by the zu family's readers instead, which
+wrap mature C libraries and are tested in their own packages. The rest
+of this section is that plan. The engine's core stays SlothDB's, and the
+fork maintains it (D1, D3).
+
+### 7.1 The readers
+
+| Format | Package | Library it wraps | State on 2026-11-18 |
+| --- | --- | --- | --- |
+| CSV | `zucsv` | zsv | on CRAN |
+| JSON, NDJSON | `zujson` | yyjson | on CRAN |
+| Parquet | `qio` | carquet | on CRAN |
+| Excel | `zuxlsx` | xlsxio | submitted, not yet on CRAN |
+| Arrow IPC | `zuarrow` | nanoarrow | in development |
+
+None installs a C header today. CSV, JSON and Parquet come first; Excel
+and Arrow IPC follow their packages' releases.
+
+### 7.2 What each reader provides
+
+Each package gains this in its next release, and `zuarrow` before its
+first submission (maintainer, 2026-11-18):
+
+- **A header**, `inst/include/<pkg>.h`: plain C, with no R header
+  included.
+- **A static archive**, `lib<pkg>.a`, built at install and installed to
+  `<pkg>/lib${R_ARCH}`, as `zukomp` installs `libzukomp.a`.
+- **Code that runs without R.** No R API call and no R allocation, so it
+  can run on any thread and be fuzzed in a harness without R.
+- **One entry point** that opens a local file with an options struct and
+  hands back a stream of column batches (§7.3).
+- **Errors returned, not raised.** A code and a message; never a
+  `longjmp`, an `abort()` or a write to `stderr`.
+- **No symbol that can clash.** The code it vendors (zstd and lz4 in
+  `qio`) is hidden or prefixed, so two archives in one shared object do
+  not collide. Each bundles nanoarrow under its own
+  `NANOARROW_NAMESPACE`, as `zuarrow` already does.
+- **An ABI version** in the header. A breaking change to the header or
+  the archive is breaking for this package, under the portfolio's rule.
+- **Its own assurance.** The reader's oracle, fuzzing and hostile-input
+  tests live in its package; `zuslothdb` tests the join.
+
+Not yet read: how much of each package's type inference and column
+building is in its R glue today. That part has to move into the R-free
+code, and it is the larger share of the work in each sibling.
+
+### 7.3 The contract (Q15)
+
+Decided 2026-11-18 (maintainer). One contract for every reader: the
+entry point fills an Arrow C stream (`struct ArrowArrayStream`), and the
+glue has one adapter from a stream to the engine.
+
+- **The ABI is the Arrow specification's**, frozen and copied as two
+  struct definitions, with no dependency. Each package versions only its
+  open function and options struct.
+- **Errors have a path.** A stream returns a code and
+  `get_last_error()`, which the adapter raises as a classed condition
+  after every C++ frame has unwound (§4.3).
+- **One adapter**, `src/sdb_stream.cpp`: batches become `DataChunk`s and
+  go in through `Connection::Append`, the path Stage 5 built. It pulls:
+  the caller asks for the next chunk, so the scan operator of Q19 can
+  use it unchanged.
+- **Any producer works.** The same adapter is DBI's
+  `dbWriteTableArrow()`, `dbAppendTableArrow()` and
+  `dbCreateTableArrow()`, so it can be built and tested with `nanoarrow`
+  as the producer before any sibling has a release.
+- **Types follow §6.** A column of a type the engine cannot hold
+  (`DECIMAL`, `TIME`, a nested type) is a `zuslothdb_type_error` naming
+  the column, raised from the stream's schema before any row is
+  appended.
+- **A failed load leaves nothing.** The engine has no undo (§5), so a
+  load creates a new table and drops it if the stream fails part-way.
+  An append to an existing table needs another answer, a staging table
+  being the proposal; the stage that builds the adapter settles it.
+
+The alternative, set aside, was a bespoke C API per reader and one
+adapter for each. It asks less of the siblings and more of this package,
+and gives no DBI Arrow methods. The stream entry point is also worth
+having in each sibling without `zuslothdb`: any Arrow consumer can use
+it.
+
+### 7.4 Linking
+
+As `zuxlsx` links `zuxml`, `zukomp` and `zucrypt`:
+
+- `LinkingTo: zucsv, zujson, qio`, each with a version floor. R puts
+  each package's `include/` on the compiler's path.
+- `configure` and `configure.win` resolve each archive with
+  `system.file("lib", package = )` and write it into `src/Makevars`.
+  `tools/vendor.R`, which writes `src/Makevars` today, writes the
+  templates they fill instead.
+- The archive and this package must agree on any define that changes a
+  header, as `zuxlsx` notes for `MINIZ_NO_ZLIB_COMPATIBLE_NAMES`.
+- The invariants hold with the archives linked: only `R_init_zuslothdb`
+  exported, and no `stderr`, `printf`, `abort`, `exit` or `rand`
+  imported. `tools/ci/platform.sh` checks both on each OS.
+- A reader's fix reaches a user when `zuslothdb` is rebuilt against the
+  new archive, so `zuslothdb_info()` reports the version of each reader
+  it was built with.
+
+Two copies of zstd in one shared object would clash: the engine carries
+zstd's decompressor and `qio` carries zstd. In the engine, zstd, snappy
+and fastpforlib are used only by `parquet.cpp`, so cutting the engine's
+readers (§7.5) removes the engine's copy. `qio` has its own open issue
+(pedrobtz/qio#17) to take zstd and lz4 from `zukomp`; if it does,
+`libzukomp.a` is linked here too, once.
+
+### 7.5 The engine's own readers (Q17)
+
+Decided 2026-11-18 (maintainer): refused first, then cut.
+
+1. **Refused, in Stage 6.** Arrow IPC already is (fork change 16), and
+   SQLite, Excel and Avro by pull request #56 (#55). CSV, Parquet and
+   JSON follow: a `read_csv()`, `read_parquet()` or `read_json()` call,
+   or a file path used as a table, is an error that names
+   `zuslothdb_read()`. Fork changes 13 to 15, which made the Parquet and
+   JSON readers refuse what they misread, then guard code no query
+   reaches.
+2. **Cut, in Stage 10.** All of the engine's readers leave the fork,
+   with zstd, snappy and fastpforlib. The fork is where the engine is
+   maintained (D3), and about 7,300 lines of parser no query reaches
+   still cost every analyser, sanitizer and fuzz run. The cut is not yet
+   sized: the planner, the binder and `connection.cpp` name the reader
+   classes on 47 lines, and the scan operators are more than that.
+   Sizing it is Stage 10's first task. Should it prove too large there,
+   `qio` hiding its zstd (§7.2) is enough to link, and the cut moves
+   after v0.1.0.
+
+### 7.6 Two steps
+
+1. **Load, then query.** `zuslothdb_read()` opens a reader's stream and
+   appends it batch by batch into a table; SQL then runs on the table.
+   No engine change. Memory at its peak is the table plus one batch.
+2. **Scan from SQL (Q19), later.** A table function in the engine that
+   pulls from a stream. It brings back `SELECT ... FROM read_csv('x')`
+   and gives `duckdb_register()` a counterpart for data frames. It is a
+   new operator in a 14,589-line planner, so it waits until the core has
+   passed its bar (Q18).
+
+What step 1 costs, accepted: no projection or filter is pushed down from
+SQL, only the columns `zuslothdb_read()` is asked for; and a file is
+copied into the engine's memory, where the engine keeps every table
+anyway (§8).
+
+### 7.7 Paths
+
+A path goes to a reader as a C string, not through SQL. The R layer
+expands and encodes it. One local file per call; a remote path is
+refused before any reader sees it (D4).
 
 ## 8. Persistence
 
@@ -572,6 +757,15 @@ database opened, and two drivers on one file, in one process or two,
 each write their own copy at close: the last to close wins. Stage 6
 documents both and tests the round trip; v0.1.0 does not lock the
 file.
+
+*Decided 2026-11-18 (maintainer): a checksum.* The file had none, so
+damage went undetected and a damaged file could open with wrong rows
+([slothdb-assessment.md](slothdb-assessment.md)). The file is written
+whole and read whole, so one checksum over it is small work: a fork
+commit writes it and checks it on open, in the same commit that takes
+the format version to 1001 (Q7). A file that fails it is a classed
+error. miniz's `mz_crc32()` is already in the tree; the commit may use
+another if it is no more code.
 
 ## 9. Relationship to the C API and Python binding
 
@@ -600,6 +794,10 @@ binaries in the upstream tree (`packaging/npm/slothdb.wasm`,
   linked against the vendored engine without R. Its oracle is
   agreement, not survival: the rows a `SELECT *` returns equal
   `count(*)` over the same bytes, and a second read is identical.
+  *Since 2026-11-18 (D9):* a file reader is fuzzed in its own package
+  (§7.2). The harnesses here are for the database file, the stream
+  adapter and SQL text, whose oracle is the same result on one thread
+  and on two.
 - **sqllogictest.** `ZUSLOTHDB_SLOW_TESTS` runs upstream's corpus fetch
   at a pinned revision and records the pass rate per release; the
   README states it.
@@ -663,6 +861,14 @@ any of them.
   "Table 'READ_PARQUET' not found"), the kind of gap the sqllogictest
   figure of about 18% predicts; Stages 3 and 6 list such cases in
   `known-differences.md`.
+  **Second look, 2026-11-18 (maintainer): go on, by another route.**
+  The evidence is [slothdb-assessment.md](slothdb-assessment.md). The
+  file readers, where most of the defects were, are replaced by the zu
+  family's (D9, §7). The core needs work too, and the fork takes it on:
+  tested and fixed over time, with no patch budget, since the fork is
+  where the engine is maintained (D3). The condition above on patch size
+  no longer decides. What the core must pass before a release, and
+  whether v0.1.0 keeps a date, is Q18.
 - **D2 (C).** Bind SlothDB's C++ API, as `duckdb` binds DuckDB's; the
   C API's six types cannot carry §6.
 - **D3 (C).** Vendor at a pinned commit, not a release tag: v0.2.7
@@ -684,6 +890,13 @@ any of them.
 - **D7 (C).** No hand-written C API for other packages in v0.1.0.
 - **D8 (C).** Results are materialised R vectors; ALTREP and Arrow
   export are later work.
+- **D9 (maintainer, 2026-11-18).** Files are read by the zu family's
+  readers, not SlothDB's: `zucsv`, `zujson` and `qio` first (§7.1). Each
+  gains a C header and a static archive in its next release, `zuarrow`
+  before its first submission (§7.2). `zuslothdb` links them through
+  `LinkingTo`, as `zuxlsx` links `zuxml`, `zukomp` and `zucrypt` (§7.4),
+  so D6's imports stand. The contract between a reader and the glue is
+  Q15, and what becomes of the engine's own readers Q17.
 
 ## 13. Acceptance criteria for v0.1.0
 
@@ -696,6 +909,8 @@ any of them.
   and any size NOTE explained in `cran-comments.md`.
 - The README states the engine commit, the patch list, the
   sqllogictest pass rate and that SlothDB is experimental.
+- Q18's bar holds (added 2026-11-18): on the pinned sqllogictest subset
+  no case gives a wrong answer, crashes or hangs.
 
 ## 14. Open questions
 
@@ -731,7 +946,7 @@ any of them.
   on the calling thread. Adding one means a patch in every operator
   loop of a 14,573-line planner, outside D1's budget for v0.1.0. So an
   interrupt waits for the query to finish; Stage 3 has nothing to wire
-  and Stage 8's README says so.
+  and the documentation stage's README says so.
 - **Q7.** Should `zuslothdb` refuse to open a database file written by a
   different engine commit, rather than trust the magic number?
   **Decided 2026-11-18 (maintainer): a format version, not the commit.**
@@ -812,7 +1027,8 @@ any of them.
   reader gets wrong is an error, not its wrong value. For comparison,
   `duckdb`'s `duckdb_read_csv()` loads CSV files into a table and takes
   reader options through `...`, and `tbl_file()` and duckplyr's readers
-  return lazy tables.
+  return lazy tables. *Overtaken 2026-11-18 by D9:* there is no
+  `SELECT` over a file to build. Q16 asks it again.
 
 - **Q13.** What does a connection do in a forked child
   (`parallel::mclapply()`)? The engine owns threads and a file handle
@@ -829,6 +1045,55 @@ any of them.
   (2026-11-18) leaves them a `zuslothdb_type_error`. What should each
   arrive as? `duckdb`'s answer is the reference to copy, as for §6's
   other rows. Parquet reads `UUID` and `INTERVAL` as `NULL` (#38).
+
+- **Q15.** What is the contract between a reader and the glue: one for
+  every reader, or a C API per reader? Proposal: the Arrow C stream
+  (§7.3). It has to be decided before `zuarrow`'s first submission and
+  before the adapter's stage, since both build on it. **Decided
+  2026-11-18 (maintainer): the Arrow C stream**, one contract for every
+  reader, as §7.3 has it.
+- **Q16.** What is `zuslothdb_read()` now? Q12's answer returned the
+  data frame of a `SELECT` over the file, which a reader's own R
+  function already returns without the engine. Proposal:
+  `zuslothdb_read(conn, name, path, format = NULL, columns = NULL)`
+  loads the file into a new table `name`, as `duckdb_read_csv(conn,
+  name, files)` does, and returns the row count invisibly. `format`
+  from the extension as Q12 decided, an existing `name` an error
+  without `overwrite = TRUE`, and still no `...`. Decide in the readers'
+  stage. **Decided 2026-11-18 (maintainer): as proposed.** `columns` is
+  the one thing step 1 can push down to a reader.
+- **Q17.** Are the engine's own readers refused or cut from the
+  vendored tree? Refusing is one small fork commit, as for Arrow (#40).
+  Cutting means changing the planner, the binder and `connection.cpp`,
+  which name the reader classes on 47 lines between them; it drops zstd,
+  snappy and fastpforlib from the build, and miniz only if the Excel
+  reader and the planner's own use go too. Proposal: refuse now. Cut
+  the Parquet reader before `qio`'s archive is linked, unless `qio`
+  hides its zstd, since two copies would clash (§7.4). **Decided
+  2026-11-18 (maintainer): refuse in Stage 6, then cut every reader in
+  Stage 10**, not only Parquet's, with the cut sized first and `qio`
+  hiding its zstd as the fallback (§7.5).
+- **Q18.** What must the core pass before a release, and does v0.1.0
+  keep a CRAN date? Proposal: no date. The bar is measured, not
+  argued: a pinned sqllogictest subset on which no case gives a wrong
+  answer (an error is allowed and counted), the widened duckdb corpus
+  agreeing but for listed differences, and the same results on one
+  thread and on two. Until then the package is on GitHub as an
+  experimental engine. The maintainer sets the bar in the core's stage.
+  **Decided 2026-11-18 (maintainer): no date, and the bar is zeros.** On
+  the pinned sqllogictest subset no case gives a wrong answer, crashes
+  or hangs; the widened corpus agrees with `duckdb` but for listed
+  differences; and one thread and two give the same results. The pass
+  rate is reported and not targeted: at about 18% a target would stall
+  the release, and "may refuse, never a wrong answer, never takes R
+  down" is the promise §1 makes. Until the bar holds, the package is
+  installed from GitHub or the maintainer's r-universe, described as
+  experimental, and CRAN-submission (#15) stays open without a date.
+- **Q19.** Scan from SQL: a table function in the engine that pulls
+  from a stream (§7.6), and with it a `duckdb_register()` counterpart.
+  Proposal: after v0.1.0, once Q18's bar is met. **Decided 2026-11-18
+  (maintainer): after v0.1.0.** Stage 7's adapter pulls, so the operator
+  can be built on it without changing it (§7.3).
 
 ## 15. Sources and verification
 
