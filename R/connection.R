@@ -12,6 +12,10 @@
 #'   arrive: `"numeric"` (the default, as in `duckdb`), a double, with a
 #'   value beyond 2^53 a `zuslothdb_type_error`; `"integer64"`, the
 #'   `bit64` class; or `"character"`, the decimal digits.
+#' @param timezone_out The time zone a `TIMESTAMP` column's `POSIXct` is
+#'   shown in: `"UTC"` (the default, as in `duckdb`), another of
+#'   [OlsonNames()], or `""` for the session's. The instant is the same in
+#'   any zone; an unknown zone is an error.
 #' @param threads The number of threads the engine may use, a whole number
 #'   from 1. The engine has one thread pool per R process, so this is a cap
 #'   for the whole process, not for this connection: the last
@@ -25,7 +29,8 @@
 #' DBI::dbDisconnect(con)
 setMethod(
   "dbConnect", "zuslothdb_driver",
-  function(drv, dbdir, read_only, bigint = "numeric", threads = 2L, ...) {
+  function(drv, dbdir, read_only, bigint = "numeric", threads = 2L,
+           timezone_out = "UTC", ...) {
     call <- sys.call()
     if (...length()) {
       sdb_abort(
@@ -50,6 +55,7 @@ setMethod(
       bigint, c("numeric", "integer64", "character"), "bigint", call
     )
     threads <- check_count(threads, "threads", call)
+    timezone_out <- check_tz(timezone_out, "timezone_out", call)
     sdb_value(.Call(sdb_set_threads, threads), call)
 
     db <- driver_database(drv, call)
@@ -58,6 +64,7 @@ setMethod(
     state$ptr <- ptr
     state$db <- db
     state$bigint <- bigint
+    state$timezone_out <- timezone_out
     state$result <- NULL
     reg.finalizer(state, connection_finalizer)
     methods::new("zuslothdb_connection", driver = drv, state = state)

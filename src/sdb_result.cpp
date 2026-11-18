@@ -23,6 +23,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 #include <new>
 
@@ -36,6 +37,9 @@ enum class Kind {
   kUInt64,   // UBIGINT
   kString,   // VARCHAR
   kNull,     // the type of a bare NULL: an integer NA, as in duckdb
+  kDate,     // DATE: days since 1970-01-01, a Date
+  kTimestamp,  // TIMESTAMP: seconds since 1970-01-01 UTC, a POSIXct
+  kBlob,     // BLOB: bytes, a blob-classed list of raw vectors
   kUnsupported
 };
 
@@ -44,15 +48,18 @@ struct Column {
   std::string sql_type;
   Kind kind = Kind::kUnsupported;
   std::vector<int> i;          // kLogical, kInt; NA_INTEGER for NULL
-  std::vector<double> d;       // kDouble; NA_REAL for NULL
+  std::vector<double> d;  // kDouble, kDate, kTimestamp; NA_REAL for NULL
   std::vector<int64_t> i64;    // kInt64
   std::vector<uint64_t> u64;   // kUInt64
-  std::vector<uint8_t> valid;  // kInt64, kUInt64, kString
-  std::vector<uint64_t> off;   // kString: row r is blob[off[r], off[r + 1])
+  std::vector<uint8_t> valid;  // kInt64, kUInt64, kString, kBlob
+  // kString, kBlob: row r is blob[off[r], off[r + 1]).
+  std::vector<uint64_t> off;
   std::string blob;
   // The first row whose value R cannot hold, and why; -1 if none.
   int64_t bad_row = -1;
   const char *bad_why = nullptr;
+  // kUnsupported: why the type is not read.
+  const char *unsupported_why = nullptr;
 };
 
 struct SdbResult {
@@ -86,9 +93,33 @@ Kind KindOf(slothdb::LogicalTypeId id) {
     return Kind::kString;
   case T::SQLNULL:
     return Kind::kNull;
+  case T::DATE:
+    return Kind::kDate;
+  case T::TIMESTAMP:
+    return Kind::kTimestamp;
+  case T::BLOB:
+    return Kind::kBlob;
   default:
     return Kind::kUnsupported;
   }
+}
+
+// Why a type that does not convert is refused (design §6).
+const char *UnsupportedWhy(slothdb::LogicalTypeId id) {
+  if (id == slothdb::LogicalTypeId::HUGEINT) {
+    return "which zuslothdb does not read: SlothDB computes HUGEINT values "
+           "wrongly";
+  }
+  if (id == slothdb::LogicalTypeId::TIME) {
+    return "which zuslothdb does not read: SlothDB computes every TIME "
+           "value as midnight";
+  }
+  return "which zuslothdb cannot read yet";
+}
+
+// The engine keeps a TIMESTAMP as microseconds since 1970; R, as seconds.
+double MicrosToSeconds(int64_t us) {
+  return static_cast<double>(us) / 1e6;
 }
 
 // RFC 3629 UTF-8: no overlongs, no surrogates, nothing past U+10FFFF.
@@ -232,6 +263,17 @@ void AppendValue(Column &col, const slothdb::Value &v, uint64_t row) {
     col.off.push_back(col.blob.size());
     break;
   }
+  case Kind::kDate:
+    col.d.push_back(null ? NA_REAL : static_cast<double>(v.GetValue<int32_t>()));
+    break;
+  case Kind::kTimestamp:
+    col.d.push_back(null ? NA_REAL : MicrosToSeconds(v.GetValue<int64_t>()));
+    break;
+  case Kind::kBlob:
+    col.valid.push_back(!null);
+    if (!null) col.blob.append(v.GetValue<std::string>());
+    col.off.push_back(col.blob.size());
+    break;
   case Kind::kUnsupported:
     break;
   }
@@ -339,6 +381,31 @@ void AppendVector(Column &col, slothdb::LogicalTypeId id,
     }
     return;
   }
+  case T::DATE: {
+    const int32_t *data = vec.GetData<int32_t>();
+    for (uint64_t r = 0; r < n; r++) {
+      col.d.push_back(valid.RowIsValid(r) ? static_cast<double>(data[r])
+                                          : NA_REAL);
+    }
+    return;
+  }
+  case T::TIMESTAMP: {
+    const int64_t *data = vec.GetData<int64_t>();
+    for (uint64_t r = 0; r < n; r++) {
+      col.d.push_back(valid.RowIsValid(r) ? MicrosToSeconds(data[r]) : NA_REAL);
+    }
+    return;
+  }
+  case T::BLOB: {
+    const slothdb::string_t *data = vec.GetData<slothdb::string_t>();
+    for (uint64_t r = 0; r < n; r++) {
+      const bool ok = valid.RowIsValid(r);
+      col.valid.push_back(ok);
+      if (ok) col.blob.append(data[r].GetData(), data[r].GetSize());
+      col.off.push_back(col.blob.size());
+    }
+    return;
+  }
   default:
     return;
   }
@@ -364,7 +431,12 @@ void EngineSend(sdb::SdbConnection *c, const char *sql, SdbResult *out,
       col.name = res.column_names[k];
       col.sql_type = res.column_types[k].ToString();
       col.kind = KindOf(res.column_types[k].id());
-      if (col.kind == Kind::kString) col.off.push_back(0);
+      if (col.kind == Kind::kUnsupported) {
+        col.unsupported_why = UnsupportedWhy(res.column_types[k].id());
+      }
+      if (col.kind == Kind::kString || col.kind == Kind::kBlob) {
+        col.off.push_back(0);
+      }
     }
     if (res.rows.empty()) {
       // Typed chunks: flattened, then read in each column's physical type.
@@ -409,9 +481,10 @@ bool CheckSlice(const Column &col, uint64_t from, uint64_t to, int bigint,
                 sdb::EngineError *err) {
   char msg[512];
   if (col.kind == Kind::kUnsupported) {
-    std::snprintf(msg, sizeof msg,
-                  "Column `%s` has type %s, which zuslothdb cannot read yet.",
-                  col.name.c_str(), col.sql_type.c_str());
+    std::snprintf(msg, sizeof msg, "Column `%s` has type %s, %s.",
+                  col.name.c_str(), col.sql_type.c_str(),
+                  col.unsupported_why ? col.unsupported_why
+                                      : "which zuslothdb cannot read yet");
     err->set(msg, "type");
     return false;
   }
@@ -465,7 +538,22 @@ bool CheckSlice(const Column &col, uint64_t from, uint64_t to, int bigint,
   return true;
 }
 
-SEXP BuildColumn(const Column &col, uint64_t from, uint64_t to, int bigint) {
+void SetClass(SEXP x, const char *const *classes, int n) {
+  SEXP cls = PROTECT(Rf_allocVector(STRSXP, n));
+  for (int k = 0; k < n; k++) SET_STRING_ELT(cls, k, Rf_mkChar(classes[k]));
+  Rf_setAttrib(x, R_ClassSymbol, cls);
+  UNPROTECT(1);
+}
+
+void SetStringAttrib(SEXP x, const char *name, SEXP value) {
+  PROTECT(value);
+  Rf_setAttrib(x, Rf_install(name), value);
+  UNPROTECT(1);
+}
+
+// `tz`: the tzone of a POSIXct column, a CHARSXP.
+SEXP BuildColumn(const Column &col, uint64_t from, uint64_t to, int bigint,
+                 SEXP tz) {
   const R_xlen_t n = static_cast<R_xlen_t>(to - from);
   SEXP out;
   switch (col.kind) {
@@ -479,9 +567,36 @@ SEXP BuildColumn(const Column &col, uint64_t from, uint64_t to, int bigint) {
     for (R_xlen_t r = 0; r < n; r++) INTEGER(out)[r] = col.i[from + r];
     break;
   case Kind::kDouble:
+  case Kind::kDate:
+  case Kind::kTimestamp:
     out = PROTECT(Rf_allocVector(REALSXP, n));
     for (R_xlen_t r = 0; r < n; r++) REAL(out)[r] = col.d[from + r];
+    if (col.kind == Kind::kDate) {
+      static const char *const cls[] = {"Date"};
+      SetClass(out, cls, 1);
+    } else if (col.kind == Kind::kTimestamp) {
+      static const char *const cls[] = {"POSIXct", "POSIXt"};
+      SetClass(out, cls, 2);
+      SetStringAttrib(out, "tzone", Rf_ScalarString(tz));
+    }
     break;
+  case Kind::kBlob: {
+    out = PROTECT(Rf_allocVector(VECSXP, n));
+    for (R_xlen_t r = 0; r < n; r++) {
+      const uint64_t row = from + r;
+      if (!col.valid[row]) continue; // NULL, as in blob::blob()
+      const uint64_t a = col.off[row], b = col.off[row + 1];
+      SEXP raw = Rf_allocVector(RAWSXP, static_cast<R_xlen_t>(b - a));
+      SET_VECTOR_ELT(out, r, raw);
+      if (b > a) std::memcpy(RAW(raw), col.blob.data() + a, b - a);
+    }
+    // blob::blob()'s classes, without importing blob (design §6).
+    static const char *const cls[] = {"blob", "vctrs_list_of", "vctrs_vctr",
+                                      "list"};
+    SetClass(out, cls, 4);
+    SetStringAttrib(out, "ptype", Rf_allocVector(RAWSXP, 0));
+    break;
+  }
   case Kind::kInt64:
   case Kind::kUInt64: {
     const bool s = col.kind == Kind::kUInt64;
@@ -622,10 +737,11 @@ SEXP sdb_result_info(SEXP ptr) {
   return out;
 }
 
-// sdb_fetch(res, n, bigint): the next `n` rows (all, if n < 0) as a list of
-// columns, advancing the result. bigint: 0 numeric, 1 integer64, 2
-// character. Nothing advances if a value cannot be converted.
-SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint) {
+// sdb_fetch(res, n, bigint, tz): the next `n` rows (all, if n < 0) as a
+// list of columns, advancing the result. bigint: 0 numeric, 1 integer64, 2
+// character; tz: a TIMESTAMP's tzone. Nothing advances if a value cannot
+// be converted.
+SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint, SEXP tz) {
   sdb::EngineError err;
   SdbResult *r = GetResult(ptr);
   if (!r) {
@@ -634,8 +750,11 @@ SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint) {
   }
   if (TYPEOF(n) != REALSXP || XLENGTH(n) != 1 || ISNAN(REAL(n)[0]) ||
       TYPEOF(bigint) != INTSXP || XLENGTH(bigint) != 1 ||
-      INTEGER(bigint)[0] < 0 || INTEGER(bigint)[0] > 2) {
-    err.set("n must be a number and bigint 0, 1 or 2", "argument");
+      INTEGER(bigint)[0] < 0 || INTEGER(bigint)[0] > 2 ||
+      TYPEOF(tz) != STRSXP || XLENGTH(tz) != 1 ||
+      STRING_ELT(tz, 0) == NA_STRING) {
+    err.set("n must be a number, bigint 0, 1 or 2 and tz a string",
+            "argument");
     return sdb::ResultList(R_NilValue, err);
   }
   const uint64_t left = r->nrow - r->pos;
@@ -653,7 +772,8 @@ SEXP sdb_fetch(SEXP ptr, SEXP n, SEXP bigint) {
   const R_xlen_t ncol = static_cast<R_xlen_t>(r->cols.size());
   SEXP out = PROTECT(Rf_allocVector(VECSXP, ncol));
   for (R_xlen_t k = 0; k < ncol; k++) {
-    SET_VECTOR_ELT(out, k, BuildColumn(r->cols[k], from, to, big));
+    SET_VECTOR_ELT(out, k,
+                   BuildColumn(r->cols[k], from, to, big, STRING_ELT(tz, 0)));
   }
   r->pos = to;
   SEXP res = sdb::ResultList(out, err);

@@ -85,3 +85,24 @@ check_choice <- function(x, choices, arg, call = NULL) {
   }
   x
 }
+
+# A time zone R knows, or "" for the session's (design §6). duckdb warns and
+# falls back to UTC; an unknown zone here is an error, so that no POSIXct
+# is shown in a zone the caller did not ask for.
+check_tz <- function(x, arg, call = NULL) {
+  ok <- is.character(x) &&
+    length(x) == 1L &&
+    !is.na(x) &&
+    (identical(x, "") || x %in% OlsonNames())
+  if (!ok) {
+    sdb_abort(
+      sprintf(
+        "`%s` must be a time zone from OlsonNames(), or \"\" for the session's.",
+        arg
+      ),
+      "argument",
+      call
+    )
+  }
+  x
+}

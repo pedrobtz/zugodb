@@ -1,5 +1,13 @@
 # zuslothdb 0.0.0.9000
 
+* `DATE` columns arrive as `Date`, `TIMESTAMP` as `POSIXct` and `BLOB` as
+  a list of raw vectors with `blob::blob()`'s classes.
+  `dbConnect(timezone_out = )` sets the time zone a `POSIXct` is shown
+  in, `"UTC"` by default as in `duckdb`; an unknown zone is an error.
+* A `HUGEINT` or `TIME` column is a `zuslothdb_type_error`, since SlothDB
+  computes their values wrongly (a `TIME` is always midnight), as are
+  `INTERVAL` and `UUID`. SlothDB produces no `DECIMAL`, time zone,
+  list, struct, map or union column.
 * A set operation (`UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`) returns
   `TINYINT`, `SMALLINT` and `FLOAT` columns with their values; it returned
   numbers made of unwritten memory (#41).

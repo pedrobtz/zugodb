@@ -59,7 +59,7 @@ One row per boundary the package crosses. An oracle knows the answer:
 | the patched SlothDB engine              | upstream's own doctest suite (378 cases) on the vendored, patched tree | tools/upstream-tests.sh, in platforms.yaml |
 | the vendored tree                       | upstream at the pinned commit plus tools/patches, rebuilt and compared file by file | tools/vendor/verify, in vendor.yaml |
 | SQL results as R vectors (scalar types) | recorded `duckdb` answers for the same queries            | tests/testthat/test-oracle-scalar.R |
-| SQL results as R vectors (other types)  | recorded `duckdb` answers for the same queries            | gap #22    |
+| SQL results as R vectors (`DATE`, `TIMESTAMP`, `BLOB`, and the refused types) | recorded `duckdb` answers for the same queries, by a table and by a set operation's boxed rows; each refused type a `zuslothdb_type_error` naming its column | tests/testthat/test-temporal.R, tests/testthat/test-oracle-types.R, tests/testthat/test-conditions.R |
 | Parquet scan on decode workers: stopped before its last row group (#32), and their exit on Windows (#34) | every query returns within a time limit, in a child R, with the rows the `duckdb`-written fixture holds | tests/testthat/test-parquet-stop.R (macOS, Linux, Windows) |
 | CSV, Parquet, JSON, Arrow IPC files     | recorded `duckdb` answers over `duckdb`-written fixtures  | gap #23    |
 | Avro, Excel and SQLite files            | recorded answers from a reference reader                  | gap #23    |

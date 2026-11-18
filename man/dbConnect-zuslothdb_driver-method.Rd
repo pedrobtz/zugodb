@@ -9,7 +9,15 @@
 \alias{dbGetInfo,zuslothdb_connection-method}
 \title{Connect to a zuslothdb database}
 \usage{
-\S4method{dbConnect}{zuslothdb_driver}(drv, dbdir, read_only, bigint = "numeric", threads = 2L, ...)
+\S4method{dbConnect}{zuslothdb_driver}(
+  drv,
+  dbdir,
+  read_only,
+  bigint = "numeric",
+  threads = 2L,
+  timezone_out = "UTC",
+  ...
+)
 
 \S4method{dbIsValid}{zuslothdb_connection}(dbObj, ...)
 
@@ -33,6 +41,11 @@ value beyond 2^53 a \code{zuslothdb_type_error}; \code{"integer64"}, the
 from 1. The engine has one thread pool per R process, so this is a cap
 for the whole process, not for this connection: the last
 \code{dbConnect()} sets it, and \code{\link[=zuslothdb_info]{zuslothdb_info()}} reports it.}
+
+\item{timezone_out}{The time zone a \code{TIMESTAMP} column's \code{POSIXct} is
+shown in: \code{"UTC"} (the default, as in \code{duckdb}), another of
+\code{\link[=OlsonNames]{OlsonNames()}}, or \code{""} for the session's. The instant is the same in
+any zone; an unknown zone is an error.}
 
 \item{...}{Not used; an unknown argument is an error.}
 

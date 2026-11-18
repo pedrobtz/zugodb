@@ -404,7 +404,7 @@ package does with those readers.
 | `VARCHAR` | character, UTF-8 |
 | `BLOB` | `blob`-classed list of raw vectors |
 | `DATE` | `Date` |
-| `TIME` | `difftime` in seconds |
+| `TIME` | error in v0.1.0: every value the engine makes is midnight (#43) |
 | `TIMESTAMP` | `POSIXct`, its `tzone` set by `timezone_out` |
 | `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP`, `UNION` | error in v0.1.0: the engine produces none |
 | `INTERVAL`, `UUID` | error in v0.1.0 (Q14) |
@@ -440,8 +440,12 @@ delivers, and `dbConnect(decimal = )` is not added (maintainer,
 2026-11-18). They become conversions when the engine produces the type,
 by upstream or by a patch. `HUGEINT` values reach R only through
 `CAST(column AS HUGEINT)`, and they are wrong (Q1), so it is an error
-whatever `bigint` says. `DATE` is a `Date`, `TIME` a `difftime` in
-seconds and `TIMESTAMP` a `POSIXct`, the engine's microseconds as
+whatever `bigint` says. `TIME` is the same case: every `TIME` the
+engine makes, by a cast or from a `TIMESTAMP`, is `00:00:00`, its
+literal is unimplemented and Parquet reads one as a `BIGINT` count
+(#43, #37), so a `TIME` column is an error until the engine computes
+one; it is then a `difftime` in seconds. `DATE` is a `Date` and
+`TIMESTAMP` a `POSIXct`, the engine's microseconds as
 seconds since 1970-01-01 UTC, its `tzone` attribute `timezone_out`
 (`"UTC"` by default; `""` is the session's time zone): the same instant
 whatever the zone, as `duckdb`'s default `tz_out_convert = "with"`.
