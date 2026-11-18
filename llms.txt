@@ -3,9 +3,9 @@
 zuslothdb is to [SlothDB](https://github.com/SouravRoy-ETL/slothdb) what
 duckdb is to DuckDB. The engine’s C++ source is bundled into the package
 and compiled when you install it. On top of it sits a DBI driver, so SQL
-over local CSV, Parquet, JSON and Arrow IPC files works with no system
-library, no server and no download. SlothDB calls itself experimental,
-and so is this package: it is not a duckdb replacement.
+over local CSV, Parquet and JSON files works with no system library, no
+server and no download. SlothDB calls itself experimental, and so is
+this package: it is not a duckdb replacement.
 
 The package is in development. Nothing of the engine is built yet; the
 [roadmap](https://github.com/pedrobtz/zuslothdb/blob/main/.agents/roadmap.md)
