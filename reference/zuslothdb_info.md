@@ -29,4 +29,5 @@ info$patches
 #> [3] "0003-offline.patch"           "0004-threads.patch"          
 #> [5] "0005-strftime-arity.patch"    "0006-compiler-warnings.patch"
 #> [7] "0007-read-only.patch"         "0008-lost-wakeup.patch"      
+#> [9] "0009-thread-local.patch"     
 ```
