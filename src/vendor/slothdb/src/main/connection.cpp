@@ -3091,6 +3091,12 @@ void Connection::RollbackTransaction() {
     }
     db_.GetTransactionManager().RollbackTransaction(*active_txn_);
     active_txn_ = nullptr;
+    // zuslothdb: the engine has no undo, so a ROLLBACK that reported
+    // success would hide that every statement since BEGIN is kept. The
+    // transaction is closed, and the caller told.
+    throw NotImplementedException(
+        "ROLLBACK does not undo changes in SlothDB: every statement since "
+        "BEGIN is kept, and the transaction is closed");
 }
 
 // ============================================================================

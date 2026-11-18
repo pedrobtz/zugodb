@@ -7,7 +7,7 @@ it on the SlothDB fork, then re-vendor from it.
 | Library | Version | Commit | Retrieved | License |
 |---|---|---|---|---|
 | [SlothDB](https://github.com/SouravRoy-ETL/slothdb) | v0.2.7+ | `8180f215847015944c935f56f008d194e2c1494c` | 2026-11-17 | MIT (`src/vendor/slothdb/LICENSE`) |
-| [SlothDB fork](https://github.com/pedrobtz/slothdb) | `zuslothdb` branch, tag `zuslothdb-1` | `db025ddda099cf98c96a4ec3752fe25294a510b9` | 2026-11-18 | MIT (`src/vendor/slothdb/LICENSE`) |
+| [SlothDB fork](https://github.com/pedrobtz/slothdb) | `zuslothdb` branch, tag `zuslothdb-2` | `6af32c5028ba5e1a94809d562d13b1649ffceeba` | 2026-11-18 | MIT (`src/vendor/slothdb/LICENSE`) |
 
 The third-party code inside it (zstd's decompressor, snappy, fastpforlib,
 miniz, `unordered_dense.h`) comes with SlothDB at that commit; its holders
@@ -81,6 +81,7 @@ is the *n*-th commit after the upstream pin.
 | 9 | `f976710` | Keep the Parquet decoder's scratch out of thread_local | crash on Windows (#34) | `fix/mingw-thread-local` |
 | 10 | `d8bf307` | Size validity masks by their holder's capacity | memory corruption, wrong results (#45) | `fix/validity-capacity` |
 | 11 | `db025dd` | Update seven doctests to DATE as days since 1970 | stale tests | `fix/stale-date-tests` (its date cases), and the STRFTIME case with `fix/strftime-one-argument` |
+| 12 | `6af32c5` | Make ROLLBACK say that nothing was undone | no undo: a silent wrong result (#7) | none yet: a behaviour choice upstream may make differently (upstream's own test documents the missing undo) |
 
 ## Drift
 
