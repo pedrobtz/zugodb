@@ -43,6 +43,25 @@ main <- function() {
   )
 
   parquet_types(con, dir)
+  arrow_file(dir)
+}
+
+# arrow/flat.arrow: an Arrow IPC file written by R's arrow, for
+# test-arrow.R (#40): SlothDB refuses Arrow IPC, and the test checks that
+# a real file is refused by every route. Needs arrow; skipped without it.
+arrow_file <- function(dir) {
+  if (!requireNamespace("arrow", quietly = TRUE)) {
+    message("arrow not installed: fixtures/arrow left as it is")
+    return(invisible())
+  }
+  out <- file.path(dir, "arrow")
+  dir.create(out, showWarnings = FALSE)
+  path <- file.path(out, "flat.arrow")
+  arrow::write_ipc_file(
+    arrow::arrow_table(i = 1:3, s = c("a", NA, "c")),
+    path
+  )
+  message(path, ": ", file.size(path), " bytes")
 }
 
 # parquet-types/<name>.parquet: one column `v` of each type, a value and a

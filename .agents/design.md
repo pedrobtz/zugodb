@@ -143,8 +143,13 @@ In v0.1.0: in-memory and file databases; `dbGetQuery`, `dbExecute`,
 `dbSendQuery` with chunked fetch; `dbWriteTable` and `dbAppendTable`
 through SlothDB's C++ `Append`; `dbListTables`, `dbListFields`,
 `dbExistsTable`, `dbRemoveTable`; transactions; R types for every
-SlothDB logical type that has one (§6); reading CSV, Parquet, JSON and
-Arrow IPC files through SQL; `zuslothdb_info()`. Later: parameter
+SlothDB logical type that has one (§6); reading CSV, Parquet and JSON
+files through SQL; `zuslothdb_info()`. *Arrow IPC was dropped from
+v0.1.0 on 2026-11-18 (maintainer, #40):* SlothDB's Arrow reader and
+writer use a format of their own that only starts with Arrow's magic
+bytes, so they read no Arrow file from another tool and write none
+another tool reads; both are refused (§4.2). Later: an Arrow IPC reader;
+parameter
 binding (§5, Q3), Arrow C data interface export through `nanoarrow`,
 ALTREP results, R functions as SQL functions, `dbplyr` translations.
 
@@ -335,6 +340,15 @@ library; it is identical wherever it is instantiated and cannot clash.
   sets (a `null` first value makes a string column). Decided by the
   maintainer as the v0.1.0 answer; a real parser, with keys unioned and
   types widened as `duckdb` does, is later work.
+- **Arrow IPC that is not (found 2026-11-18, #40).** `ArrowIPCReader`
+  and `ArrowIPCWriter` write and read a column count and a layout of
+  their own after Arrow's `ARROW1` magic, not Arrow IPC's FlatBuffers
+  messages: the reader failed on every file from R's `arrow`, pyarrow or
+  DuckDB, and could read garbage from one whose bytes looked plausible;
+  the writer made `.arrow` files no Arrow tool reads. The fork's change
+  16 refuses both, and a `.arrow`, `.feather` or `.ipc` path, with an
+  error saying so; upstream's four round-trip cases of the private
+  format become checks of the refusals.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).
@@ -504,7 +518,7 @@ struct or map syntax, and `LIST_VALUE`, `STRUCT_PACK` and `ROW` are
 "not implemented". Its readers do no better: Parquet read a `DECIMAL`
 as its unscaled integer (#36; refused since 2026-11-18, below) and sees
 no nested column, JSON dropped
-nested keys (#39; refused since 2026-11-18), and Arrow IPC with a nested column fails (#40). So
+nested keys (#39; refused since 2026-11-18), and Arrow IPC turned out not to be Arrow IPC at all (#40; refused, §2). So
 the rows for `DECIMAL`, `TIMESTAMP_TZ`, `LIST`, `STRUCT`, `MAP` and
 `UNION` above, which this design first promised as conversions, are a
 `zuslothdb_type_error` naming the column, for a value no route yet

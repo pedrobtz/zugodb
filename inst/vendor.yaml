@@ -14,8 +14,8 @@
 
 source:
   repository: https://github.com/pedrobtz/slothdb
-  tag: zuslothdb-5
-  commit: d5c7e62d772890c3d4c4a92e91a60b04937b08ba
+  tag: zuslothdb-6
+  commit: 1b126916a47074be6339f64c81d5b3929b2e495e
 
 upstream:
   repository: https://github.com/SouravRoy-ETL/slothdb
@@ -197,6 +197,15 @@ changes:
       strict RFC 8259 scan when it is opened, on that thread, and refused,
       naming the record and the key, if the parsers would misread it; \u
       escapes, surrogate pairs included, are decoded.
+  - commit: 1b126916a47074be6339f64c81d5b3929b2e495e
+    subject: "Refuse Arrow IPC: SlothDB's Arrow format is its own"
+    reason: >-
+      SlothDB's Arrow reader and writer use a format of their own after
+      Arrow's magic bytes, not Arrow IPC: the reader read no file from R's
+      arrow, pyarrow or DuckDB, and could read garbage from one whose bytes
+      looked plausible; the writer's files no Arrow tool reads (#40). Both
+      are refused, and so is a .arrow, .feather or .ipc path (maintainer,
+      2026-11-18: no Arrow IPC in v0.1.0).
 
 test_exclude:
   - path: test/unit/ask/test_nl_to_sql.cpp

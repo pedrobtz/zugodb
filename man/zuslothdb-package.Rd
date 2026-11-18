@@ -5,7 +5,7 @@
 \alias{zuslothdb-package}
 \title{zuslothdb: SQL over Local Files with the Embedded 'SlothDB' Engine}
 \description{
-A 'DBI' driver for 'SlothDB' (\url{https://github.com/SouravRoy-ETL/slothdb}), an analytical SQL engine whose C++ source is bundled and compiled when the package is installed. SQL queries over local 'CSV', 'Parquet', 'JSON' and 'Arrow' IPC files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for 'duckdb': it is offline only, and a database file is tied to the engine commit the package bundles.
+A 'DBI' driver for 'SlothDB' (\url{https://github.com/SouravRoy-ETL/slothdb}), an analytical SQL engine whose C++ source is bundled and compiled when the package is installed. SQL queries over local 'CSV', 'Parquet' and 'JSON' files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for 'duckdb': it is offline only, and a database file is tied to the engine commit the package bundles.
 }
 \seealso{
 Useful links:

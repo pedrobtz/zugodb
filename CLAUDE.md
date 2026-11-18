@@ -18,7 +18,7 @@ sessions do not load the plugin and run without them.
 
 `zuslothdb` is to SlothDB what `duckdb` is to DuckDB: the engine's C++20
 source vendored into the package and compiled at install, with a DBI driver
-on top, so that SQL over local CSV, Parquet, JSON and Arrow IPC files works
+on top, so that SQL over local CSV, Parquet and JSON files works
 with no system library, no server and no download. Runtime dependencies are
 `DBI` and `methods` only. It is deliberately not a `duckdb` replacement
 (upstream calls itself experimental), not a network client (HTTP, S3,
