@@ -124,6 +124,17 @@ patches:
       run, as the worker exits, after emulated TLS has freed the objects,
       and the heap is corrupted. The seven scratch objects are now local to
       their call, which costs an allocation per call and changes no result.
+  - file: 0010-validity-capacity.patch
+    reason: >-
+      NULLs past row 2048 of a table corrupted memory and results (#45):
+      ValidityMask always held one vector's 2048 bits, and ColumnData kept a
+      whole row group's (ROW_GROUP_SIZE rows) in one, so SetInvalid() wrote
+      past the end of a heap buffer and RowIsValid() read past it. The mask
+      now takes its size in words, and ColumnData and Vector size it for
+      their capacity; it is still allocated at the first NULL. PhysicalInsert
+      put a whole VALUES list into one chunk of the default 2048 rows, so a
+      longer list wrote past the chunk's data too; the chunk is sized for
+      the list.
 
 test_patches:
   - file: tests/0001-stale-date-tests.patch

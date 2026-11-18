@@ -20,7 +20,7 @@ b7ed0794c73a77c7551b97584450fd1d  include/slothdb/common/string_util.hpp
 14c50827f10b253803026900345142c4  include/slothdb/common/types/logical_type.hpp
 1e8f89cba7511cf3d21c7022c9eb5a07  include/slothdb/common/types/selection_vector.hpp
 a39b98800c2ad653692e418f4cd679f4  include/slothdb/common/types/string_type.hpp
-74ee70d5a5933fe3a86d5eb7bf69d4a7  include/slothdb/common/types/validity_mask.hpp
+5680fa6de1e911d02cff0b7e544530b9  include/slothdb/common/types/validity_mask.hpp
 bb7debe1bdd7d5a139013249cfecf98f  include/slothdb/common/types/value.hpp
 dd837aab007ce0d96265b30f42bf7438  include/slothdb/common/types/vector.hpp
 7d9d32607c9b1007fe8c2b09b02f3aa5  include/slothdb/execution/agg_emit_helpers.hpp
@@ -88,9 +88,9 @@ aca6f0144667e4b9e7a7a4c1b3a956c5  src/common/types/data_chunk.cpp
 e37ada4f6a353f42ce9b07bfd9ac4186  src/common/types/hugeint.cpp
 7598750d181e30ac498db370f8302e37  src/common/types/logical_type.cpp
 e36aeba59079edf58cbbdb38d255bcf0  src/common/types/selection_vector.cpp
-d6fffccfa9f881aaac1e138193d73f43  src/common/types/validity_mask.cpp
+d1329eb6fa04813a41766db938374b6a  src/common/types/validity_mask.cpp
 4436019775c66e43f405150f615dddca  src/common/types/value.cpp
-d2ec26498de649cc47e475d5951a6318  src/common/types/vector.cpp
+11f23d9426dbe36179a20b1736a24446  src/common/types/vector.cpp
 5c6212c60dac018dd4a186c19f900edc  src/execution/agg_emit_helpers.cpp
 5ebcfdf228e898e65b05e56a298c481c  src/execution/count_group_agg.cpp
 a5b3fc693297690e0f26702fb2f0933c  src/execution/dict_histogram.cpp
@@ -103,7 +103,7 @@ bd98a1cea730318b9f18a960e11927ef  src/execution/gpu/gpu_engine.cpp
 01e3a8ba2f22b908435f03834fed2fec  src/execution/int_group_agg.cpp
 343eeb2e6332049b23065dca89d8160f  src/execution/literal_emit_filter.cpp
 9a59b3f0a831eae1e8380dd7eba0b973  src/execution/parallel_executor.cpp
-9984d3a8fb18cc613e58973aca9a8d89  src/execution/physical_planner.cpp
+24f771a4f7d26669d695992f9dcdca4e  src/execution/physical_planner.cpp
 c71bbca96b20640477a7096200fa9ef2  src/execution/radix_count_agg.cpp
 77958e30a402f82aecd06867ad85f675  src/execution/radix_multi_agg.cpp
 fe6223772c41b29568229d47bef0021c  src/execution/str_group_distinct.cpp
@@ -120,7 +120,7 @@ fcf98f40ebdee4ad9f43737fb8d4c1a7  src/storage/arrow_ipc.cpp
 750cb07d5b22a0959fc699aeb0b0c11c  src/storage/avro_reader.cpp
 674f4d979d1ae0910a08dbd88760af51  src/storage/block_manager.cpp
 2c76c2a0846ec81652d7aafff6ee7cf2  src/storage/checkpoint.cpp
-68bd1535bf60d5e37b85f5a90351746f  src/storage/column_data.cpp
+cfa110dddfc6896c0822e13a00272f4f  src/storage/column_data.cpp
 67a45c583c2155a2e3fa8c347092b3c8  src/storage/compression/compression.cpp
 a2dbeb1f4444a3b3b85bea94c3885db4  src/storage/csv_reader.cpp
 e64fa350ff2981caf9fc07da5979087f  src/storage/data_table.cpp

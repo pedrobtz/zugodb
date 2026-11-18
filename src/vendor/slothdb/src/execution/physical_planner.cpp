@@ -4105,7 +4105,10 @@ public:
 
         auto types = table_->GetTypes();
         DataChunk chunk;
-        chunk.Initialize(types);
+        // zuslothdb: every row of the VALUES list goes into this one chunk,
+        // so it is sized for them all; at the default 2048 rows a longer
+        // list wrote past its buffers (#45).
+        chunk.Initialize(types, std::max<idx_t>(VECTOR_SIZE, values_.size()));
         affected_ = static_cast<int64_t>(values_.size());
 
         // Pre-resolve VARCHAR(n) max lengths per column once, outside the
