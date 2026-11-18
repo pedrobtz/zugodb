@@ -367,8 +367,12 @@ damaged input is an error the session survives.
 
 **Work.**
 
-- `zuslothdb_read()`, with Q12 decided; Q7 (refusing a file from another
-  engine commit) decided.
+- `zuslothdb_read()` as Q12 decided (2026-11-18). The database file's
+  format version, as Q7 decided: a classed error for another version,
+  zuslothdb's range from 1001 by a fork commit, and a golden database
+  file read back in CI.
+- #36 to #40: each reader's wrong answers fixed by a fork commit, or the
+  column refused with a classed error.
 - File fixtures written by `tools/oracle.R` with `duckdb` as the
   reference writer, small enough for the tarball, with their provenance.
 - `fuzz.yaml` caller and one harness per compiled reader, linked against
@@ -386,7 +390,12 @@ damaged input is an error the session survives.
   the plain path, in `test-paths.R`.
 - Persistence: write, `shutdown`, reopen in a fresh R process
   (`callr`-free, through `Rscript`), read back `identical()`, in
-  `test-persist.R`.
+  `test-persist.R`; the golden database file read back against its
+  recorded rows, and a file of another format version a classed error
+  naming both, in `test-persist.R` (Q7).
+- `zuslothdb_read()`: each format by its extension, `format =` over it,
+  and an unknown or missing extension, a glob and two paths each a
+  `zuslothdb_argument_error`, in `test-read.R` (Q12).
 - Truncated and bit-flipped files of each format, invalid UTF-8 in CSV,
   a corrupted database file: `zuslothdb_sql_error`, and the same
   connection then returns the recorded answer for an intact file, in
@@ -612,4 +621,4 @@ twice and what the reviews required is fixed.
 
 ## Blocking open questions
 
-- [Q7, Q12](design.md#14-open-questions) block Stage 6.
+- None. Q7 and Q12 were decided on 2026-11-18.
