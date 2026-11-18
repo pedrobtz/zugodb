@@ -45,6 +45,58 @@ static inline double parse_double_range(const char *start, const char *end) {
 // JSON Parser (minimal, zero-dependency)
 // ============================================================================
 
+// zuslothdb: `p` points at the 'u' of a \uXXXX escape. Appends the code
+// point as UTF-8 (a surrogate pair as one code point, a lone surrogate as
+// U+FFFD) and returns the position after the escape (or pair). Called on
+// input the strict validation has checked.
+static const char *DecodeUnicodeEscape(const char *p, const char *end, std::string &out) {
+    auto hex4 = [&](const char *q, uint32_t &v) {
+        if (end - q < 4) return false;
+        v = 0;
+        for (int k = 0; k < 4; k++) {
+            char c = q[k];
+            int d = (c >= '0' && c <= '9') ? c - '0'
+                  : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+                  : (c >= 'A' && c <= 'F') ? c - 'A' + 10 : -1;
+            if (d < 0) return false;
+            v = (v << 4) | static_cast<uint32_t>(d);
+        }
+        return true;
+    };
+    uint32_t cp;
+    const char *q = p + 1;
+    if (!hex4(q, cp)) return q;
+    q += 4;
+    if (cp >= 0xD800 && cp <= 0xDBFF) {
+        uint32_t lo;
+        if (end - q >= 6 && q[0] == '\\' && q[1] == 'u' && hex4(q + 2, lo) &&
+            lo >= 0xDC00 && lo <= 0xDFFF) {
+            cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+            q += 6;
+        } else {
+            cp = 0xFFFD;
+        }
+    } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+        cp = 0xFFFD;
+    }
+    if (cp < 0x80) {
+        out.push_back(static_cast<char>(cp));
+    } else if (cp < 0x800) {
+        out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+        out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+    } else if (cp < 0x10000) {
+        out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+        out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+    } else {
+        out.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+        out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+    }
+    return q;
+}
+
 void JSONParser::SkipWhitespace(const std::string &json, size_t &pos) {
     while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
            json[pos] == '\n' || json[pos] == '\r')) pos++;
@@ -79,6 +131,14 @@ Value JSONParser::ParseString(const std::string &json, size_t &pos) {
             case 'n': result += '\n'; break;
             case 't': result += '\t'; break;
             case 'r': result += '\r'; break;
+            case 'b': result += '\b'; break;
+            case 'f': result += '\f'; break;
+            case 'u': {
+                const char *q = DecodeUnicodeEscape(json.data() + pos,
+                                                    json.data() + json.size(), result);
+                pos = static_cast<size_t>(q - json.data()) - 1;
+                break;
+            }
             default: result += json[pos]; break;
             }
         } else {
@@ -145,8 +205,236 @@ Value JSONParser::ParseArray(const std::string &json, size_t &pos) {
 // JSON Reader
 // ============================================================================
 
+// ============================================================================
+// zuslothdb: strict validation (pedrobtz/zuslothdb#39)
+// ============================================================================
+// The parsers below take shortcuts: the NDJSON path takes its columns and
+// types from the first record and reads a nested value, a key first seen
+// later, or a value of another type as a wrong value, with no error. Until
+// they are replaced, every file is checked here first, on the thread that
+// opens it, and one they would misread is refused, naming the key and the
+// record: a nested value; a key that is not in the first record, or twice
+// in one record; a value whose type is not its column's, as the first
+// record sets it; an integer out of its column's range; or input that is
+// not JSON (RFC 8259). Accepted: NDJSON (objects separated by white space)
+// or one array of objects, with string, number, true, false and null
+// values.
+namespace {
+
+enum class JKind { Null, Bool, Int32, Int64, Double, String };
+
+const char *JKindName(JKind k) {
+    switch (k) {
+    case JKind::Null: return "null";
+    case JKind::Bool: return "a boolean";
+    case JKind::Int32: case JKind::Int64: return "an integer";
+    case JKind::Double: return "a number with a fraction or exponent";
+    default: return "a string";
+    }
+}
+
+class StrictJSON {
+public:
+    StrictJSON(const std::string &path, const char *p, const char *end)
+        : path_(path), p_(p), end_(end) {}
+
+    void Run() {
+        Ws();
+        if (p_ >= end_) return;
+        if (*p_ == '[') {
+            p_++;
+            Ws();
+            if (p_ < end_ && *p_ == ']') { p_++; Trailing(); return; }
+            while (true) {
+                Record();
+                Ws();
+                if (p_ < end_ && *p_ == ',') { p_++; continue; }
+                if (p_ < end_ && *p_ == ']') { p_++; break; }
+                Fail("expected ',' or ']' after a record");
+            }
+            Trailing();
+            return;
+        }
+        while (p_ < end_) {
+            Record();
+            Ws();
+        }
+    }
+
+private:
+    const std::string &path_;
+    const char *p_;
+    const char *end_;
+    size_t record_ = 0;
+    std::vector<std::string> keys_;
+    std::vector<JKind> kinds_; // the first record's, Null for unknown
+    std::vector<bool> first_null_;
+
+    [[noreturn]] void Fail(const std::string &why) {
+        throw NotImplementedException("JSON file " + path_ + ", record " +
+                                      std::to_string(record_ + 1) + ": " + why +
+                                      "; SlothDB reads only flat objects whose "
+                                      "keys and value types the first record sets");
+    }
+    void Ws() {
+        while (p_ < end_ && (*p_ == ' ' || *p_ == '\t' || *p_ == '\n' || *p_ == '\r')) p_++;
+    }
+    void Trailing() {
+        Ws();
+        if (p_ < end_) Fail("unexpected input after the array");
+    }
+    static int Hex(char c) {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    }
+    // A string token; its decoded text in `out` when asked.
+    void String(std::string *out) {
+        p_++; // "
+        while (true) {
+            if (p_ >= end_) Fail("unterminated string");
+            unsigned char c = static_cast<unsigned char>(*p_);
+            if (c == '"') { p_++; return; }
+            if (c < 0x20) Fail("a control character in a string");
+            if (c != '\\') { if (out) out->push_back(*p_); p_++; continue; }
+            p_++;
+            if (p_ >= end_) Fail("unterminated string");
+            char e = *p_++;
+            switch (e) {
+            case '"': case '\\': case '/': case 'b': case 'f': case 'n': case 'r': case 't':
+                if (out) out->push_back(e);
+                break;
+            case 'u': {
+                for (int k = 0; k < 4; k++) {
+                    if (p_ >= end_ || Hex(*p_) < 0) Fail("a bad \\u escape");
+                    p_++;
+                }
+                break;
+            }
+            default: Fail("a bad escape in a string");
+            }
+        }
+    }
+    JKind Number() {
+        const char *s = p_;
+        if (p_ < end_ && *p_ == '-') p_++;
+        if (p_ >= end_ || *p_ < '0' || *p_ > '9') Fail("a malformed number");
+        if (*p_ == '0') p_++;
+        else while (p_ < end_ && *p_ >= '0' && *p_ <= '9') p_++;
+        bool frac = false;
+        if (p_ < end_ && *p_ == '.') {
+            frac = true; p_++;
+            if (p_ >= end_ || *p_ < '0' || *p_ > '9') Fail("a malformed number");
+            while (p_ < end_ && *p_ >= '0' && *p_ <= '9') p_++;
+        }
+        if (p_ < end_ && (*p_ == 'e' || *p_ == 'E')) {
+            frac = true; p_++;
+            if (p_ < end_ && (*p_ == '+' || *p_ == '-')) p_++;
+            if (p_ >= end_ || *p_ < '0' || *p_ > '9') Fail("a malformed number");
+            while (p_ < end_ && *p_ >= '0' && *p_ <= '9') p_++;
+        }
+        if (frac) return JKind::Double;
+        int64_t v = 0;
+        auto r = std::from_chars(s, p_, v);
+        if (r.ec != std::errc() || r.ptr != p_) Fail("an integer beyond 64 bits");
+        return (v >= INT32_MIN && v <= INT32_MAX) ? JKind::Int32 : JKind::Int64;
+    }
+    void Literal(const char *word) {
+        size_t n = std::strlen(word);
+        if (static_cast<size_t>(end_ - p_) < n || std::memcmp(p_, word, n) != 0)
+            Fail("input that is not JSON");
+        p_ += n;
+    }
+    JKind Scalar(const std::string &key) {
+        if (p_ >= end_) Fail("a missing value");
+        char c = *p_;
+        if (c == '"') { String(nullptr); return JKind::String; }
+        if (c == 't') { Literal("true"); return JKind::Bool; }
+        if (c == 'f') { Literal("false"); return JKind::Bool; }
+        if (c == 'n') { Literal("null"); return JKind::Null; }
+        if (c == '-' || (c >= '0' && c <= '9')) return Number();
+        if (c == '{' || c == '[')
+            Fail("key '" + key + "' holds a nested " +
+                 std::string(c == '{' ? "object" : "array"));
+        Fail("input that is not JSON");
+    }
+    void Record() {
+        Ws();
+        if (p_ >= end_) return;
+        if (*p_ != '{') Fail("a record that is not an object");
+        p_++;
+        const bool first = (record_ == 0);
+        std::vector<bool> seen(keys_.size(), false);
+        Ws();
+        if (p_ < end_ && *p_ == '}') { p_++; record_++; return; }
+        while (true) {
+            Ws();
+            if (p_ >= end_ || *p_ != '"') Fail("expected a key");
+            std::string key;
+            String(&key);
+            Ws();
+            if (p_ >= end_ || *p_ != ':') Fail("expected ':' after key '" + key + "'");
+            p_++;
+            Ws();
+            JKind k = Scalar(key);
+            size_t col = keys_.size();
+            for (size_t i = 0; i < keys_.size(); i++) if (keys_[i] == key) { col = i; break; }
+            if (first) {
+                if (col < keys_.size()) Fail("key '" + key + "' appears twice");
+                keys_.push_back(key);
+                kinds_.push_back(k);
+                first_null_.push_back(k == JKind::Null);
+                seen.push_back(true);
+            } else {
+                if (col == keys_.size()) Fail("key '" + key + "' is not in the first record");
+                if (seen[col]) Fail("key '" + key + "' appears twice");
+                seen[col] = true;
+                Check(col, k);
+            }
+            Ws();
+            if (p_ < end_ && *p_ == ',') { p_++; continue; }
+            if (p_ < end_ && *p_ == '}') { p_++; break; }
+            Fail("expected ',' or '}' after key '" + key + "'");
+        }
+        record_++;
+    }
+    // A later record's value against the column the first record set.
+    void Check(size_t col, JKind k) {
+        if (k == JKind::Null) return;
+        JKind want = kinds_[col];
+        bool ok;
+        switch (want) {
+        case JKind::Null: ok = (k == JKind::String); break; // a VARCHAR column
+        case JKind::Bool: ok = (k == JKind::Bool); break;
+        case JKind::Int32: ok = (k == JKind::Int32); break;
+        case JKind::Int64: ok = (k == JKind::Int32 || k == JKind::Int64); break;
+        case JKind::Double: ok = (k == JKind::Double || k == JKind::Int32 || k == JKind::Int64); break;
+        default: ok = (k == JKind::String); break;
+        }
+        if (ok) return;
+        std::string why = "key '" + keys_[col] + "' holds " + JKindName(k) + ", but ";
+        if (want == JKind::Null) why += "its first value is null, which makes it a string column";
+        else if (want == JKind::Int32 && k == JKind::Int64) why += "its first value makes it a 32-bit integer column";
+        else why += "its first value is " + std::string(JKindName(want));
+        Fail(why);
+    }
+};
+
+} // namespace
+
 JSONReader::JSONReader(const std::string &path, JSONOptions options)
-    : path_(path), options_(options) {}
+    : path_(path), options_(options) {
+    // zuslothdb: refuse, here on the opening thread, a file the parsers
+    // below would misread (pedrobtz/zuslothdb#39).
+    std::ifstream f(path_, std::ios::binary | std::ios::ate);
+    if (!f.is_open()) return; // the parsers report a missing file
+    auto sz = static_cast<size_t>(f.tellg());
+    std::string buf(sz, '\0');
+    f.seekg(0);
+    f.read(buf.data(), static_cast<std::streamsize>(sz));
+    StrictJSON(path_, buf.data(), buf.data() + buf.size()).Run();
+}
 
 // Fast NDJSON parser: single pass over the mmap'd/loaded buffer, no per-line
 // std::unordered_map, no per-char std::string append. Detects schema from the
@@ -177,6 +465,7 @@ const char *fast_parse_string(const char *p, const char *end, std::string &out) 
             case 'r':  out.push_back('\r'); break;
             case 'b':  out.push_back('\b'); break;
             case 'f':  out.push_back('\f'); break;
+            case 'u':  p = DecodeUnicodeEscape(p, end, out) - 1; break;
             default:   out.push_back(*p);   break;
             }
             p++;

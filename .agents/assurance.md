@@ -63,6 +63,7 @@ One row per boundary the package crosses. An oracle knows the answer:
 | Parquet scan on decode workers: stopped before its last row group (#32), and their exit on Windows (#34) | every query returns within a time limit, in a child R, with the rows the `duckdb`-written fixture holds | tests/testthat/test-parquet-stop.R (macOS, Linux, Windows) |
 | CSV, Parquet, JSON, Arrow IPC files     | recorded `duckdb` answers over `duckdb`-written fixtures  | gap #23    |
 | Parquet column types the reader cannot decode (#36 to #38) | the values `duckdb` wrote, for the types it decodes; a `zuslothdb_sql_error` naming the column for the rest, and the file's other columns read, across row groups and four threads | tests/testthat/test-parquet-types.R |
+| JSON files (#39)                        | the values written, for flat records, arrays of objects, `\u` escapes and 5000 records; a `zuslothdb_sql_error` naming the record and the key for each shape the readers would misread, and malformed input | tests/testthat/test-json.R |
 | Avro, Excel and SQLite files            | recorded answers from a reference reader                  | gap #23    |
 | database file                           | round trip through a fresh R process                      | gap #23    |
 | DBI specification                       | `DBItest`                                                 | gap #24    |
