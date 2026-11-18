@@ -77,3 +77,10 @@ parquet_stop_child <- function() {
     'cat("ok", n, "iterations\\n")'
   )
 }
+
+# The rows of `sql` over fixtures/parquet-types/<name>.parquet, its path
+# substituted for %s (test-parquet-types.R).
+parquet_type <- function(con, name, sql = "SELECT v FROM '%s'") {
+  path <- test_path("fixtures", "parquet-types", paste0(name, ".parquet"))
+  DBI::dbGetQuery(con, sprintf(sql, normalizePath(path, "/")))
+}

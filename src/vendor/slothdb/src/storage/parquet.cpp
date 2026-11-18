@@ -191,6 +191,13 @@ struct ParqSchemaEl {
     int32_t num_children = 0;
     int32_t converted_type = -1;
     int32_t type_length = 0;
+    // zuslothdb: the LogicalType union's member (field 10), -1 if absent;
+    // for TIME and TIMESTAMP its TimeUnit (1 MILLIS, 2 MICROS, 3 NANOS),
+    // and for INTEGER whether it is signed and its width.
+    int32_t logical_kind = -1;
+    int32_t time_unit = -1;
+    int32_t int_bits = 0;
+    bool int_signed = true;
 };
 
 struct ParqColMetaFull {
@@ -276,10 +283,60 @@ void ParseSchemaElement(ThriftRd &r, ParqSchemaEl &e) {
         case 4: e.name = r.Str(); break;
         case 5: e.num_children = r.ZigI32(); break;
         case 6: e.converted_type = r.ZigI32(); break;
+        case 10: { // zuslothdb: LogicalType, a union of structs
+            if (tid != 12) { r.Skip(tid); break; }
+            r.StructBegin();
+            int16_t lf; uint8_t lt;
+            while (r.Field(lf, lt)) {
+                e.logical_kind = lf;
+                if (lt != 12) { r.Skip(lt); continue; }
+                r.StructBegin();
+                int16_t f2; uint8_t t2;
+                while (r.Field(f2, t2)) {
+                    if ((lf == 7 || lf == 8) && f2 == 2 && t2 == 12) {
+                        // TimeType / TimestampType.unit: a union of empty structs.
+                        r.StructBegin();
+                        int16_t f3; uint8_t t3;
+                        while (r.Field(f3, t3)) { e.time_unit = f3; r.Skip(t3); }
+                        r.StructEnd();
+                    } else if (lf == 10 && f2 == 1 && t2 == 3) {
+                        e.int_bits = static_cast<int8_t>(r.Byte());
+                    } else if (lf == 10 && f2 == 2 && (t2 == 1 || t2 == 2)) {
+                        e.int_signed = (t2 == 1);
+                    } else {
+                        r.Skip(t2);
+                    }
+                }
+                r.StructEnd();
+            }
+            r.StructEnd();
+            break;
+        }
         default: r.Skip(tid); break;
         }
     }
     r.StructEnd();
+}
+
+// zuslothdb: why the reader cannot decode a leaf faithfully, or "" if it
+// can. The decoder reads the physical type and honours only DATE and
+// TIMESTAMP_MICROS: any other annotation that changes what the bytes mean
+// would come out as wrong values, with no error.
+std::string UnsupportedReason(const ParqSchemaEl &e) {
+    const int32_t c = e.converted_type, k = e.logical_kind;
+    if (c == 5 || k == 5) return "DECIMAL, whose scale the reader does not apply";
+    if (c == 7 || c == 8 || k == 7) return "TIME";
+    if (c == 9 || (k == 8 && e.time_unit != 2 && e.time_unit != -1))
+        return "a TIMESTAMP in milliseconds or nanoseconds";
+    if (e.type == 3) return "an INT96 timestamp";
+    if (c == 21) return "INTERVAL";
+    if (k == 14) return "UUID";
+    if (k == 15) return "FLOAT16";
+    // ConvertedType UINT_32 = 13, UINT_64 = 14.
+    if (c == 13 || c == 14 || (k == 10 && !e.int_signed && e.int_bits >= 32))
+        return "an unsigned 32- or 64-bit integer, which the reader reads as signed";
+    if (e.type == 7) return "FIXED_LEN_BYTE_ARRAY";
+    return "";
 }
 
 void ParseColumnChunkStruct(ThriftRd &r, ParqColMetaFull &m) {
@@ -1183,6 +1240,7 @@ void ParquetReader::ReadMetadata() {
                     }
                     meta_.column_display_types.push_back(disp);
                     meta_.column_repetition.push_back(pmeta.schema[i].repetition_type);
+                    meta_.column_unsupported.push_back(UnsupportedReason(pmeta.schema[i]));
                 }
                 meta_.row_groups.clear();
                 // Decode raw min/max bytes from a Parquet column-stats blob
@@ -2967,7 +3025,17 @@ idx_t ParquetReader::ReadRowGroupChunk(idx_t rg_idx, DataChunk &chunk,
     return total_rows;
 }
 
+void ParquetReader::CheckReadable(idx_t col) const {
+    if (col >= meta_.column_unsupported.size()) return;
+    const std::string &why = meta_.column_unsupported[col];
+    if (why.empty()) return;
+    throw NotImplementedException("Parquet column '" + meta_.column_names[col] +
+                                  "' is " + why + ": SlothDB cannot read it in " +
+                                  path_);
+}
+
 std::vector<std::vector<Value>> ParquetReader::ReadAll() {
+    for (idx_t c = 0; c < meta_.column_names.size(); c++) CheckReadable(c);
     std::vector<std::vector<Value>> all_rows;
     for (idx_t rg = 0; rg < meta_.row_groups.size(); rg++) {
         auto rows = ReadRowGroup(rg);

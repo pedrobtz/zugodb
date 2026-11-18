@@ -67,14 +67,14 @@ d47269ffa99ca794c05811c1f01b67e5  include/slothdb/storage/fast_csv_reader.hpp
 10ac032524793593b05d51b2e9b683d7  include/slothdb/storage/file_handle.hpp
 489f63c2b5df32466aad6ef9df4b3f48  include/slothdb/storage/hive_partition.hpp
 8b41b365e28967397188b694fdc0e706  include/slothdb/storage/json_reader.hpp
-cc1db6cabbe7c8423d4db1f947687b72  include/slothdb/storage/parquet.hpp
+abda6f1265229411adf39c7b1b17fd9c  include/slothdb/storage/parquet.hpp
 22a7ff94f6c508474b27920635cdf011  include/slothdb/storage/parquet_lazy_strdata.hpp
 7568a34f30a63da41d872e695b7155bb  include/slothdb/storage/row_group.hpp
 3b0d0ff4d15f1b42b3b4eb6003163fcb  include/slothdb/storage/sqlite_scanner.hpp
 f6aa9cb7b140ac0cd9f9593140d406a3  include/slothdb/transaction/transaction.hpp
 53933ec0f974e34771c296d0963d2a12  include/third_party/stl.h
 1c8a1d422f5db727244ac438fd5e6c84  include/third_party/unordered_dense.h
-c558d4b3bc67295075c273adf120cf09  src/binder/binder.cpp
+e8c947918352077ce5fe4508346b5d57  src/binder/binder.cpp
 be4ba4b1f772cfa8e45704ed046bf5a4  src/catalog/catalog.cpp
 8494083c1dd9ac9ee7e1dd6fa5d20dd2  src/catalog/schema_catalog_entry.cpp
 66d8d6e0092dbe9569eedba873b84837  src/catalog/table_catalog_entry.cpp
@@ -131,7 +131,7 @@ c6d336369b9c9be7e116ee8ce161d5b9  src/storage/hive_partition.cpp
 b684b0a849248712b361eb6c9934d182  src/storage/json_reader.cpp
 173c73e64828e92b901588838fce9ec0  src/storage/miniz.c
 5829bf8be66417e7ef2527290e16147f  src/storage/miniz.h
-75008476d80f4ebfc5b5ad6c0c4858b7  src/storage/parquet.cpp
+e4f784cf1250617a34dd8085801f8e7a  src/storage/parquet.cpp
 7c83de4f11b5d1e0241d4553e468aa84  src/storage/parquet_lazy_strdata.cpp
 4a1058b91ccf8e03aea740a991f00ff8  src/storage/row_group.cpp
 2e09c479dc29ff1aa15ba8240e9678c9  src/storage/sqlite_scanner.cpp

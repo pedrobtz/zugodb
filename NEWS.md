@@ -1,5 +1,10 @@
 # zuslothdb 0.0.0.9000
 
+* A Parquet column the engine would read wrongly is an error naming it,
+  when a query uses it: `DECIMAL` (read unscaled), `TIME`, millisecond
+  and nanosecond `TIMESTAMP` (read as raw counts), `UUID` and `INTERVAL`
+  (read as `NULL`), and unsigned 32- and 64-bit integers (read as
+  signed). Queries on the file's other columns work (#36, #37, #38).
 * `dbWriteTable()`, `dbAppendTable()`, `dbListTables()`,
   `dbListFields()`, `dbExistsTable()`, `dbRemoveTable()`,
   `dbDataType()` and `dbQuoteIdentifier()` write and manage tables.

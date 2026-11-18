@@ -14,8 +14,8 @@
 
 source:
   repository: https://github.com/pedrobtz/slothdb
-  tag: zuslothdb-2
-  commit: 6af32c5028ba5e1a94809d562d13b1649ffceeba
+  tag: zuslothdb-4
+  commit: 1df811d9dbbe4f60e7c5310c03bd27d51e5b0e69
 
 upstream:
   repository: https://github.com/SouravRoy-ETL/slothdb
@@ -171,6 +171,22 @@ changes:
       and raises an error saying nothing was undone, and upstream's
       "Transaction - ROLLBACK" case checks it; dbBegin(), dbCommit() and
       dbRollback() are zuslothdb_unsupported (#7, design §5).
+  - commit: 89f52bba0248490a7d83a67077603b52d656eb79
+    subject: "Refuse Parquet columns the reader cannot decode faithfully"
+    reason: >-
+      The Parquet reader honoured only DATE and TIMESTAMP_MICROS, so other
+      annotations came out as wrong values with no error: DECIMAL unscaled
+      (#36), TIME and millisecond or nanosecond TIMESTAMP as raw counts
+      (#37), UUID and INTERVAL as NULL (#38), unsigned 32- and 64-bit
+      integers as signed. The LogicalType is parsed too, and such a column
+      is refused, naming it, on the query's thread when a scan reads it.
+  - commit: 1df811d9dbbe4f60e7c5310c03bd27d51e5b0e69
+    subject: "Refuse unreadable Parquet columns when bound, not when scanned"
+    reason: >-
+      Many plans set no projection and decode every column, so the
+      scan-time check refused queries that never name the column. The
+      binder now refuses it when a query names it or expands it with *;
+      ReadAll() still checks every column for the glob path (#36-#38).
 
 test_exclude:
   - path: test/unit/ask/test_nl_to_sql.cpp
