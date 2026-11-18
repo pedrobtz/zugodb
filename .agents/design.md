@@ -282,6 +282,17 @@ library; it is identical wherever it is instantiated and cannot clash.
   and `join()` never returned: a Parquet query that stopped early hung
   the session, and so, 1 run in about 14, did upstream's doctests.
   Patch 0008 sets each flag under that mutex.
+- **`thread_local` destructors on Windows (found 2026-11-18, #34).**
+  The Parquet decoder keeps scratch buffers and a zstd context in
+  `thread_local` objects with destructors. Under MinGW those
+  destructors run as a thread exits (winpthreads' key destructors,
+  through libstdc++'s `__cxa_thread_atexit`), after emulated TLS has
+  freed the objects, and the heap is corrupted: every Parquet scan with
+  decode workers, so on two threads or more, killed R with
+  `0xC0000409`. Only decode workers start and end within a query; the
+  main thread and the pool never exit mid-session. Patch 0009 makes
+  the seven objects local to their call. A `thread_local` with a
+  destructor is not to be added in a patch.
 - **Memory.** `DatabaseConfig::memory_limit` is declared and never
   read, so there is no limit to expose; `dbConnect(memory_limit = )`
   is absent until it exists (Q4).

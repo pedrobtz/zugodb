@@ -156,7 +156,7 @@ besides the three closing stages.
 decompressor, snappy, fastpforlib and, inside `src/storage/`, miniz;
 `unordered_dense.h` under `include/third_party/`. Left out: `src/ask/`,
 `src/extension/`, `src/api/` (the C API), the HTTP client and upstream's
-CMake files. Eight
+CMake files. Nine
 patches in `tools/patches/`, each with its reason in `tools/vendor.yaml`;
 holders in `inst/COPYRIGHTS`. To update: change `upstream.commit` (and
 `describe`) in `tools/vendor.yaml`, run `Rscript tools/vendor.R`, refresh

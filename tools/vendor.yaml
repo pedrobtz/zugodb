@@ -116,6 +116,14 @@ patches:
       that stops early (LIMIT over several row groups) reached it. Each
       flag is now set under that mutex, as are ThreadPool's active-task
       count changes that WaitAll() waits on.
+  - file: 0009-thread-local.patch
+    reason: >-
+      A Parquet scan on more than one thread killed R on Windows (#34). Its
+      decode workers keep scratch buffers and a zstd context in
+      thread_local objects with destructors; under MinGW those destructors
+      run, as the worker exits, after emulated TLS has freed the objects,
+      and the heap is corrupted. The seven scratch objects are now local to
+      their call, which costs an allocation per call and changes no result.
 
 test_patches:
   - file: tests/0001-stale-date-tests.patch
