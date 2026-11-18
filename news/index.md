@@ -2,6 +2,10 @@
 
 ## zuslothdb 0.0.0.9000
 
+- A set operation (`UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`) returns
+  `TINYINT`, `SMALLINT` and `FLOAT` columns with their values; it
+  returned numbers made of unwritten memory
+  ([\#41](https://github.com/pedrobtz/zuslothdb/issues/41)).
 - On Windows, a Parquet query on more than one thread that decodes
   several row groups no longer ends the R session
   ([\#34](https://github.com/pedrobtz/zuslothdb/issues/34)).
