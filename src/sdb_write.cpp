@@ -92,8 +92,8 @@ const char *PayloadName(int p) {
 }
 
 // Whether payload `p` can go into a column of type `id` at all.
-bool Compatible(int p, slothdb::LogicalTypeId id) {
-  using T = slothdb::LogicalTypeId;
+bool Compatible(int p, zugodb::LogicalTypeId id) {
+  using T = zugodb::LogicalTypeId;
   if (p == kPNull) {
     return id == T::BOOLEAN || id == T::TINYINT || id == T::SMALLINT ||
            id == T::INTEGER || id == T::BIGINT || id == T::FLOAT ||
@@ -125,8 +125,8 @@ bool Compatible(int p, slothdb::LogicalTypeId id) {
 }
 
 // Integer range of a column type, for integer and double payloads.
-void IntRange(slothdb::LogicalTypeId id, double *lo, double *hi) {
-  using T = slothdb::LogicalTypeId;
+void IntRange(zugodb::LogicalTypeId id, double *lo, double *hi) {
+  using T = zugodb::LogicalTypeId;
   switch (id) {
   case T::TINYINT:
     *lo = -128;
@@ -148,8 +148,8 @@ void IntRange(slothdb::LogicalTypeId id, double *lo, double *hi) {
 }
 
 // Why value `r` of `c` does not fit a column of type `id`, or nullptr.
-const char *Misfit(const InColumn &c, uint64_t r, slothdb::LogicalTypeId id) {
-  using T = slothdb::LogicalTypeId;
+const char *Misfit(const InColumn &c, uint64_t r, zugodb::LogicalTypeId id) {
+  using T = zugodb::LogicalTypeId;
   if (IsNA(c, r)) return nullptr;
   const bool integral = id == T::TINYINT || id == T::SMALLINT ||
                         id == T::INTEGER || id == T::BIGINT;
@@ -229,9 +229,9 @@ int64_t WholeOf(const InColumn &c, uint64_t r) {
 
 // Writes rows [from, from + n) of `c` into `vec` of type `id`. Every value
 // was checked by Misfit() first.
-void Fill(slothdb::Vector &vec, slothdb::LogicalTypeId id, const InColumn &c,
+void Fill(zugodb::Vector &vec, zugodb::LogicalTypeId id, const InColumn &c,
           uint64_t from, uint64_t n) {
-  using T = slothdb::LogicalTypeId;
+  using T = zugodb::LogicalTypeId;
   auto &valid = vec.GetValidity();
   for (uint64_t k = 0; k < n; k++) {
     const uint64_t r = from + k;
@@ -272,11 +272,11 @@ void Fill(slothdb::Vector &vec, slothdb::LogicalTypeId id, const InColumn &c,
     case T::BLOB: {
       const char *p = c.strs[r];
       const uint32_t len = static_cast<uint32_t>(c.lens[r]);
-      if (len <= slothdb::string_t::INLINE_LENGTH) {
-        vec.GetData<slothdb::string_t>()[k] = slothdb::string_t(p, len);
+      if (len <= zugodb::string_t::INLINE_LENGTH) {
+        vec.GetData<zugodb::string_t>()[k] = zugodb::string_t(p, len);
       } else {
         const char *own = vec.GetStringBuffer().AddString(p, len);
-        vec.GetData<slothdb::string_t>()[k] = slothdb::string_t(own, len);
+        vec.GetData<zugodb::string_t>()[k] = zugodb::string_t(own, len);
       }
       break;
     }
@@ -293,7 +293,7 @@ void EngineAppend(sdb::SdbConnection *c, const Input &in, bool check_only,
   char msg[1024];
   try {
     std::string probe = std::string("SELECT * FROM ") + in.quoted + " LIMIT 0";
-    slothdb::QueryResult shape = c->con->Query(probe);
+    zugodb::QueryResult shape = c->con->Query(probe);
     const auto &types = shape.column_types;
     if (static_cast<int>(types.size()) != in.ncol) {
       std::snprintf(msg, sizeof msg,
@@ -325,9 +325,9 @@ void EngineAppend(sdb::SdbConnection *c, const Input &in, bool check_only,
       }
     }
     if (check_only) return;
-    for (uint64_t from = 0; from < in.nrow; from += slothdb::VECTOR_SIZE) {
-      const uint64_t n = std::min<uint64_t>(slothdb::VECTOR_SIZE, in.nrow - from);
-      slothdb::DataChunk chunk;
+    for (uint64_t from = 0; from < in.nrow; from += zugodb::VECTOR_SIZE) {
+      const uint64_t n = std::min<uint64_t>(zugodb::VECTOR_SIZE, in.nrow - from);
+      zugodb::DataChunk chunk;
       chunk.Initialize(types);
       for (int k = 0; k < in.ncol; k++) {
         Fill(chunk.GetVector(k), types[k].id(), in.cols[k], from, n);

@@ -70,8 +70,8 @@ struct SdbResult {
   bool is_query = true;
 };
 
-Kind KindOf(slothdb::LogicalTypeId id) {
-  using T = slothdb::LogicalTypeId;
+Kind KindOf(zugodb::LogicalTypeId id) {
+  using T = zugodb::LogicalTypeId;
   switch (id) {
   case T::BOOLEAN:
     return Kind::kLogical;
@@ -105,12 +105,12 @@ Kind KindOf(slothdb::LogicalTypeId id) {
 }
 
 // Why a type that does not convert is refused (design §6).
-const char *UnsupportedWhy(slothdb::LogicalTypeId id) {
-  if (id == slothdb::LogicalTypeId::HUGEINT) {
+const char *UnsupportedWhy(zugodb::LogicalTypeId id) {
+  if (id == zugodb::LogicalTypeId::HUGEINT) {
     return "which zuslothdb does not read: SlothDB computes HUGEINT values "
            "wrongly";
   }
-  if (id == slothdb::LogicalTypeId::TIME) {
+  if (id == zugodb::LogicalTypeId::TIME) {
     return "which zuslothdb does not read: SlothDB computes every TIME "
            "value as midnight";
   }
@@ -174,8 +174,8 @@ const char *kNul = "holds a string with an embedded NUL";
 // A Value keeps its number in a union, and GetValue<T>() returns the member
 // named by T without conversion (#41): each is read through the member of
 // the Value's own type.
-int64_t ValueInt(const slothdb::Value &v) {
-  using T = slothdb::LogicalTypeId;
+int64_t ValueInt(const zugodb::Value &v) {
+  using T = zugodb::LogicalTypeId;
   switch (v.type().id()) {
   case T::BOOLEAN:
     return v.GetValue<bool>() ? 1 : 0;
@@ -197,8 +197,8 @@ int64_t ValueInt(const slothdb::Value &v) {
   }
 }
 
-double ValueDouble(const slothdb::Value &v) {
-  using T = slothdb::LogicalTypeId;
+double ValueDouble(const zugodb::Value &v) {
+  using T = zugodb::LogicalTypeId;
   switch (v.type().id()) {
   case T::FLOAT:
     return v.GetValue<float>();
@@ -211,15 +211,15 @@ double ValueDouble(const slothdb::Value &v) {
   }
 }
 
-uint64_t ValueUInt(const slothdb::Value &v) {
-  if (v.type().id() == slothdb::LogicalTypeId::UBIGINT) {
+uint64_t ValueUInt(const zugodb::Value &v) {
+  if (v.type().id() == zugodb::LogicalTypeId::UBIGINT) {
     return v.GetValue<uint64_t>();
   }
   return static_cast<uint64_t>(ValueInt(v));
 }
 
 // Appends one value, given as a Value (the boxed-rows path).
-void AppendValue(Column &col, const slothdb::Value &v, uint64_t row) {
+void AppendValue(Column &col, const zugodb::Value &v, uint64_t row) {
   const bool null = v.IsNull();
   switch (col.kind) {
   case Kind::kNull:
@@ -280,7 +280,7 @@ void AppendValue(Column &col, const slothdb::Value &v, uint64_t row) {
 }
 
 template <class T>
-void AppendInts(Column &col, const slothdb::Vector &vec, uint64_t n,
+void AppendInts(Column &col, const zugodb::Vector &vec, uint64_t n,
                 uint64_t row0) {
   const T *data = vec.GetData<T>();
   const auto &valid = vec.GetValidity();
@@ -296,9 +296,9 @@ void AppendInts(Column &col, const slothdb::Vector &vec, uint64_t n,
 }
 
 // Appends a flat chunk vector of `n` rows, read in its physical type.
-void AppendVector(Column &col, slothdb::LogicalTypeId id,
-                  const slothdb::Vector &vec, uint64_t n, uint64_t row0) {
-  using T = slothdb::LogicalTypeId;
+void AppendVector(Column &col, zugodb::LogicalTypeId id,
+                  const zugodb::Vector &vec, uint64_t n, uint64_t row0) {
+  using T = zugodb::LogicalTypeId;
   const auto &valid = vec.GetValidity();
   switch (id) {
   case T::SQLNULL:
@@ -364,7 +364,7 @@ void AppendVector(Column &col, slothdb::LogicalTypeId id,
     return;
   }
   case T::VARCHAR: {
-    const slothdb::string_t *data = vec.GetData<slothdb::string_t>();
+    const zugodb::string_t *data = vec.GetData<zugodb::string_t>();
     for (uint64_t r = 0; r < n; r++) {
       const bool ok = valid.RowIsValid(r);
       col.valid.push_back(ok);
@@ -397,7 +397,7 @@ void AppendVector(Column &col, slothdb::LogicalTypeId id,
     return;
   }
   case T::BLOB: {
-    const slothdb::string_t *data = vec.GetData<slothdb::string_t>();
+    const zugodb::string_t *data = vec.GetData<zugodb::string_t>();
     for (uint64_t r = 0; r < n; r++) {
       const bool ok = valid.RowIsValid(r);
       col.valid.push_back(ok);
@@ -415,10 +415,10 @@ void EngineSend(sdb::SdbConnection *c, const char *sql, SdbResult *out,
                 sdb::EngineError *err) {
   try {
     const bool dml = sdb::LastIsDml(sql);
-    slothdb::QueryResult res = c->con->Query(sql);
+    zugodb::QueryResult res = c->con->Query(sql);
     if (dml && res.ColumnCount() == 1 && res.RowCount() == 1 &&
         res.column_names[0] == "Count") {
-      const slothdb::Value &v = res.GetValue(0, 0);
+      const zugodb::Value &v = res.GetValue(0, 0);
       out->is_query = false;
       out->rows_affected =
           v.IsNull() ? 0 : static_cast<double>(ValueInt(v));

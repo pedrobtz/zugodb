@@ -1,13 +1,13 @@
-# Vendor SlothDB into src/vendor/slothdb from tools/vendor.yaml.
+# Vendor libzugodb, the engine, into src/vendor/libzugodb from tools/vendor.yaml.
 #
 #   Rscript tools/vendor.R                    # re-vendor and regenerate
 #   Rscript tools/vendor.R --verify           # rebuild in a temp dir, diff
-#   Rscript tools/vendor.R --source <dir>     # use a local clone of the fork
+#   Rscript tools/vendor.R --source <dir>     # use a local clone of libzugodb
 #
 # Run from the package root. Needs git and the yaml package. The vendored
-# tree is exactly the fork (pedrobtz/slothdb) at `source.commit`, `copy`
-# minus `exclude`; the fork's history since `upstream.commit` must be
-# exactly the commits `changes` lists, in order. From it, this script writes
+# tree is exactly libzugodb at `source.tag`, which must be `source.commit`
+# and descend from SlothDB's `origin.commit`: `copy` minus `exclude`. From
+# it, this script writes
 # src/Makevars, src/Makevars.win, src/sdb_provenance.h, inst/vendor.yaml
 # and tools/vendor/checksums.md5. --verify writes nothing in the package:
 # it builds the same outputs in a temporary directory and fails, naming
@@ -45,9 +45,8 @@ short <- function(x) substr(x, 1, 7)
 
 describe <- function(cfg) {
   sprintf(
-    "the fork at %s (%s): upstream %s + %d changes",
-    short(cfg$source$commit), cfg$source$tag, short(cfg$upstream$commit),
-    length(cfg$changes)
+    "libzugodb %s (%s), from SlothDB %s",
+    cfg$source$tag, short(cfg$source$commit), short(cfg$origin$commit)
   )
 }
 
@@ -61,47 +60,33 @@ git <- function(...) {
   res
 }
 
-# A checkout of the fork at `source.commit`, in a temporary directory: a
-# fresh clone, or a clone of the local `source_dir`. Its history since
-# `upstream.commit` must be exactly `changes`: upstream is an ancestor, and
-# every change zuslothdb makes to it is listed with its reason.
+# A checkout of libzugodb at `source.tag`, in a temporary directory: a fresh
+# clone, or a clone of the local `source_dir`. The tag must be
+# `source.commit`, and SlothDB's `origin.commit` an ancestor of it.
 patched_checkout <- function(cfg, source_dir) {
-  dir <- tempfile("slothdb-")
+  dir <- tempfile("libzugodb-")
   from <- if (is.null(source_dir)) cfg$source$repository else normalizePath(source_dir)
   git("clone", "--quiet", "--no-checkout", from, dir)
-  git("-C", dir, "-c", "core.autocrlf=false", "-c", "advice.detachedHead=false",
-      "checkout", "--quiet", cfg$source$commit)
-  head <- git("-C", dir, "rev-parse", "HEAD")
-  if (!identical(head, cfg$source$commit)) {
-    stop("checkout is at ", head, ", not ", cfg$source$commit, call. = FALSE)
-  }
-  base <- system2(
-    "git", c("-C", dir, "merge-base", "--is-ancestor", cfg$upstream$commit, head)
-  )
-  if (base != 0) {
-    stop("upstream ", cfg$upstream$commit, " is not an ancestor of ", head,
+  tagged <- git("-C", dir, "rev-parse", paste0(cfg$source$tag, "^{commit}"))
+  if (!identical(tagged, cfg$source$commit)) {
+    stop("tag ", cfg$source$tag, " is ", tagged, ", not ", cfg$source$commit,
          call. = FALSE)
   }
-  history <- git("-C", dir, "rev-list", "--reverse",
-                 paste0(cfg$upstream$commit, "..", head))
-  listed <- vapply(cfg$changes, `[[`, "", "commit")
-  if (!identical(history, listed)) {
-    stop("the fork's commits since upstream are not tools/vendor.yaml's ",
-         "changes:\n  fork:   ", paste(short(history), collapse = " "),
-         "\n  listed: ", paste(short(listed), collapse = " "), call. = FALSE)
-  }
-  subjects <- git("-C", dir, "log", "--reverse", "--format=%s",
-                  paste0(cfg$upstream$commit, "..", head))
-  wrong <- subjects != vapply(cfg$changes, `[[`, "", "subject")
-  if (any(wrong)) {
-    stop("subject differs from the fork's for change ",
-         short(listed[wrong][1]), call. = FALSE)
+  git("-C", dir, "-c", "core.autocrlf=false", "-c", "advice.detachedHead=false",
+      "checkout", "--quiet", cfg$source$commit)
+  base <- system2(
+    "git", c("-C", dir, "merge-base", "--is-ancestor", cfg$origin$commit,
+             cfg$source$commit)
+  )
+  if (base != 0) {
+    stop("SlothDB ", cfg$origin$commit, " is not an ancestor of ",
+         cfg$source$commit, call. = FALSE)
   }
   dir
 }
 
 # Relative paths of every file `copy` names, minus `exclude`, sorted in the C
-# locale. An exclude that matches nothing is an error: it means upstream
+# locale. An exclude that matches nothing is an error: it means libzugodb
 # moved and the manifest is stale.
 vendored_files <- function(cfg, root) {
   files <- unlist(lapply(cfg$copy, function(entry) {
@@ -111,7 +96,7 @@ vendored_files <- function(cfg, root) {
     } else if (file.exists(path)) {
       entry
     } else {
-      stop("copy entry not found upstream: ", entry, call. = FALSE)
+      stop("copy entry not found in libzugodb: ", entry, call. = FALSE)
     }
   }))
   for (ex in cfg$exclude) {
@@ -173,14 +158,14 @@ write_makevars <- function(cfg, files, out) {
     paste0("SDB_INCLUDES = -I", v, "/include -I", v,
            "/third_party/zstd/lib -I", v, "/third_party/fastpforlib -I", v,
            "/third_party/snappy"),
-    "# NDEBUG: upstream's assert()s would link abort (CRAN's compiled-code",
-    "# check). ZSTD_DISABLE_ASM: the C path, as upstream builds it.",
+    "# NDEBUG: the engine's assert()s would link abort (CRAN's compiled-code",
+    "# check). ZSTD_DISABLE_ASM: the C path, as the engine's CMake builds it.",
     "# ZSTD*_VISIBLE empty: zstd marks its API visibility(\"default\"), which",
     "# would export it past $(C_VISIBILITY) and let another package's zstd",
     "# bind to this one.",
     paste("PKG_CPPFLAGS = $(SDB_INCLUDES) -DNDEBUG -DZSTD_DISABLE_ASM=1",
           "-DZSTD_MULTITHREAD=0 -DZSTDLIB_VISIBLE= -DZSTDERRORLIB_VISIBLE="),
-    "# Only R_init_zuslothdb is exported (design §4: SlothDB carries DuckDB's",
+    "# Only R_init_zuslothdb is exported (design §4: the engine carries DuckDB's",
     "# duckdb_fastpforlib namespace, which would clash with duckdb's).",
     "PKG_CXXFLAGS = $(CXX_VISIBILITY)",
     "PKG_CFLAGS = $(C_VISIBILITY)",
@@ -199,19 +184,15 @@ c_string <- function(x) {
 }
 
 write_provenance <- function(cfg, path) {
-  changes <- vapply(cfg$changes, `[[`, "", "subject")
-  if (any(grepl("[^ -~]", changes))) stop("a change's subject is not ASCII", call. = FALSE)
   lines <- c(
     "// Generated by tools/vendor.R from tools/vendor.yaml; do not edit.",
     "#pragma once",
     sprintf("#define SDB_SOURCE_REPOSITORY %s", c_string(cfg$source$repository)),
     sprintf("#define SDB_SOURCE_COMMIT %s", c_string(cfg$source$commit)),
     sprintf("#define SDB_SOURCE_TAG %s", c_string(cfg$source$tag)),
-    sprintf("#define SDB_UPSTREAM_REPOSITORY %s", c_string(cfg$upstream$repository)),
-    sprintf("#define SDB_UPSTREAM_COMMIT %s", c_string(cfg$upstream$commit)),
-    sprintf("#define SDB_UPSTREAM_DESCRIBE %s", c_string(cfg$upstream$describe)),
-    sprintf("#define SDB_CHANGE_COUNT %d", length(changes)),
-    sprintf("#define SDB_CHANGES {%s}", paste(c_string(changes), collapse = ", "))
+    sprintf("#define SDB_ORIGIN_REPOSITORY %s", c_string(cfg$origin$repository)),
+    sprintf("#define SDB_ORIGIN_COMMIT %s", c_string(cfg$origin$commit)),
+    sprintf("#define SDB_ORIGIN_DESCRIBE %s", c_string(cfg$origin$describe))
   )
   writeLines(lines, path)
 }
@@ -237,7 +218,7 @@ compare <- function(cfg, built, committed) {
   # sprintf() of a zero-length vector is zero-length; paste() is not.
   c(
     sprintf("missing: %s", setdiff(want, have)),
-    sprintf("not from upstream: %s", setdiff(have, want)),
+    sprintf("not from libzugodb: %s", setdiff(have, want)),
     sprintf("differs: %s", both[!same])
   )
 }

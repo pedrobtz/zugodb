@@ -12,13 +12,13 @@ namespace sdb {
 struct SdbConnection;
 
 struct SdbDatabase {
-  std::unique_ptr<slothdb::Database> db;
+  std::unique_ptr<zugodb::Database> db;
   std::vector<SdbConnection *> conns;
   long pid = SDB_GETPID();
 };
 
 struct SdbConnection {
-  std::unique_ptr<slothdb::Connection> con;
+  std::unique_ptr<zugodb::Connection> con;
   SdbDatabase *owner = nullptr;
   long pid = SDB_GETPID();
 };

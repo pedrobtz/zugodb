@@ -1,15 +1,14 @@
 #!/bin/sh
-# tools/upstream-tests.sh [workdir]: SlothDB's own doctest suite, built
-# against the package's vendored tree (src/vendor/slothdb) with R's
+# tools/upstream-tests.sh [workdir]: libzugodb's doctest suite, built
+# against the package's vendored tree (src/vendor/libzugodb) with R's
 # compilers and flags, without R or CMake. Run from the package root. Needs
 # git and network access the first time (the test sources and doctest are
-# not vendored: they come from the fork, pedrobtz/slothdb, at the commit
-# tools/vendor.yaml's `source` names, with `test_exclude` left out; the
-# fork's commits carry zuslothdb's changes to the tests too).
+# not vendored: they come from libzugodb at the commit tools/vendor.yaml's
+# `source` names, with any `test_exclude` left out).
 #
 # Exit status: the doctest binary's (124 for a run that hangs), so a
-# failing, crashing or hanging case fails the step. design §4.2 / D1: the
-# changes must break nothing upstream tested.
+# failing, crashing or hanging case fails the step: the package's build
+# flags must break nothing the engine's own suite tests.
 set -eu
 here=$(pwd)
 work=${1:-$(mktemp -d)}
@@ -17,7 +16,7 @@ jobs=${SDB_JOBS:-4}
 R=${R_HOME:+$R_HOME/bin/}R
 command -v R >/dev/null 2>&1 && R=R
 
-# The `source:` block: the fork and its commit.
+# The `source:` block: libzugodb and its commit.
 field() {
   awk -v key="$1" '/^source:/ {on = 1; next} /^[a-z_]+:/ {on = 0}
                    on && $1 == key ":" {print $2; exit}' tools/vendor.yaml
@@ -49,7 +48,7 @@ CC=$("$R" CMD config CC)
 CXX=$("$R" CMD config CXX20)
 CFLAGS=$("$R" CMD config CFLAGS)
 CXXFLAGS="$("$R" CMD config CXX20STD) $("$R" CMD config CXX20FLAGS)"
-v="$here/src/vendor/slothdb"
+v="$here/src/vendor/libzugodb"
 defs="-DNDEBUG -DZSTD_DISABLE_ASM=1 -DZSTD_MULTITHREAD=0"
 incs="-I$v/include -I$v/third_party/zstd/lib -I$v/third_party/fastpforlib -I$v/third_party/snappy"
 echo "CC = $CC $CFLAGS"

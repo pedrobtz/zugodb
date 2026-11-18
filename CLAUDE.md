@@ -99,7 +99,8 @@ test order.
 
 Three layers ([.agents/design.md](.agents/design.md) §4):
 
-- `src/vendor/slothdb/`: the engine, from the fork pedrobtz/slothdb.
+- `src/vendor/libzugodb/`: the engine, a tagged release of
+  [pedrobtz/libzugodb](https://github.com/pedrobtz/libzugodb).
 - [src/sdb_glue.cpp](src/sdb_glue.cpp): every `.Call` entry point and
   `R_init_zuslothdb`. Engine work happens in `Engine*` helpers inside
   `try`/`catch` with all C++ objects scoped there; entry points get back
@@ -132,10 +133,9 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
   `duckdb_fastpforlib` namespace copied from DuckDB, and zstd, which
   other packages bundle too. `platform.sh` checks it on each OS, and
   `tools/ci/coexist.R` runs both packages in one session.
-- Nothing vendored is edited by hand: every change to upstream is a
-  commit on the fork's `zuslothdb` branch, listed in `tools/vendor.yaml`'s
-  `changes` with its reason (§4.2, D3). `tools/vendor/verify` and the
-  vendor workflow fail otherwise.
+- Nothing vendored is edited by hand: an engine change is a libzugodb
+  release, vendored by tag (D12). `tools/vendor/verify` and the vendor
+  workflow fail otherwise.
 - No `stderr`, `stdout`, `printf`, `abort`, `exit` or `rand` linked:
   `platform.sh` checks the shared object's imports.
 - Offline only (D4), and no file written outside `tempdir()` and the
@@ -185,21 +185,18 @@ and `vendor-upstream.yaml`. The roadmap marks Stages 1, 2, 3, 5.1, 5.2,
 
 ## Vendored native code
 
-[SlothDB](https://github.com/SouravRoy-ETL/slothdb) (MIT), from the
-fork [pedrobtz/slothdb](https://github.com/pedrobtz/slothdb)'s
-`zuslothdb` branch: upstream `8180f215847015944c935f56f008d194e2c1494c`
-("v0.2.7+") plus zuslothdb's changes, one commit each (D3), in
-`src/vendor/slothdb/`, with its `third_party/` subset: the zstd
+The engine is [libzugodb](https://github.com/pedrobtz/libzugodb) (MIT),
+this package's own C++ engine since 2026-11-18 (design D12): SlothDB at
+upstream `8180f215847015944c935f56f008d194e2c1494c` ("v0.2.7+"), by the
+SlothDB Contributors, with the changes in its `CHANGELOG.md`, under the
+C++ namespace `zugodb::`. A tagged release is vendored in
+`src/vendor/libzugodb/` with its `third_party/` subset: the zstd
 decompressor, snappy, fastpforlib and, inside `src/storage/`, miniz;
-`unordered_dense.h` under `include/third_party/`. Left out: `src/ask/`,
-`src/extension/`, `src/api/` (the C API), the HTTP client and upstream's
-CMake files. [.agents/VENDORED.md](.agents/VENDORED.md) has the fork's
-branches, the patch ledger and how a change is offered upstream. The
-changes are listed in `tools/vendor.yaml`'s `changes`
-with their reasons; holders in `inst/COPYRIGHTS`. To change the engine:
-commit to the fork's `zuslothdb` branch (one change per commit, its
-reason in the message, the zuslothdb issue as `pedrobtz/zuslothdb#n`),
-tag it `zuslothdb-<n+1>`, push both, add the commit to `changes` and set
-`source.tag` and `source.commit`, then run `Rscript tools/vendor.R` and
-`tools/upstream-tests.sh`. Should upstream move, rebase the branch onto
-it and update `upstream.commit` (and `describe`) too.
+`unordered_dense.h` under `include/third_party/`. Left out: `src/api/`
+(the C API) and the CMake files. Holders are in `inst/COPYRIGHTS`;
+[.agents/VENDORED.md](.agents/VENDORED.md) has the details and the
+upstream reports. To change the engine: a pull request to libzugodb, whose
+CI runs its doctests on Linux (with ASan and UBSan), macOS and MinGW-w64;
+a release tag; then set `source.tag` and `source.commit` in
+`tools/vendor.yaml`, run `Rscript tools/vendor.R` and
+`tools/upstream-tests.sh`.

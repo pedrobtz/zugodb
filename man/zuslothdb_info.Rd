@@ -7,22 +7,19 @@
 zuslothdb_info()
 }
 \value{
-A list with elements \code{engine} (\code{"SlothDB"}), \code{repository} and
-\code{commit} (the fork and its full commit hash), \code{tag} (the fork's tag of
-that commit), \code{upstream} and \code{upstream_commit} (upstream SlothDB and
-the commit the fork is based on), \code{describe} (the last upstream release
-before it, as \code{"v0.2.7+"}), \code{changes} (a character vector of the
-fork's commit subjects since that commit, oldest first) and \code{threads}
-(the engine's thread cap, an integer).
+A list with elements \code{engine} (\code{"libzugodb"}), \code{repository},
+\code{commit} and \code{tag} (libzugodb's repository, the full commit hash and its
+release tag), \code{origin} and \code{origin_commit} (SlothDB and the commit
+libzugodb descends from), \code{describe} (the last SlothDB release before
+it, as \code{"v0.2.7+"}) and \code{threads} (the engine's thread cap, an
+integer).
 }
 \description{
-Reports which SlothDB source the package was built from. The engine is
-vendored from pedrobtz/slothdb, zuslothdb's fork of upstream SlothDB: an
-upstream commit and the changes made on top of it, one commit each. A
-database file is tied to this commit.
+Reports which engine source the package was built from: a tagged release
+of libzugodb, the package's engine, which descends from SlothDB.
 }
 \examples{
 info <- zuslothdb_info()
 info$commit
-info$changes
+info$tag
 }

@@ -29,24 +29,24 @@ struct ScalarInt {
 // the first row as an integer.
 void EngineScalarInt(const char *sql, ScalarInt *out, sdb::EngineError *err) {
   try {
-    slothdb::Database db;
-    slothdb::Connection con(db);
-    slothdb::QueryResult res = con.Query(sql);
+    zugodb::Database db;
+    zugodb::Connection con(db);
+    zugodb::QueryResult res = con.Query(sql);
     if (res.RowCount() == 0 || res.ColumnCount() == 0) {
       err->set("the query returned no value");
       return;
     }
-    const slothdb::Value &v = res.GetValue(0, 0);
+    const zugodb::Value &v = res.GetValue(0, 0);
     if (v.IsNull()) {
       out->kind = ScalarKind::kNull;
       return;
     }
     int64_t x;
     switch (v.type().id()) {
-    case slothdb::LogicalTypeId::INTEGER:
+    case zugodb::LogicalTypeId::INTEGER:
       x = v.GetValue<int32_t>();
       break;
-    case slothdb::LogicalTypeId::BIGINT:
+    case zugodb::LogicalTypeId::BIGINT:
       x = v.GetValue<int64_t>();
       break;
     default:
@@ -99,29 +99,23 @@ SEXP sdb_scalar_int(SEXP sql) {
 }
 
 // sdb_info(): the source the engine was compiled from (src/sdb_provenance.h,
-// from tools/vendor.yaml): the fork's repository, commit and tag, the
-// upstream commit it is based on, and the subject of each change since.
+// from tools/vendor.yaml): libzugodb's repository, commit and tag, and the
+// SlothDB commit it descends from.
 SEXP sdb_info(void) {
-  static const char *changes[] = SDB_CHANGES;
-  const int n = SDB_CHANGE_COUNT;
-  const unsigned int threads = slothdb::ThreadCap();
-  const char *names[] = {"engine",   "repository",      "commit",
-                         "tag",      "upstream",        "upstream_commit",
-                         "describe", "changes",         "threads",
+  const unsigned int threads = zugodb::ThreadCap();
+  const char *names[] = {"engine",   "repository", "commit",        "tag",
+                         "origin",   "origin_commit", "describe",   "threads",
                          ""};
   SEXP out = PROTECT(Rf_mkNamed(VECSXP, names));
-  SET_VECTOR_ELT(out, 0, Rf_mkString("SlothDB"));
+  SET_VECTOR_ELT(out, 0, Rf_mkString("libzugodb"));
   SET_VECTOR_ELT(out, 1, Rf_mkString(SDB_SOURCE_REPOSITORY));
   SET_VECTOR_ELT(out, 2, Rf_mkString(SDB_SOURCE_COMMIT));
   SET_VECTOR_ELT(out, 3, Rf_mkString(SDB_SOURCE_TAG));
-  SET_VECTOR_ELT(out, 4, Rf_mkString(SDB_UPSTREAM_REPOSITORY));
-  SET_VECTOR_ELT(out, 5, Rf_mkString(SDB_UPSTREAM_COMMIT));
-  SET_VECTOR_ELT(out, 6, Rf_mkString(SDB_UPSTREAM_DESCRIBE));
-  SEXP p = PROTECT(Rf_allocVector(STRSXP, n));
-  for (int i = 0; i < n; i++) SET_STRING_ELT(p, i, Rf_mkChar(changes[i]));
-  SET_VECTOR_ELT(out, 7, p);
-  SET_VECTOR_ELT(out, 8, Rf_ScalarInteger(static_cast<int>(threads)));
-  UNPROTECT(2);
+  SET_VECTOR_ELT(out, 4, Rf_mkString(SDB_ORIGIN_REPOSITORY));
+  SET_VECTOR_ELT(out, 5, Rf_mkString(SDB_ORIGIN_COMMIT));
+  SET_VECTOR_ELT(out, 6, Rf_mkString(SDB_ORIGIN_DESCRIBE));
+  SET_VECTOR_ELT(out, 7, Rf_ScalarInteger(static_cast<int>(threads)));
+  UNPROTECT(1);
   return out;
 }
 
