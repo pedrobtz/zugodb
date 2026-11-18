@@ -695,6 +695,21 @@ any of them.
   and Stage 8's README says so.
 - **Q7.** Should `zuslothdb` refuse to open a database file written by a
   different engine commit, rather than trust the magic number?
+  **Decided 2026-11-18 (maintainer): a format version, not the commit.**
+  The file's 64-byte header has a magic number and `SLOTHDB_VERSION`
+  (1), which the engine checks on open; nothing records the writer's
+  commit, and upstream has never changed the version. Refusing every
+  other commit would lock users out of their files for changes, such
+  as `ROLLBACK`'s error, that never touch the layout. Instead, as
+  `duckdb` versions its storage apart from its releases: a fork commit
+  that changes what is written to the file bumps the version in the
+  same commit, in zuslothdb's own range (from 1001) so its files are
+  told from upstream's; a file of another version is a classed
+  `zuslothdb_*` error naming both versions; and a small database file
+  written by the package is committed as a golden file and read back
+  against its recorded rows in CI, so a layout change made without the
+  bump fails there rather than in a user's data. Reading an older
+  version is not in v0.1.0.
 - **Q8.** Name: `slothdb` matches upstream and the `duckdb` precedent,
   but suggests an official binding. Ask the upstream author, or choose
   another name. **Decided 2026-11-17: `zuslothdb`**, package, repository
@@ -745,7 +760,20 @@ any of them.
   options through `...`? §5 and §7 say only that it builds the `SELECT`.
   Proposal: a data frame, as `dbGetQuery()` of that `SELECT`, with
   `format` guessed from the extension when `NULL` and no `...` in
-  v0.1.0. Decide in Stage 6.
+  v0.1.0. Decide in Stage 6. **Decided 2026-11-18 (maintainer): as
+  proposed, plus three rules.** `zuslothdb_read(conn, path, format =
+  NULL)` returns the data frame `dbGetQuery()` gives for `SELECT * FROM
+  read_<format>(<path>)`; `format` comes from the extension when
+  `NULL`, and a path with none, or an unknown one, is a
+  `zuslothdb_argument_error` listing the formats. No `...` in v0.1.0:
+  the readers' options differ, are thin and untested, and adding `...`
+  later breaks nothing. The path is quoted with `dbQuoteString()`; one
+  file per call, so a glob or a vector of paths is refused; and until
+  each of #36 to #40 is fixed in the fork, a column of a type that
+  reader gets wrong is an error, not its wrong value. For comparison,
+  `duckdb`'s `duckdb_read_csv()` loads CSV files into a table and takes
+  reader options through `...`, and `tbl_file()` and duckplyr's readers
+  return lazy tables.
 
 - **Q13.** What does a connection do in a forked child
   (`parallel::mclapply()`)? The engine owns threads and a file handle
