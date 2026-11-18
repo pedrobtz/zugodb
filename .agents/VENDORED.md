@@ -6,7 +6,7 @@ code: change libzugodb, release it, then re-vendor.
 
 | Library | Version | Commit | Retrieved | License |
 |---|---|---|---|---|
-| [libzugodb](https://github.com/pedrobtz/libzugodb) | `v0.1.0` | `8a471c0be4535f781bcf0065aef0a15cf3f7ad88` | 2026-11-18 | MIT (`src/vendor/libzugodb/LICENSE`) |
+| [libzugodb](https://github.com/pedrobtz/libzugodb) | `v0.1.1` | `d3ec8c5ff1818c5079ecac0185514656fb715e66` | 2026-11-18 | MIT (`src/vendor/libzugodb/LICENSE`) |
 | derived from [SlothDB](https://github.com/SouravRoy-ETL/slothdb) | v0.2.7+ | `8180f215847015944c935f56f008d194e2c1494c` | 2026-11-17 | MIT, "SlothDB Contributors" |
 
 The third-party code inside it (zstd's decompressor, snappy, fastpforlib,

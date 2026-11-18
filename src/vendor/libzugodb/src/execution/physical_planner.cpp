@@ -1102,11 +1102,15 @@ public:
             // Single-threaded (incl. WASM without pthreads): run inline.
             if (nt == 1) WorkerLoop(0);
         } else {
+            // Workers read the count, never workers_.size(): the vector is
+            // still growing while the first workers run.
+            worker_count_ = nt;
             for (unsigned int t = 0; t < nt; t++) {
                 workers_.emplace_back([this, t] { WorkerLoop((int)t); });
             }
             for (auto &t : workers_) if (t.joinable()) t.join();
             workers_.clear();
+            worker_count_ = 0;
         }
         consumer_mode_ = false;
         if (zugodb::PqProfileOn()) {
@@ -1275,7 +1279,7 @@ private:
         // Bound decode-ahead in slot mode so memory doesn't balloon. Consumer
         // mode has no queue - work is freed right after the callback - so no
         // throttle is needed.
-        const idx_t max_ahead = workers_.size() * 2 + 2;
+        const idx_t max_ahead = worker_count_ * 2 + 2;
         // Thread-local persistent RGWork - reuse buffers across row groups so
         // each RG doesn't malloc a fresh ~1 MB column buffer per column.
         RGWork consumer_work;
@@ -1368,6 +1372,7 @@ private:
         // nt <= 1: skip spawn. The slot-mode caller path checks
         // `workers_.empty()` and decodes inline (see GetNextWork).
         if (nt <= 1) return;
+        worker_count_ = nt;
         for (unsigned int t = 0; t < nt; t++) {
             workers_.emplace_back([this] { WorkerLoop(); });
         }
@@ -1387,6 +1392,7 @@ private:
         for (auto &t : workers_) if (t.joinable()) t.join();
         workers_.clear();
         slots_.clear();
+        worker_count_ = 0;
         stop_.store(false);
     }
 
@@ -1456,6 +1462,9 @@ private:
     idx_t next_emit_ = 0;            // main-thread only
     std::vector<std::unique_ptr<RGWork>> slots_; // indexed by rg_idx
     std::vector<std::thread> workers_;
+    // How many workers there are, set before the first starts: WorkerLoop
+    // must not read workers_ while the main thread is appending to it.
+    unsigned int worker_count_ = 0;
     std::atomic<bool> stop_{false};
     std::mutex mu_;
     std::condition_variable slot_ready_cv_; // main waits on this
