@@ -108,7 +108,8 @@ wc -l < "$tmp/imports" | sed 's/^ */imported: /'
 endgroup
 # The library symbols CRAN's "checking compiled code" flags, by base name:
 # a leading underscore, a _chk suffix and the platform's spelling of stderr
-# and stdout stripped (tools/patches/0002-no-process-output.patch).
+# and stdout stripped (the fork's change "Write nothing to stderr, never
+# abort, use no rand()").
 sed -e 's/^_*//' -e 's/_chk$//' \
   -e 's/^stderrp$/stderr/' -e 's/^stdoutp$/stdout/' \
   -e 's/^acrt_iob_func$/stderr/' -e 's/^stdio_common_vsprintf$/sprintf/' \

@@ -98,21 +98,29 @@ SEXP sdb_scalar_int(SEXP sql) {
   return sdb::ResultList(Rf_ScalarInteger(v.value), err);
 }
 
+// sdb_info(): the source the engine was compiled from (src/sdb_provenance.h,
+// from tools/vendor.yaml): the fork's repository, commit and tag, the
+// upstream commit it is based on, and the subject of each change since.
 SEXP sdb_info(void) {
-  static const char *patches[] = SDB_PATCHES;
-  const int n = SDB_PATCH_COUNT;
+  static const char *changes[] = SDB_CHANGES;
+  const int n = SDB_CHANGE_COUNT;
   const unsigned int threads = slothdb::ThreadCap();
-  const char *names[] = {"engine", "repository", "commit", "describe",
-                         "patches", "threads", ""};
+  const char *names[] = {"engine",   "repository",      "commit",
+                         "tag",      "upstream",        "upstream_commit",
+                         "describe", "changes",         "threads",
+                         ""};
   SEXP out = PROTECT(Rf_mkNamed(VECSXP, names));
   SET_VECTOR_ELT(out, 0, Rf_mkString("SlothDB"));
-  SET_VECTOR_ELT(out, 1, Rf_mkString(SDB_UPSTREAM_REPOSITORY));
-  SET_VECTOR_ELT(out, 2, Rf_mkString(SDB_UPSTREAM_COMMIT));
-  SET_VECTOR_ELT(out, 3, Rf_mkString(SDB_UPSTREAM_DESCRIBE));
+  SET_VECTOR_ELT(out, 1, Rf_mkString(SDB_SOURCE_REPOSITORY));
+  SET_VECTOR_ELT(out, 2, Rf_mkString(SDB_SOURCE_COMMIT));
+  SET_VECTOR_ELT(out, 3, Rf_mkString(SDB_SOURCE_TAG));
+  SET_VECTOR_ELT(out, 4, Rf_mkString(SDB_UPSTREAM_REPOSITORY));
+  SET_VECTOR_ELT(out, 5, Rf_mkString(SDB_UPSTREAM_COMMIT));
+  SET_VECTOR_ELT(out, 6, Rf_mkString(SDB_UPSTREAM_DESCRIBE));
   SEXP p = PROTECT(Rf_allocVector(STRSXP, n));
-  for (int i = 0; i < n; i++) SET_STRING_ELT(p, i, Rf_mkChar(patches[i]));
-  SET_VECTOR_ELT(out, 4, p);
-  SET_VECTOR_ELT(out, 5, Rf_ScalarInteger(static_cast<int>(threads)));
+  for (int i = 0; i < n; i++) SET_STRING_ELT(p, i, Rf_mkChar(changes[i]));
+  SET_VECTOR_ELT(out, 7, p);
+  SET_VECTOR_ELT(out, 8, Rf_ScalarInteger(static_cast<int>(threads)));
   UNPROTECT(2);
   return out;
 }

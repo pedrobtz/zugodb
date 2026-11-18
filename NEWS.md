@@ -43,6 +43,7 @@
   `zuslothdb_sql_error` (the engine's message), `zuslothdb_type_error`,
   `zuslothdb_argument_error`, `zuslothdb_closed_error` and
   `zuslothdb_unsupported` (`params =`).
-* The SlothDB engine is bundled and compiled with the package: upstream
-  commit `8180f21` with ten patches, listed by `zuslothdb_info()`. The
+* The SlothDB engine is bundled and compiled with the package, from
+  pedrobtz/slothdb, zuslothdb's fork of SlothDB: upstream commit
+  `8180f21` and zuslothdb's changes to it, listed by `zuslothdb_info()`. The
   package is offline only: a remote path in a query is an error.

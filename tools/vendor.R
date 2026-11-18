@@ -2,11 +2,12 @@
 #
 #   Rscript tools/vendor.R                    # re-vendor and regenerate
 #   Rscript tools/vendor.R --verify           # rebuild in a temp dir, diff
-#   Rscript tools/vendor.R --upstream <dir>   # use a local clone, no fetch
+#   Rscript tools/vendor.R --source <dir>     # use a local clone of the fork
 #
 # Run from the package root. Needs git and the yaml package. The vendored
-# tree is exactly: upstream at `upstream.commit`, `patches` applied with
-# `git apply`, `copy` minus `exclude`. From it, this script writes
+# tree is exactly the fork (pedrobtz/slothdb) at `source.commit`, `copy`
+# minus `exclude`; the fork's history since `upstream.commit` must be
+# exactly the commits `changes` lists, in order. From it, this script writes
 # src/Makevars, src/Makevars.win, src/sdb_provenance.h, inst/vendor.yaml
 # and tools/vendor/checksums.md5. --verify writes nothing in the package:
 # it builds the same outputs in a temporary directory and fails, naming
@@ -15,7 +16,7 @@
 
 main <- function(args) {
   verify <- "--verify" %in% args
-  upstream_dir <- arg_value(args, "--upstream")
+  upstream_dir <- arg_value(args, "--source")
   if (!requireNamespace("yaml", quietly = TRUE)) {
     stop("tools/vendor.R needs the yaml package", call. = FALSE)
   }
@@ -25,15 +26,13 @@ main <- function(args) {
   if (verify) {
     bad <- compare(cfg, out, ".")
     if (length(bad)) {
-      message("vendored tree differs from tools/vendor.yaml + tools/patches:")
+      message("vendored tree differs from tools/vendor.yaml's source:")
       message(paste0("  ", bad, collapse = "\n"))
       quit(status = 1)
     }
-    message("ok: the vendored tree is upstream ", short(cfg), " + ",
-            length(cfg$patches), " patches")
+    message("ok: the vendored tree is ", describe(cfg))
   } else {
-    message("vendored upstream ", short(cfg), " with ",
-            length(cfg$patches), " patches into ", cfg$destination)
+    message("vendored ", describe(cfg), " into ", cfg$destination)
   }
 }
 
@@ -42,7 +41,15 @@ arg_value <- function(args, name) {
   if (is.na(i)) NULL else args[[i + 1L]]
 }
 
-short <- function(cfg) substr(cfg$upstream$commit, 1, 7)
+short <- function(x) substr(x, 1, 7)
+
+describe <- function(cfg) {
+  sprintf(
+    "the fork at %s (%s): upstream %s + %d changes",
+    short(cfg$source$commit), cfg$source$tag, short(cfg$upstream$commit),
+    length(cfg$changes)
+  )
+}
 
 git <- function(...) {
   res <- system2("git", c(...), stdout = TRUE, stderr = TRUE)
@@ -54,24 +61,41 @@ git <- function(...) {
   res
 }
 
-# A checkout of upstream at the pinned commit with the patches applied, in a
-# temporary directory: a fresh clone, or a copy of `upstream_dir`.
-patched_checkout <- function(cfg, upstream_dir) {
+# A checkout of the fork at `source.commit`, in a temporary directory: a
+# fresh clone, or a clone of the local `source_dir`. Its history since
+# `upstream.commit` must be exactly `changes`: upstream is an ancestor, and
+# every change zuslothdb makes to it is listed with its reason.
+patched_checkout <- function(cfg, source_dir) {
   dir <- tempfile("slothdb-")
-  if (is.null(upstream_dir)) {
-    git("clone", "--quiet", "--no-checkout", cfg$upstream$repository, dir)
-  } else {
-    git("clone", "--quiet", "--no-checkout", normalizePath(upstream_dir), dir)
-  }
+  from <- if (is.null(source_dir)) cfg$source$repository else normalizePath(source_dir)
+  git("clone", "--quiet", "--no-checkout", from, dir)
   git("-C", dir, "-c", "core.autocrlf=false", "-c", "advice.detachedHead=false",
-      "checkout", "--quiet", cfg$upstream$commit)
+      "checkout", "--quiet", cfg$source$commit)
   head <- git("-C", dir, "rev-parse", "HEAD")
-  if (!identical(head, cfg$upstream$commit)) {
-    stop("checkout is at ", head, ", not ", cfg$upstream$commit, call. = FALSE)
+  if (!identical(head, cfg$source$commit)) {
+    stop("checkout is at ", head, ", not ", cfg$source$commit, call. = FALSE)
   }
-  for (p in cfg$patches) {
-    git("-C", dir, "apply", "--whitespace=nowarn",
-        normalizePath(file.path("tools/patches", p$file)))
+  base <- system2(
+    "git", c("-C", dir, "merge-base", "--is-ancestor", cfg$upstream$commit, head)
+  )
+  if (base != 0) {
+    stop("upstream ", cfg$upstream$commit, " is not an ancestor of ", head,
+         call. = FALSE)
+  }
+  history <- git("-C", dir, "rev-list", "--reverse",
+                 paste0(cfg$upstream$commit, "..", head))
+  listed <- vapply(cfg$changes, `[[`, "", "commit")
+  if (!identical(history, listed)) {
+    stop("the fork's commits since upstream are not tools/vendor.yaml's ",
+         "changes:\n  fork:   ", paste(short(history), collapse = " "),
+         "\n  listed: ", paste(short(listed), collapse = " "), call. = FALSE)
+  }
+  subjects <- git("-C", dir, "log", "--reverse", "--format=%s",
+                  paste0(cfg$upstream$commit, "..", head))
+  wrong <- subjects != vapply(cfg$changes, `[[`, "", "subject")
+  if (any(wrong)) {
+    stop("subject differs from the fork's for change ",
+         short(listed[wrong][1]), call. = FALSE)
   }
   dir
 }
@@ -168,17 +192,26 @@ write_makevars <- function(cfg, files, out) {
   writeLines(common, file.path(out, "src/Makevars.win"))
 }
 
+# A C string literal: the subjects are ASCII, but a quote or backslash
+# would end one.
+c_string <- function(x) {
+  paste0("\"", gsub("([\"\\\\])", "\\\\\\1", x), "\"")
+}
+
 write_provenance <- function(cfg, path) {
-  patches <- vapply(cfg$patches, `[[`, "", "file")
+  changes <- vapply(cfg$changes, `[[`, "", "subject")
+  if (any(grepl("[^ -~]", changes))) stop("a change's subject is not ASCII", call. = FALSE)
   lines <- c(
     "// Generated by tools/vendor.R from tools/vendor.yaml; do not edit.",
     "#pragma once",
-    sprintf("#define SDB_UPSTREAM_REPOSITORY \"%s\"", cfg$upstream$repository),
-    sprintf("#define SDB_UPSTREAM_COMMIT \"%s\"", cfg$upstream$commit),
-    sprintf("#define SDB_UPSTREAM_DESCRIBE \"%s\"", cfg$upstream$describe),
-    sprintf("#define SDB_PATCH_COUNT %d", length(patches)),
-    sprintf("#define SDB_PATCHES {%s}",
-            paste0("\"", patches, "\"", collapse = ", "))
+    sprintf("#define SDB_SOURCE_REPOSITORY %s", c_string(cfg$source$repository)),
+    sprintf("#define SDB_SOURCE_COMMIT %s", c_string(cfg$source$commit)),
+    sprintf("#define SDB_SOURCE_TAG %s", c_string(cfg$source$tag)),
+    sprintf("#define SDB_UPSTREAM_REPOSITORY %s", c_string(cfg$upstream$repository)),
+    sprintf("#define SDB_UPSTREAM_COMMIT %s", c_string(cfg$upstream$commit)),
+    sprintf("#define SDB_UPSTREAM_DESCRIBE %s", c_string(cfg$upstream$describe)),
+    sprintf("#define SDB_CHANGE_COUNT %d", length(changes)),
+    sprintf("#define SDB_CHANGES {%s}", paste(c_string(changes), collapse = ", "))
   )
   writeLines(lines, path)
 }

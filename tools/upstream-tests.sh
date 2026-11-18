@@ -1,14 +1,15 @@
 #!/bin/sh
-# tools/upstream-tests.sh [workdir]: upstream SlothDB's own doctest suite,
-# built against the package's vendored, patched tree (src/vendor/slothdb)
-# with R's compilers and flags, without R or CMake. Run from the package
-# root. Needs git and network access the first time (the test sources and
-# doctest are not vendored: they come from upstream at the pinned commit,
-# with tools/vendor.yaml's test_patches applied and test_exclude left out).
+# tools/upstream-tests.sh [workdir]: SlothDB's own doctest suite, built
+# against the package's vendored tree (src/vendor/slothdb) with R's
+# compilers and flags, without R or CMake. Run from the package root. Needs
+# git and network access the first time (the test sources and doctest are
+# not vendored: they come from the fork, pedrobtz/slothdb, at the commit
+# tools/vendor.yaml's `source` names, with `test_exclude` left out; the
+# fork's commits carry zuslothdb's changes to the tests too).
 #
 # Exit status: the doctest binary's (124 for a run that hangs), so a
-# failing, crashing or hanging upstream case fails the step. design §4.2 /
-# D1: the patches must break nothing upstream tested.
+# failing, crashing or hanging case fails the step. design §4.2 / D1: the
+# changes must break nothing upstream tested.
 set -eu
 here=$(pwd)
 work=${1:-$(mktemp -d)}
@@ -16,24 +17,27 @@ jobs=${SDB_JOBS:-4}
 R=${R_HOME:+$R_HOME/bin/}R
 command -v R >/dev/null 2>&1 && R=R
 
-repo=$(awk '/^  repository:/ {print $2}' tools/vendor.yaml)
-commit=$(awk '/^  commit:/ {print $2}' tools/vendor.yaml)
-repo=${SDB_UPSTREAM:-$repo}
+# The `source:` block: the fork and its commit.
+field() {
+  awk -v key="$1" '/^source:/ {on = 1; next} /^[a-z_]+:/ {on = 0}
+                   on && $1 == key ":" {print $2; exit}' tools/vendor.yaml
+}
+repo=$(field repository)
+commit=$(field commit)
+repo=${SDB_SOURCE:-$repo}
 [ -n "$repo" ] && [ -n "$commit" ] || { echo "cannot read tools/vendor.yaml" >&2; exit 2; }
 
-# Upstream's test tree at the pinned commit, test patches applied.
+# The fork's test tree at the vendored commit (a clone left in `workdir`
+# by an earlier run is fetched into when it lacks the commit).
 up="$work/upstream"
 if [ ! -d "$up/.git" ]; then
   git -c core.autocrlf=false clone -q --no-checkout "$repo" "$up"
   git -C "$up" config core.autocrlf false
 fi
+git -C "$up" cat-file -e "$commit^{commit}" 2>/dev/null ||
+  git -C "$up" fetch -q "$repo" '+refs/heads/*:refs/remotes/source/*' '+refs/tags/*:refs/tags/*'
 git -C "$up" -c advice.detachedHead=false checkout -q -f "$commit"
 git -C "$up" clean -q -fdx test
-awk '/^test_patches:/ {on = 1; next} /^[a-z_]+:/ {on = 0}
-     on && /^  - file:/ {print $3}' tools/vendor.yaml | while read -r p; do
-  git -C "$up" apply --whitespace=nowarn "$here/tools/patches/$p"
-  echo "applied test patch $p"
-done
 excluded=$(awk '/^test_exclude:/ {on = 1; next} /^[a-z_]+:/ {on = 0}
      on && /^  - path:/ {print $3}' tools/vendor.yaml)
 

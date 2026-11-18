@@ -1,7 +1,7 @@
 #!/bin/sh
 # Called by r-actions vendor.yml from the repository root: rebuild the
-# vendored tree from tools/vendor.yaml and tools/patches in a temporary
-# directory and compare it, file by file, with what is committed.
+# vendored tree from the fork commit tools/vendor.yaml pins, in a temporary
+# directory, and compare it, file by file, with what is committed.
 #
 # vendor.yml runs this on a bare ubuntu-latest runner, which has no R: then
 # Ubuntu's own R and yaml packages are installed first (about a minute).
