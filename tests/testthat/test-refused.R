@@ -4,7 +4,7 @@
 # with Avro's magic, are refused by every route, before any byte is parsed.
 
 test_that("SQLite, Excel and Avro files are refused by every route", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   dir <- withr::local_tempdir()
   fixture <- function(name) normalizePath(test_path("fixtures", "refused", name), "/")
@@ -28,7 +28,7 @@ test_that("SQLite, Excel and Avro files are refused by every route", {
   for (r in routes) {
     err <- expect_error(
       DBI::dbGetQuery(con, sprintf(r[[1]], r[[2]])),
-      class = "zuslothdb_sql_error", label = basename(r[[2]])
+      class = "zug_sql_error", label = basename(r[[2]])
     )
     expect_match(conditionMessage(err), r[[3]], fixed = TRUE, label = basename(r[[2]]))
     expect_match(conditionMessage(err), "not supported", fixed = TRUE)

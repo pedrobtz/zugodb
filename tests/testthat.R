@@ -7,15 +7,15 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(zuslothdb)
+library(zugodb)
 
 # Shuffled within each file, as tools/ci-run-tests.R runs them, so an order
 # dependence shows on every R CMD check leg, not on one platform. The seed
-# is printed in testthat.Rout; ZUSLOTHDB_TEST_SEED replays an order.
-seed <- suppressWarnings(as.integer(Sys.getenv("ZUSLOTHDB_TEST_SEED")))
+# is printed in testthat.Rout; ZUG_TEST_SEED replays an order.
+seed <- suppressWarnings(as.integer(Sys.getenv("ZUG_TEST_SEED")))
 if (is.na(seed)) {
   seed <- as.integer(Sys.time()) %% 100000L
 }
-cat("test order seed:", seed, "(ZUSLOTHDB_TEST_SEED to replay)\n")
+cat("test order seed:", seed, "(ZUG_TEST_SEED to replay)\n")
 set.seed(seed)
-test_check("zuslothdb", shuffle = TRUE)
+test_check("zugodb", shuffle = TRUE)

@@ -7,20 +7,20 @@ test_that("every temporal query agrees with duckdb's recorded answer", {
   names <- oracle_names("temporal-")
   expect_length(names, 2L)
   for (name in names) {
-    expect_identical(zuslothdb_answer(name), oracle_answer(name), label = name)
+    expect_identical(zugodb_answer(name), oracle_answer(name), label = name)
   }
 })
 
 test_that("timezone_out sets the zone and keeps the instant", {
   want <- oracle_answer("temporal-timestamp")$ts
   for (tz in c("Europe/Lisbon", "America/Sao_Paulo", "")) {
-    got <- zuslothdb_answer("temporal-timestamp", timezone_out = tz)$ts
+    got <- zugodb_answer("temporal-timestamp", timezone_out = tz)$ts
     expect_identical(attr(got, "tzone"), tz, label = tz)
     expect_identical(unclass(got), `attr<-`(unclass(want), "tzone", tz))
   }
   # As in duckdb, whose answer with this zone was recorded by hand:
   # TIMESTAMP '2024-07-01 00:00:00' is 1719792000 in any zone.
-  con <- DBI::dbConnect(zuslothdb(), timezone_out = "Europe/Lisbon")
+  con <- DBI::dbConnect(zugodb(), timezone_out = "Europe/Lisbon")
   withr::defer(DBI::dbDisconnect(con))
   got <- DBI::dbGetQuery(con, "SELECT TIMESTAMP '2024-07-01 00:00:00' AS ts")$ts
   expect_identical(
@@ -44,15 +44,15 @@ test_that("timezone_out must be a time zone R knows, or \"\"", {
     NULL
   )) {
     expect_error(
-      DBI::dbConnect(zuslothdb(), timezone_out = bad),
-      class = "zuslothdb_argument_error",
+      DBI::dbConnect(zugodb(), timezone_out = bad),
+      class = "zug_argument_error",
       label = deparse(bad)
     )
   }
 })
 
 test_that("temporal columns keep their class in every slice", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   for (s in oracle_statements(test_path("oracle", "temporal-timestamp.sql"))[
     1:2
@@ -82,7 +82,7 @@ test_that("temporal columns keep their class in every slice", {
 })
 
 test_that("dbColumnInfo() names the R class each temporal type arrives as", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   res <- DBI::dbSendQuery(
     con,

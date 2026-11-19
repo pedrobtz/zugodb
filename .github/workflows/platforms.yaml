@@ -1,4 +1,4 @@
-# zuslothdb's own per-OS checks, one job per runner: tools/ci/platform.sh
+# zugodb's own per-OS checks, one job per runner: tools/ci/platform.sh
 # runs every check that needs a particular OS, as steps (ci.md): the
 # install, the exported and CRAN-flagged symbols, duckdb in the same
 # session, and upstream's doctest suite on the patched tree (Linux on every

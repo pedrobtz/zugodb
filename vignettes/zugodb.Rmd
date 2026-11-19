@@ -1,9 +1,9 @@
 ---
-title: "Get started with zuslothdb"
+title: "Get started with zugodb"
 description: "Connect, query a local file with SQL, and see how values and failures come back to R."
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Get started with zuslothdb}
+  %\VignetteIndexEntry{Get started with zugodb}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -16,15 +16,16 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-zuslothdb runs SQL over local files from R. It compiles the experimental
-[SlothDB](https://github.com/SouravRoy-ETL/slothdb) engine into the package
+zugodb runs SQL over local files from R. It compiles the experimental
+[libzugodb](https://github.com/pedrobtz/libzugodb) engine, derived from
+[SlothDB](https://github.com/SouravRoy-ETL/slothdb), into the package
 and puts a DBI driver on top, so there is no server, no system library and
 no download. This page connects, queries one CSV file, and shows how the
 package handles types, failures and writing.
 
 ```{r setup, eval = FALSE}
 library(DBI)
-library(zuslothdb)
+library(zugodb)
 
 cars <- tempfile(fileext = ".csv")
 write.csv(mtcars, cars, row.names = FALSE)
@@ -32,20 +33,20 @@ write.csv(mtcars, cars, row.names = FALSE)
 
 ## Connect and query a file
 
-`zuslothdb()` is a DBI driver, used the way `duckdb::duckdb()` is: code moves
+`zugodb()` is a DBI driver, used the way `duckdb::duckdb()` is: code moves
 between the two by changing the first argument of `dbConnect()`. The engine
 reads files through SQL table functions, so there is no import step.
 
 ```{r, eval = FALSE}
-con <- dbConnect(zuslothdb(), dbdir = ":memory:")
+con <- dbConnect(zugodb(), dbdir = ":memory:")
 
 dbGetQuery(con, paste0(
   "SELECT cyl, count(*) AS n, avg(mpg) AS mpg ",
   "FROM read_csv(", dbQuoteString(con, cars), ") GROUP BY cyl ORDER BY cyl"
 ))
 
-# Open: what zuslothdb_read() returns and whether it takes reader options (Q12)
-zuslothdb_read(con, cars)
+# Open: what zugodb_read() returns and whether it takes reader options (Q12)
+zugodb_read(con, cars)
 ```
 
 ## Values arrive as R types, or not at all
@@ -58,9 +59,9 @@ double by default; beyond 2^53 you choose a wider type when connecting.
 dbGetQuery(con, "SELECT DATE '2026-11-17' AS day, 42::BIGINT AS n")
 
 dbGetQuery(con, "SELECT 9007199254740993::BIGINT AS n")
-# a zuslothdb_type_error
+# a zug_type_error
 
-con64 <- dbConnect(zuslothdb(), bigint = "integer64")
+con64 <- dbConnect(zugodb(), bigint = "integer64")
 dbGetQuery(con64, "SELECT 9007199254740993::BIGINT AS n")
 dbDisconnect(con64)
 ```
@@ -68,18 +69,18 @@ dbDisconnect(con64)
 ## Failures are classed conditions
 
 The engine never takes the R session down: its errors come back as
-conditions that inherit from `zuslothdb_error`, so a caller can tell a bad
-query from a missing feature. SlothDB has no prepared statements, so
+conditions that inherit from `zug_error`, so a caller can tell a bad
+query from a missing feature. The engine has no prepared statements, so
 parameters are refused in v0.1.0.
 
 ```{r, eval = FALSE}
 tryCatch(
   dbGetQuery(con, "SELECT no_such_column FROM read_csv('missing.csv')"),
-  zuslothdb_sql_error = function(e) conditionMessage(e)
+  zug_sql_error = function(e) conditionMessage(e)
 )
 
 dbGetQuery(con, "SELECT ? AS x", params = list(1))
-# a zuslothdb_unsupported error
+# a zug_unsupported error
 ```
 
 ## Write tables and keep them
@@ -102,6 +103,6 @@ dbDisconnect(con, shutdown = TRUE)
 
 ## Where next
 
-The [reference index](https://pedrobtz.github.io/zuslothdb/reference/) lists
-every function. `zuslothdb_info()` reports the engine commit, the patches
+The [reference index](https://pedrobtz.github.io/zugodb/reference/) lists
+every function. `zug_info()` reports the engine commit, the patches
 applied and the thread count.

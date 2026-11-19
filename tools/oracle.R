@@ -1,5 +1,5 @@
 # Records duckdb's answer to each query in tests/testthat/oracle/ (design
-# §10): the tests compare zuslothdb's result with these answers, so the
+# §10): the tests compare zugodb's result with these answers, so the
 # oracle is checked on every CI leg without duckdb being installed.
 #
 #   Rscript tools/oracle.R             # every *.sql

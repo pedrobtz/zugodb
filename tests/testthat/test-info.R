@@ -1,14 +1,14 @@
-# zuslothdb_info() reports what the library was compiled from. Its oracle is
+# zug_info() reports what the library was compiled from. Its oracle is
 # tools/vendor.yaml, installed as vendor.yaml: the commit, tag and origin
-# there were compiled in through src/sdb_provenance.h, and a vendor.yaml
+# there were compiled in through src/zug_provenance.h, and a vendor.yaml
 # edited without re-running tools/vendor.R makes them disagree.
 
-test_that("zuslothdb_info() reports libzugodb's tag and SlothDB's commit", {
+test_that("zug_info() reports libzugodb's tag and SlothDB's commit", {
   skip_if_not_installed("yaml")
-  path <- system.file("vendor.yaml", package = "zuslothdb")
+  path <- system.file("vendor.yaml", package = "zugodb")
   expect_true(nzchar(path))
   cfg <- yaml::read_yaml(path)
-  info <- zuslothdb_info()
+  info <- zug_info()
 
   expect_identical(info$engine, "libzugodb")
   expect_identical(info$repository, cfg$source$repository)
@@ -24,5 +24,5 @@ test_that("zuslothdb_info() reports libzugodb's tag and SlothDB's commit", {
 })
 
 test_that("the engine runs two threads unless told otherwise (D5)", {
-  expect_identical(zuslothdb_info()$threads, 2L)
+  expect_identical(zug_info()$threads, 2L)
 })

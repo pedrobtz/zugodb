@@ -1,6 +1,6 @@
 # The recorded-answer oracle (design §10; tools/oracle.R writes the
 # answers). Each tests/testthat/oracle/<name>.sql has its duckdb answer in
-# <name>.answer.R; known-differences.md lists those zuslothdb answers
+# <name>.answer.R; known-differences.md lists those zugodb answers
 # differently, and why.
 
 oracle_dir <- function() test_path("oracle")
@@ -21,12 +21,12 @@ oracle_answer <- function(name) {
   eval(parse(path, encoding = "UTF-8", keep.source = FALSE)[[1]], baseenv())
 }
 
-# zuslothdb's answer to a corpus file, in the shape the answers have: the
+# zugodb's answer to a corpus file, in the shape the answers have: the
 # data frame with compact row names, or list(error = <message>) if any
 # statement fails.
-zuslothdb_answer <- function(name, bigint = "numeric", timezone_out = "UTC") {
+zugodb_answer <- function(name, bigint = "numeric", timezone_out = "UTC") {
   statements <- oracle_statements(file.path(oracle_dir(), paste0(name, ".sql")))
-  con <- DBI::dbConnect(zuslothdb(), bigint = bigint, timezone_out = timezone_out)
+  con <- DBI::dbConnect(zugodb(), bigint = bigint, timezone_out = timezone_out)
   on.exit(DBI::dbDisconnect(con))
   n <- length(statements)
   tryCatch(

@@ -16,7 +16,9 @@ sessions do not load the plugin and run without them.
 
 ## What this is
 
-`zuslothdb` is to SlothDB what `duckdb` is to DuckDB: the engine's C++20
+`zugodb` (named `zuslothdb` until 2026-11-18, design D12) is to
+[libzugodb](https://github.com/pedrobtz/libzugodb), its own C++20 engine
+derived from SlothDB, what `duckdb` is to DuckDB: the engine's
 source vendored into the package and compiled at install, with a DBI driver
 on top, so that SQL over local CSV, Parquet and JSON files works
 with no system library, no server and no download. Runtime dependencies are
@@ -28,7 +30,7 @@ R packages extend. Files are read by the zu family's readers (`zucsv`,
 the Arrow C stream, and not by SlothDB's own readers, which are refused and
 then cut (design §7). The engine loads no code itself: an extension is an R
 package that registers table sources and scalar functions with it (design
-§16). The engine's core stays SlothDB's and is fixed on the fork.
+§16). The engine's core is SlothDB's, now maintained as libzugodb.
 
 It is deliberately not a `duckdb` replacement
 (upstream calls itself experimental), not a network client (HTTP, S3,
@@ -58,7 +60,7 @@ restaged on 2026-11-18 from Stage 6 on:
   adapter the readers use later.
 - Stage 8: the core measured against sqllogictest. The bar for v0.1.0 is no
   wrong answer, crash or hang on a pinned subset (Q18).
-- Stage 10: the zu readers linked, `zuslothdb_read()`, readers registered
+- Stage 10: the zu readers linked, `zugodb_read()`, readers registered
   by other packages, and the engine's readers cut.
 
 v0.1.0 has no CRAN date. D1 in the design records why the package goes on.
@@ -70,7 +72,7 @@ with the prefix `zug_` (Stage 5.2).
 ## Versions and dependents
 
 The current version's parent issue is
-[#1](https://github.com/pedrobtz/zuslothdb/issues/1) for `v0.1.0`.
+[#1](https://github.com/pedrobtz/zugodb/issues/1) for `v0.1.0`.
 Sibling packages that depend on this one before CRAN does: none.
 
 It waits on a release of each of `zukomp`, `zuarrow`, `zucsv`, `qio` and
@@ -88,11 +90,11 @@ sh tools/upstream-tests.sh [workdir]      # the fork's doctests, vendored tree
 bash tools/ci/platform.sh <macos|windows|ubuntu>  # the per-OS checks
 ```
 
-`src/Makevars`, `src/Makevars.win`, `src/sdb_provenance.h`,
+`src/Makevars`, `src/Makevars.win`, `src/zug_provenance.h`,
 `inst/vendor.yaml` and `tools/vendor/checksums.md5` are written by
 `tools/vendor.R`: change `tools/vendor.yaml` and re-run it,
 never edit them. Set `MAKEFLAGS=-jN` for any local build; the engine is
-about four CPU-minutes serial. `ZUSLOTHDB_TEST_SEED` replays a shuffled
+about four CPU-minutes serial. `ZUG_TEST_SEED` replays a shuffled
 test order.
 
 ## Architecture
@@ -101,35 +103,35 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
 
 - `src/vendor/libzugodb/`: the engine, a tagged release of
   [pedrobtz/libzugodb](https://github.com/pedrobtz/libzugodb).
-- [src/sdb_glue.cpp](src/sdb_glue.cpp): every `.Call` entry point and
-  `R_init_zuslothdb`. Engine work happens in `Engine*` helpers inside
+- [src/zug_glue.cpp](src/zug_glue.cpp): every `.Call` entry point and
+  `R_init_zugodb`. Engine work happens in `Engine*` helpers inside
   `try`/`catch` with all C++ objects scoped there; entry points get back
   plain values and an error string, then build R objects.
-- [src/sdb_database.cpp](src/sdb_database.cpp): databases and connections
+- [src/zug_database.cpp](src/zug_database.cpp): databases and connections
   behind external pointers. A connection's `prot` is its database's
   pointer, so the database struct outlives it; closing a database
   destroys its connections' engine objects first. Every struct records
   its process; from another (a fork) it is closed and its finalizer
   does nothing.
-- [src/sdb_result.cpp](src/sdb_result.cpp): results in two phases. The
+- [src/zug_result.cpp](src/zug_result.cpp): results in two phases. The
   C++ phase copies the engine's whole result into plain buffers (and
   finds any value R cannot hold); the R phase only slices those buffers
   into vectors, so no C++ object is live while R allocates.
-- `R/`: [R/result.R](R/result.R) (the `zuslothdb_result` methods),
-  [R/driver.R](R/driver.R) (`zuslothdb()`, the database it holds,
+- `R/`: [R/result.R](R/result.R) (the `zugodb_result` methods),
+  [R/driver.R](R/driver.R) (`zugodb()`, the database it holds,
   opened at the first connection), [R/connection.R](R/connection.R)
   (`dbConnect()` to `dbExecute()`), [R/conditions.R](R/conditions.R)
-  (`sdb_abort()` turns the glue's error kind into a condition class),
+  (`zug_abort()` turns the glue's error kind into a condition class),
   [R/checks.R](R/checks.R) (argument checks), [R/info.R](R/info.R).
 
 ## Invariants that are easy to break
 
 - No C++ exception crosses into R, and no R API call that can longjmp runs
-  while a SlothDB object with a destructor is live on the stack (§4.3).
+  while an engine object with a destructor is live on the stack (§4.3).
   Breaking either leaks or crashes the session. The glue never calls
   `Rf_error()`; keep it that way.
-- The shared library exports only `R_init_zuslothdb` (plus the C++
-  standard library's own template typeinfo). SlothDB carries a
+- The shared library exports only `R_init_zugodb` (plus the C++
+  standard library's own template typeinfo). The engine carries a
   `duckdb_fastpforlib` namespace copied from DuckDB, and zstd, which
   other packages bundle too. `platform.sh` checks it on each OS, and
   `tools/ci/coexist.R` runs both packages in one session.
@@ -143,7 +145,7 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
   path an error.
 - Two threads unless the user sets `threads` (D5): the fork's
   process-wide cap, `slothdb::SetThreadCap()`.
-- A 64-bit integer that does not fit a double is a `zuslothdb_type_error`,
+- A 64-bit integer that does not fit a double is a `zug_type_error`,
   never a silent rounding (§6).
 
 ## Testing
@@ -169,7 +171,7 @@ on the vendored tree through `tools/upstream-tests.sh` (378 cases), and
 `tools/ci/platform.sh`, never from testthat, because §10 keeps `duckdb`
 out of `Suggests`. The design's §10 plans DuckDB's recorded answers as the
 oracle, `DBItest`, and hostile inputs under the sanitizers, with
-`ZUSLOTHDB_SKIP_HEAVY` and `ZUSLOTHDB_SLOW_TESTS` as the switches.
+`ZUG_SKIP_HEAVY` and `ZUG_SLOW_TESTS` as the switches.
 
 ## Continuous integration
 

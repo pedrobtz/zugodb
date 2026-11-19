@@ -3,7 +3,7 @@
 # it does not.
 
 test_that("chunks of n - 1, n and n + 1 rows concatenate to the whole", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   for (total in c(2500, 2048)) {
     sql <- sprintf(
@@ -25,7 +25,7 @@ test_that("chunks of n - 1, n and n + 1 rows concatenate to the whole", {
 })
 
 test_that("n = 0, n = -1, n = Inf and n past the end", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   sql <- "SELECT CAST(i AS INTEGER) AS n FROM generate_series(1, 5) AS t(i) ORDER BY n"
   res <- DBI::dbSendQuery(con, sql)
@@ -45,19 +45,19 @@ test_that("n = 0, n = -1, n = Inf and n past the end", {
 })
 
 test_that("a bad n is refused and fetches nothing", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
   withr::defer(DBI::dbClearResult(res))
   for (bad in list(-2, 1.5, NA, NA_real_, "1", c(1, 2), numeric(), -Inf)) {
-    expect_error(DBI::dbFetch(res, bad), class = "zuslothdb_argument_error")
+    expect_error(DBI::dbFetch(res, bad), class = "zug_argument_error")
   }
   expect_identical(DBI::dbGetRowCount(res), 0)
   expect_identical(DBI::dbFetch(res)$a, 1L)
 })
 
 test_that("dbColumnInfo() names each column's R and SQL type", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   res <- DBI::dbSendQuery(
     con,
@@ -74,7 +74,7 @@ test_that("dbColumnInfo() names each column's R and SQL type", {
 })
 
 test_that("dbSendStatement() reports rows affected and has no rows", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)")
   res <- DBI::dbSendStatement(con, "INSERT INTO t VALUES (1), (2), (3)")
@@ -92,7 +92,7 @@ test_that("dbSendStatement() reports rows affected and has no rows", {
 test_that("a query whose one column is a BIGINT named Count is a query", {
   # Stage 2's dbExecute() read any one-row BIGINT "Count" result as rows
   # affected, so this returned 5; only after DML is it that.
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   sql <- "SELECT CAST(5 AS BIGINT) AS Count"
   expect_identical(DBI::dbExecute(con, sql), 0)

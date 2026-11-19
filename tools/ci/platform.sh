@@ -1,15 +1,16 @@
 #!/bin/sh
-# tools/ci/platform.sh <os>: zuslothdb's per-OS checks, run once on each
+# tools/ci/platform.sh <os>: zugodb's per-OS checks, run once on each
 # runner of platforms.yaml (os is macos, windows or ubuntu), with
 # R_ACTIONS_PROFILE set to quick or full. Every check is a step here, in
 # order; set -e names the one that failed. Run from the package root; it
 # also runs locally.
 #
+#   0. No name from before the rename to zugodb is left.
 #   1. The package installs (the vendored engine with R's compiler).
-#   2. Its shared object exports R_init_zuslothdb and nothing of SlothDB's
+#   2. Its shared object exports R_init_zugodb and nothing of SlothDB's
 #      or its third-party code, and links no symbol CRAN's compiled-code
 #      check flags.
-#   3. zuslothdb and duckdb in one session, in both load orders.
+#   3. zugodb and duckdb in one session, in both load orders.
 #   4. Upstream's own doctest suite on the vendored, patched tree
 #      (tools/upstream-tests.sh): on Linux always, on macOS and Windows
 #      under the full profile; ten runs of it under the full profile.
@@ -32,6 +33,21 @@ sep=:
 group() { echo "::group::$*"; }
 endgroup() { echo "::endgroup::"; }
 
+# ---------------------------------------------------------------------------
+# 0. No name from before the rename (design D12): zuslothdb, its
+# ZUSLOTHDB_ variables, or the glue's old sdb_ prefix, in the package's own
+# code. The vendored engine and the design's history are left out.
+group "Names"
+if git grep -nIiE 'zuslothdb|\bsdb_' -- R src tests DESCRIPTION NAMESPACE tools \
+     ':!src/vendor' ':!tools/vendor/checksums.md5' ':!tools/ci/platform.sh' \
+     > "$tmp/names" 2>/dev/null; then
+  echo "FAIL: names from before the rename to zugodb:" >&2
+  head -50 "$tmp/names" >&2
+  exit 1
+fi
+echo "ok: no zuslothdb or sdb_ name left"
+endgroup
+
 group "Toolchain"
 "$Rscript" -e 'cat(R.version.string, R.version$arch, "\n")'
 echo "CXX20 = $("$R" CMD config CXX20) $("$R" CMD config CXX20STD)"
@@ -53,8 +69,8 @@ MAKEFLAGS="-j$jobs" "$R" CMD INSTALL --preclean --no-test-load --library="$lib" 
 echo "installed in $(( $(date +%s) - start )) s with -j$jobs"
 grep -c 'warning:' "$tmp/install.log" | sed 's/^/compiler warnings: /' || true
 endgroup
-so=$(ls "$lib"/zuslothdb/libs/zuslothdb.so "$lib"/zuslothdb/libs/*/zuslothdb.dll \
-  "$lib"/zuslothdb/libs/zuslothdb.dll 2>/dev/null | head -1)
+so=$(ls "$lib"/zugodb/libs/zugodb.so "$lib"/zugodb/libs/*/zugodb.dll \
+  "$lib"/zugodb/libs/zugodb.dll 2>/dev/null | head -1)
 [ -n "$so" ] || { echo "no shared object installed" >&2; exit 1; }
 echo "shared object: $so ($(wc -c < "$so" | tr -d ' ') bytes)"
 
@@ -90,17 +106,17 @@ endgroup
 # library's copy changes nothing. They are told apart by the mangled name,
 # whose outermost scope follows _Z (or _ZN and its cv-qualifiers): St for
 # std, 9__gnu_cxx for __gnu_cxx. A demangled name will not do: it starts
-# with the return type. Everything else must be R_init_zuslothdb (design
+# with the return type. Everything else must be R_init_zugodb (design
 # §4, the duckdb_fastpforlib and zstd clashes).
 std='^_Z(T[ISVT]|GV|TH|TW)?Z?N?[rVKRO]*(St|9__gnu_cxx)'
 grep -vE "$std" "$tmp/exports" > "$tmp/ours" || true
 echo "of which not the C++ standard library's: $(wc -l < "$tmp/ours" | tr -d ' ')"
-if ! [ "$(cat "$tmp/ours")" = "R_init_zuslothdb" ]; then
-  echo "FAIL: the shared object exports more than R_init_zuslothdb:" >&2
-  grep -vx 'R_init_zuslothdb' "$tmp/ours" | head -200 >&2
+if ! [ "$(cat "$tmp/ours")" = "R_init_zugodb" ]; then
+  echo "FAIL: the shared object exports more than R_init_zugodb:" >&2
+  grep -vx 'R_init_zugodb' "$tmp/ours" | head -200 >&2
   exit 1
 fi
-echo "ok: R_init_zuslothdb is the only symbol of the package's code exported"
+echo "ok: R_init_zugodb is the only symbol of the package's code exported"
 
 group "Imported symbols"
 imports "$so" | sort -u > "$tmp/imports"
@@ -137,7 +153,7 @@ fi
 group "duckdb"
 R_LIBS="$lib${R_LIBS:+$sep$R_LIBS}" "$Rscript" tools/ci/install-duckdb.R
 endgroup
-for order in zuslothdb-first duckdb-first; do
+for order in zugodb-first duckdb-first; do
   R_LIBS="$lib${R_LIBS:+$sep$R_LIBS}" "$Rscript" tools/ci/coexist.R "$order"
 done
 
@@ -149,7 +165,7 @@ if [ "$os" = ubuntu ] || [ "$profile" = full ]; then
   # Ten runs under the full profile, so a race like #32 shows.
   runs=1
   [ "$profile" = full ] && runs=10
-  SDB_JOBS="$jobs" SDB_TEST_RUNS="$runs" sh tools/upstream-tests.sh "$tmp/upstream-tests"
+  ZUG_JOBS="$jobs" ZUG_TEST_RUNS="$runs" sh tools/upstream-tests.sh "$tmp/upstream-tests"
   endgroup
 fi
 

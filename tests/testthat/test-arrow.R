@@ -3,7 +3,7 @@
 # is refused by every route rather than parsed as that format.
 
 test_that("a real Arrow IPC file is refused by every route", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   fixture <- test_path("fixtures", "arrow", "flat.arrow")
   expect_true(file.exists(fixture))
@@ -16,7 +16,7 @@ test_that("a real Arrow IPC file is refused by every route", {
                   "SELECT i FROM read_arrow('%s')")) {
       err <- expect_error(
         DBI::dbGetQuery(con, sprintf(sql, path)),
-        class = "zuslothdb_sql_error", label = paste(ext, sql)
+        class = "zug_sql_error", label = paste(ext, sql)
       )
       expect_match(
         conditionMessage(err), "Arrow IPC is not supported", fixed = TRUE

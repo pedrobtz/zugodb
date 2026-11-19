@@ -26,7 +26,7 @@ bigint_query <- function(con, literals) {
   DBI::dbGetQuery(con, sql)$v
 }
 
-# The classes zuslothdb gives a BLOB column, those of blob::blob() (Stage 4).
+# The classes zugodb gives a BLOB column, those of blob::blob() (Stage 4).
 blob_classes <- c("blob", "vctrs_list_of", "vctrs_vctr", "list")
 
 # `df` with each BLOB column a plain list, as duckdb returns one.

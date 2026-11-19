@@ -1,8 +1,8 @@
 // Writing a data frame into a table (design §5, §6; roadmap Stage 5).
 //
-// Two phases, the reverse of sdb_result.cpp's, so that design §4.3 holds:
+// Two phases, the reverse of zug_result.cpp's, so that design §4.3 holds:
 //
-// 1. sdb_append (R API only): R has already made each column one of the
+// 1. zug_append (R API only): R has already made each column one of the
 //    payload kinds below (R/write.R). This reads only pointers into those
 //    vectors, into arrays from R_alloc, so no C++ object is live while R
 //    can longjmp.
@@ -13,7 +13,7 @@
 //    failed append leaves the table as it was (there is no rollback; the
 //    fork makes ROLLBACK an error, design §5).
 
-#include "sdb_objects.h"
+#include "zug_objects.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -288,8 +288,8 @@ void Fill(zugodb::Vector &vec, zugodb::LogicalTypeId id, const InColumn &c,
 
 // check_only: every check, and nothing appended (R/write.R checks the data
 // against a probe table before it drops one it replaces).
-void EngineAppend(sdb::SdbConnection *c, const Input &in, bool check_only,
-                  double *appended, sdb::EngineError *err) {
+void EngineAppend(zug::ZugConnection *c, const Input &in, bool check_only,
+                  double *appended, zug::EngineError *err) {
   char msg[1024];
   try {
     std::string probe = std::string("SELECT * FROM ") + in.quoted + " LIMIT 0";
@@ -347,17 +347,17 @@ void EngineAppend(sdb::SdbConnection *c, const Input &in, bool check_only,
 
 extern "C" {
 
-// sdb_append(con, table, quoted, cols, payloads, names, check_only): appends
+// zug_append(con, table, quoted, cols, payloads, names, check_only): appends
 // the data frame `cols` (a list of vectors made by R/write.R) to `table`;
 // returns the rows appended. With check_only, checks every value against
 // the table's types and appends nothing.
-SEXP sdb_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
+SEXP zug_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
                 SEXP names, SEXP check_only) {
-  sdb::EngineError err;
-  sdb::SdbConnection *c = sdb::GetConnection(conptr);
-  if (!sdb::ConnectionOpen(c)) {
-    err.set(sdb::kClosedConnection, "closed");
-    return sdb::ResultList(R_NilValue, err);
+  zug::EngineError err;
+  zug::ZugConnection *c = zug::GetConnection(conptr);
+  if (!zug::ConnectionOpen(c)) {
+    err.set(zug::kClosedConnection, "closed");
+    return zug::ResultList(R_NilValue, err);
   }
   const R_xlen_t ncol = XLENGTH(cols);
   if (TYPEOF(table) != STRSXP || XLENGTH(table) != 1 ||
@@ -367,8 +367,8 @@ SEXP sdb_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
       XLENGTH(names) != ncol || ncol > 100000 ||
       TYPEOF(check_only) != LGLSXP || XLENGTH(check_only) != 1 ||
       LOGICAL(check_only)[0] == NA_LOGICAL) {
-    err.set("sdb_append: malformed arguments", "argument");
-    return sdb::ResultList(R_NilValue, err);
+    err.set("zug_append: malformed arguments", "argument");
+    return zug::ResultList(R_NilValue, err);
   }
   Input in;
   in.table = CHAR(STRING_ELT(table, 0));
@@ -384,8 +384,8 @@ SEXP sdb_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
     col.name = CHAR(STRING_ELT(names, k));
     col.payload = INTEGER(payloads)[k];
     if (static_cast<uint64_t>(XLENGTH(x)) != in.nrow) {
-      err.set("sdb_append: columns of unequal length", "argument");
-      return sdb::ResultList(R_NilValue, err);
+      err.set("zug_append: columns of unequal length", "argument");
+      return zug::ResultList(R_NilValue, err);
     }
     const R_xlen_t n = XLENGTH(x);
     switch (col.payload) {
@@ -441,12 +441,12 @@ SEXP sdb_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
     default:
       break;
     }
-    err.set("sdb_append: a column does not match its payload", "argument");
-    return sdb::ResultList(R_NilValue, err);
+    err.set("zug_append: a column does not match its payload", "argument");
+    return zug::ResultList(R_NilValue, err);
   }
   double appended = 0;
   EngineAppend(c, in, LOGICAL(check_only)[0] != 0, &appended, &err);
-  return sdb::ResultList(err.failed ? R_NilValue : Rf_ScalarReal(appended), err);
+  return zug::ResultList(err.failed ? R_NilValue : Rf_ScalarReal(appended), err);
 }
 
 } // extern "C"

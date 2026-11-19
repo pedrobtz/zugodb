@@ -1,10 +1,17 @@
-# zuslothdb 0.0.0.9000
+# zugodb 0.0.0.9000
 
+* The package is renamed from zuslothdb to zugodb, and its repository to
+  pedrobtz/zugodb (design D12). The driver is `zugodb()`, `zuslothdb_info()`
+  is `zug_info()`, the classes are `zugodb_driver`, `zugodb_connection`
+  and `zugodb_result`, the conditions are `zug_error`, `zug_sql_error`,
+  `zug_type_error`, `zug_unsupported`, `zug_closed_error` and
+  `zug_argument_error`, and the test switches are `ZUG_SKIP_HEAVY`,
+  `ZUG_SLOW_TESTS` and `ZUG_TEST_SEED`. Nothing else changes.
 * The engine is now libzugodb (<https://github.com/pedrobtz/libzugodb>),
   this package's own fork of SlothDB, vendored by release tag. Its 0.1.1
   fixes a data race on every multi-threaded Parquet scan, which UBSan under
   libstdc++ 15 stopped as "unreachable program point".
-  `zuslothdb_info()` reports its tag and the SlothDB commit it descends
+  `zug_info()` reports its tag and the SlothDB commit it descends
   from (`origin`, `origin_commit`), and no longer a list of changes.
   Nothing else changes.
 * SQLite, Excel and Avro files are not supported: SlothDB's readers for
@@ -30,9 +37,9 @@
   Logical, integer, double, character, factor, `Date`, `POSIXct`,
   `integer64` and `blob` columns are written and read back identical; a
   column of another class, or a value its column cannot hold, is a
-  `zuslothdb_type_error` before any row is written.
+  `zug_type_error` before any row is written.
 * SlothDB has no transactions, so `dbBegin()`, `dbCommit()` and
-  `dbRollback()` are `zuslothdb_unsupported`, and SQL `ROLLBACK` is an
+  `dbRollback()` are `zug_unsupported`, and SQL `ROLLBACK` is an
   error saying that nothing was undone.
 * A table of more than 2048 rows with a `NULL` past row 2048 no longer
   reads back with `NULL`s where there are none, or crashes R: the engine
@@ -42,7 +49,7 @@
   a list of raw vectors with `blob::blob()`'s classes.
   `dbConnect(timezone_out = )` sets the time zone a `POSIXct` is shown
   in, `"UTC"` by default as in `duckdb`; an unknown zone is an error.
-* A `HUGEINT` or `TIME` column is a `zuslothdb_type_error`, since SlothDB
+* A `HUGEINT` or `TIME` column is a `zug_type_error`, since SlothDB
   computes their values wrongly (a `TIME` is always midnight), as are
   `INTERVAL` and `UUID`. SlothDB produces no `DECIMAL`, time zone,
   list, struct, map or union column.
@@ -59,10 +66,10 @@
   `VARCHAR` columns arrive as logical, integer, double and UTF-8
   character; `dbConnect(bigint = )` chooses double, `integer64` or
   character for 64-bit integers. A value R cannot hold exactly is a
-  `zuslothdb_type_error`, never a silent change.
+  `zug_type_error`, never a silent change.
 * `dbExecute()` no longer reads a query's one-row `BIGINT` column named
   `Count` as a row count.
-* `zuslothdb()` is a DBI driver, used as `duckdb::duckdb()` is: it holds
+* `zugodb()` is a DBI driver, used as `duckdb::duckdb()` is: it holds
   one database, in memory or in a file, that its connections share.
   `dbConnect()`, `dbDisconnect()`, `dbIsValid()`, `dbGetInfo()` and
   `show()` work for the driver and the connection, and `dbExecute()`
@@ -72,12 +79,12 @@
 * `dbConnect(threads = )` caps the engine's threads, 2 by default; the
   engine has one thread pool per process, so the cap is process-wide.
 * A file database is written when its last connection closes. A
-  connection used in a forked child is a `zuslothdb_closed_error`.
-* Errors are conditions inheriting from `zuslothdb_error`:
-  `zuslothdb_sql_error` (the engine's message), `zuslothdb_type_error`,
-  `zuslothdb_argument_error`, `zuslothdb_closed_error` and
-  `zuslothdb_unsupported` (`params =`).
+  connection used in a forked child is a `zug_closed_error`.
+* Errors are conditions inheriting from `zug_error`:
+  `zug_sql_error` (the engine's message), `zug_type_error`,
+  `zug_argument_error`, `zug_closed_error` and
+  `zug_unsupported` (`params =`).
 * The SlothDB engine is bundled and compiled with the package, from
-  pedrobtz/slothdb, zuslothdb's fork of SlothDB: upstream commit
-  `8180f21` and zuslothdb's changes to it, listed by `zuslothdb_info()`. The
+  pedrobtz/slothdb, zugodb's fork of SlothDB: upstream commit
+  `8180f21` and zugodb's changes to it, listed by `zug_info()`. The
   package is offline only: a remote path in a query is an error.

@@ -3,7 +3,7 @@
 # (table_rows() in helper-results.R).
 
 test_that("a factor is written as VARCHAR and read back as its labels", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   f <- factor(c("b", NA, "a", "b"), levels = c("b", "a", "unused"))
   DBI::dbWriteTable(con, "t", data.frame(f = f))
@@ -14,7 +14,7 @@ test_that("a factor is written as VARCHAR and read back as its labels", {
 })
 
 test_that("dbDataType() names the SQL type of each class it writes", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   df <- data.frame(
     l = TRUE,
@@ -37,13 +37,13 @@ test_that("dbDataType() names the SQL type of each class it writes", {
     b = "BLOB"
   )
   expect_identical(DBI::dbDataType(con, df), want)
-  expect_identical(DBI::dbDataType(zuslothdb(), 1L), "INTEGER")
+  expect_identical(DBI::dbDataType(zugodb(), 1L), "INTEGER")
   skip_if_not_installed("bit64")
   expect_identical(DBI::dbDataType(con, bit64::as.integer64(1)), "BIGINT")
 })
 
 test_that("a column of a class with no SQL type is a type error, before anything changes", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbWriteTable(con, "t", data.frame(x = 1:3))
   bad <- list(
@@ -54,17 +54,17 @@ test_that("a column of a class with no SQL type is a type error, before anything
   for (k in names(bad)) {
     expect_error(
       DBI::dbWriteTable(con, "t", bad[[k]], overwrite = TRUE),
-      class = "zuslothdb_type_error",
+      class = "zug_type_error",
       label = k
     )
     expect_error(
       DBI::dbWriteTable(con, "u", bad[[k]]),
-      class = "zuslothdb_type_error",
+      class = "zug_type_error",
       label = k
     )
     expect_error(
       DBI::dbDataType(con, bad[[k]]$z),
-      class = "zuslothdb_type_error"
+      class = "zug_type_error"
     )
   }
   expect_identical(table_rows(con, "t")$x, 1:3)
@@ -74,7 +74,7 @@ test_that("a column of a class with no SQL type is a type error, before anything
 })
 
 test_that("a value that does not fit its column is refused before any row is written", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbExecute(
     con,
@@ -107,7 +107,7 @@ test_that("a value that does not fit its column is refused before any row is wri
   for (k in names(cases)) {
     err <- expect_error(
       DBI::dbAppendTable(con, "t", cases[[k]]),
-      class = "zuslothdb_type_error",
+      class = "zug_type_error",
       label = k
     )
     expect_match(conditionMessage(err), "row 5000", fixed = TRUE, label = k)
@@ -121,12 +121,12 @@ test_that("a value that does not fit its column is refused before any row is wri
 })
 
 test_that("overwrite and append replace and add; a third write is refused", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbWriteTable(con, "t", data.frame(x = 1:2))
   expect_error(
     DBI::dbWriteTable(con, "t", data.frame(x = 3L)),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   DBI::dbWriteTable(con, "t", data.frame(x = 3:4), append = TRUE)
   expect_identical(table_rows(con, "t")$x, 1:4)
@@ -140,20 +140,20 @@ test_that("overwrite and append replace and add; a third write is refused", {
       overwrite = TRUE,
       append = TRUE
     ),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_error(
     DBI::dbWriteTable(con, "u", data.frame(y = 1), temporary = TRUE),
-    class = "zuslothdb_unsupported"
+    class = "zug_unsupported"
   )
   expect_error(
     DBI::dbWriteTable(con, "u", 1:3),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
 })
 
 test_that("an overwrite whose data does not fit keeps the old table", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbWriteTable(con, "t", data.frame(x = 1:3))
   new <- data.frame(x = c(1, 2, 2.5))
@@ -165,14 +165,14 @@ test_that("an overwrite whose data does not fit keeps the old table", {
       overwrite = TRUE,
       field.types = c(x = "INTEGER")
     ),
-    class = "zuslothdb_type_error"
+    class = "zug_type_error"
   )
   expect_identical(table_rows(con, "t")$x, 1:3)
   expect_identical(DBI::dbListTables(con), "t")
 })
 
 test_that("field.types and row.names change what is written", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbWriteTable(
     con,
@@ -191,13 +191,13 @@ test_that("field.types and row.names change what is written", {
       data.frame(x = 1),
       field.types = c(nope = "INTEGER")
     ),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_false(DBI::dbExistsTable(con, "u"))
 })
 
 test_that("dbAppendTable() matches columns by name and fills the rest with NULL", {
-  con <- DBI::dbConnect(zuslothdb())
+  con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbExecute(con, "CREATE TABLE t (a INTEGER, b VARCHAR, c DOUBLE)")
   expect_identical(DBI::dbAppendTable(con, "t", data.frame(c = 2.5, a = 1L)), 1)
@@ -207,7 +207,7 @@ test_that("dbAppendTable() matches columns by name and fills the rest with NULL"
   )
   expect_error(
     DBI::dbAppendTable(con, "t", data.frame(a = 1L, z = 1)),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_error(
     DBI::dbAppendTable(
@@ -215,7 +215,7 @@ test_that("dbAppendTable() matches columns by name and fills the rest with NULL"
       "t",
       data.frame(a = 1L, a = 2L, check.names = FALSE)
     ),
-    class = "zuslothdb_argument_error"
+    class = "zug_argument_error"
   )
   expect_identical(DBI::dbAppendTable(con, "t", data.frame(a = integer())), 0)
   expect_identical(nrow(table_rows(con, "t")), 1L)
