@@ -1,31 +1,30 @@
-# What zuslothdb vendors from SlothDB, and every change made to it.
+# What zuslothdb vendors: a tagged release of libzugodb, its engine.
 #
-# The engine comes from pedrobtz/slothdb, zuslothdb's fork of upstream
-# SlothDB (design §4.2, decided 2026-11-18): its `zuslothdb` branch is
-# upstream at `upstream.commit` plus one commit per change, listed in
-# `changes`. tools/vendor.R checks out `source.commit`, checks that its
-# history since `upstream.commit` is exactly `changes`, copies `copy` minus
-# `exclude` into `destination`, and writes src/Makevars, src/Makevars.win,
-# src/sdb_provenance.h, inst/vendor.yaml and tools/vendor/checksums.md5.
-# Nothing under `destination` is edited by hand.
+# libzugodb (design D12, 2026-11-18) is the engine's own repository: SlothDB
+# at `origin.commit`, by the SlothDB Contributors, MIT, with the changes in
+# its CHANGELOG.md. tools/vendor.R checks out `source.tag`, checks that it
+# is `source.commit` and that `origin.commit` is an ancestor, copies `copy`
+# minus `exclude` into `destination`, and writes src/Makevars,
+# src/Makevars.win, src/sdb_provenance.h, inst/vendor.yaml and
+# tools/vendor/checksums.md5. Nothing under `destination` is edited by
+# hand: a change to the engine is a pull request to libzugodb and a release.
 #
-# tools/upstream-tests.sh builds the fork's doctest suite, at the same
-# commit, against the vendored tree, with `test_exclude` left out.
+# tools/upstream-tests.sh builds libzugodb's doctest suite, at the same
+# commit, against the vendored tree.
 
 source:
-  repository: https://github.com/pedrobtz/slothdb
-  tag: zuslothdb-7
-  commit: 69917820e317fe8bf4e21dd44baf55d3ba450da8
+  repository: https://github.com/pedrobtz/libzugodb
+  tag: v0.1.1
+  commit: d3ec8c5ff1818c5079ecac0185514656fb715e66
 
-upstream:
+origin:
   repository: https://github.com/SouravRoy-ETL/slothdb
   commit: 8180f215847015944c935f56f008d194e2c1494c
-  # The last release tag before the commit (design D3: pinned to a commit,
-  # because v0.2.7 predates two weeks of fixes).
+  # The last SlothDB release before that commit.
   describe: v0.2.7+
   license: MIT
 
-destination: src/vendor/slothdb
+destination: src/vendor/libzugodb
 
 copy:
   - LICENSE
@@ -40,22 +39,6 @@ copy:
   - third_party/snappy
 
 exclude:
-  - path: src/ask
-    reason: >-
-      Natural-language-to-SQL module; downloads a model to ~/.slothdb/models
-      at run time, which CRAN forbids (design §4.2, D4).
-  - path: include/slothdb/ask
-    reason: Headers of src/ask.
-  - path: src/extension
-    reason: >-
-      Extension loading through dlopen and its HTTP installer; offline only
-      (D4).
-  - path: include/slothdb/extension
-    reason: Headers of src/extension.
-  - path: src/storage/http_client.cpp
-    reason: HTTP and S3 client; offline only (D4). Patch 0003 removes its use.
-  - path: include/slothdb/storage/http_client.hpp
-    reason: Header of src/storage/http_client.cpp.
   - path: src/api
     reason: >-
       SlothDB's C API, for its Python binding; the glue binds the C++ API
@@ -75,148 +58,3 @@ exclude:
     reason: Not source.
   - path: third_party/snappy/config.h
     reason: Unused; nothing defines HAVE_CONFIG_H, as upstream's build does not.
-
-changes:
-  - commit: 2ac3d1cffde3dffa5ec72ad9a885ebd02d248839
-    subject: "Take the Windows branch under MinGW, not only MSVC"
-    reason: >-
-      Rtools' GCC takes the POSIX branch of guards written for MSVC
-      (_MSC_VER), where MinGW lacks gmtime_r, localtime_r, timegm and the
-      two-argument mkdir. The Windows branch is gated on _WIN32 instead.
-  - commit: c99149ef11cd2814af5ba3efb239ff2aa227e90e
-    subject: "Write nothing to stderr, never abort, use no rand()"
-    reason: >-
-      A package must not write to stderr, call abort() or use rand()
-      (CRAN's compiled-code check). SLOTH_PROFILE timings are discarded,
-      the no-exceptions branch of unordered_dense.h throws, and RANDOM()
-      and UUID() use a per-thread std::mt19937_64.
-  - commit: b850a18c4df2e94f98f8d7faaa84306185294175
-    subject: "Refuse remote paths: offline only"
-    reason: >-
-      Offline only (D4): an http://, https:// or s3:// path is an error,
-      not a download to the system temp directory.
-  - commit: c3255c609fe52091c29f9b1ae41730e6ad26b33d
-    subject: "Cap every thread pool with one process-wide limit"
-    reason: >-
-      Two threads unless the user sets threads (D5): one process-wide cap,
-      read by every pool and parallel split, in place of
-      hardware_concurrency() and SLOTHDB_MAX_THREADS.
-  - commit: efcaea8678b486fe37b0be38731eb7d4740baa32
-    subject: "Refuse STRFTIME with one argument"
-    reason: >-
-      STRFTIME with one argument read past its argument list and crashed
-      (upstream's own "Advanced - STRFTIME" case); it is now an error.
-  - commit: 87a5a57c42d06e462f2e35a84ff4cc68b8757711
-    subject: "Fix two warnings R CMD check counts"
-    reason: >-
-      Two warnings R CMD check counts as significant: a discarded
-      [[nodiscard]] std::signbit() call in value.cpp (clang -Wunused-
-      result) and ConstantExpression's NULL constructor initialising its
-      members out of declaration order (gcc -Wreorder). Neither changes
-      behaviour.
-  - commit: b963b8e6c1a873c41bc7d8723549fccc5ce1bee6
-    subject: "Add a read-only database mode"
-    reason: >-
-      dbConnect(read_only = TRUE): the engine has no read-only mode, and a
-      file-backed database is saved whenever it closes. A read_only flag
-      in DatabaseConfig makes Connection::Query refuse any batch with a
-      statement that changes the database, before any of it runs, and
-      stops the destructor saving the file.
-  - commit: 1f52a05d7fc63526c2ba33c0ba3f8a47aca7caf1
-    subject: "Set stop flags under the mutex their waiters use"
-    reason: >-
-      A lost wakeup hung the session (#32):
-      PhysicalParquetScan::StopWorkers and ThreadPool's destructor set
-      their stop flag outside the mutex their workers wait with, so a
-      worker between its predicate and its wait missed the notify and
-      join() never returned. A Parquet query that stops early (LIMIT over
-      several row groups) reached it. Each flag is now set under that
-      mutex, as are ThreadPool's active-task count changes that WaitAll()
-      waits on.
-  - commit: f976710ba6f8ea05b2750aa05fa8fe174d208fa1
-    subject: "Keep the Parquet decoder's scratch out of thread_local"
-    reason: >-
-      A Parquet scan on more than one thread killed R on Windows (#34).
-      Its decode workers keep scratch buffers and a zstd context in
-      thread_local objects with destructors; under MinGW those destructors
-      run, as the worker exits, after emulated TLS has freed the objects,
-      and the heap is corrupted. The seven scratch objects are now local
-      to their call, which costs an allocation per call and changes no
-      result.
-  - commit: d8bf30759de2fd161afd002e1a21e685e0b6f825
-    subject: "Size validity masks by their holder's capacity"
-    reason: >-
-      NULLs past row 2048 of a table corrupted memory and results (#45):
-      ValidityMask always held one vector's 2048 bits, and ColumnData kept
-      a whole row group's (ROW_GROUP_SIZE rows) in one, so SetInvalid()
-      wrote past the end of a heap buffer and RowIsValid() read past it.
-      The mask now takes its size in words, and ColumnData and Vector size
-      it for their capacity; it is still allocated at the first NULL.
-      PhysicalInsert put a whole VALUES list into one chunk of the default
-      2048 rows, so a longer list wrote past the chunk's data too; the
-      chunk is sized for the list.
-  - commit: db025ddda099cf98c96a4ec3752fe25294a510b9
-    subject: "Update seven doctests to DATE as days since 1970"
-    reason: >-
-      Seven doctest cases still expect DATE as a YYYYMMDD integer and
-      LAST_DAY as TIMESTAMP micros; the engine returns DATE as days since
-      1970-01-01. The STRFTIME case passes a format and checks that the
-      one-argument form is refused (patch 0005).
-  - commit: 6af32c5028ba5e1a94809d562d13b1649ffceeba
-    subject: "Make ROLLBACK say that nothing was undone"
-    reason: >-
-      The engine has no undo: ROLLBACK only closes the transaction, so a
-      statement since BEGIN stays done while ROLLBACK reports success
-      (upstream's own test says so). ROLLBACK now closes the transaction
-      and raises an error saying nothing was undone, and upstream's
-      "Transaction - ROLLBACK" case checks it; dbBegin(), dbCommit() and
-      dbRollback() are zuslothdb_unsupported (#7, design §5).
-  - commit: 89f52bba0248490a7d83a67077603b52d656eb79
-    subject: "Refuse Parquet columns the reader cannot decode faithfully"
-    reason: >-
-      The Parquet reader honoured only DATE and TIMESTAMP_MICROS, so other
-      annotations came out as wrong values with no error: DECIMAL unscaled
-      (#36), TIME and millisecond or nanosecond TIMESTAMP as raw counts
-      (#37), UUID and INTERVAL as NULL (#38), unsigned 32- and 64-bit
-      integers as signed. The LogicalType is parsed too, and such a column
-      is refused, naming it, on the query's thread when a scan reads it.
-  - commit: 1df811d9dbbe4f60e7c5310c03bd27d51e5b0e69
-    subject: "Refuse unreadable Parquet columns when bound, not when scanned"
-    reason: >-
-      Many plans set no projection and decode every column, so the
-      scan-time check refused queries that never name the column. The
-      binder now refuses it when a query names it or expands it with *;
-      ReadAll() still checks every column for the glob path (#36-#38).
-  - commit: d5c7e62d772890c3d4c4a92e91a60b04937b08ba
-    subject: "Refuse JSON the readers would misread, and decode \\u escapes"
-    reason: >-
-      The NDJSON reader took columns and types from the first record, so a
-      nested value read as 0 and dropped later keys, a later key was
-      dropped and a value of another type was coerced, with no error; \u
-      escapes lost their backslash (#39). Every file is now checked by a
-      strict RFC 8259 scan when it is opened, on that thread, and refused,
-      naming the record and the key, if the parsers would misread it; \u
-      escapes, surrogate pairs included, are decoded.
-  - commit: 1b126916a47074be6339f64c81d5b3929b2e495e
-    subject: "Refuse Arrow IPC: SlothDB's Arrow format is its own"
-    reason: >-
-      SlothDB's Arrow reader and writer use a format of their own after
-      Arrow's magic bytes, not Arrow IPC: the reader read no file from R's
-      arrow, pyarrow or DuckDB, and could read garbage from one whose bytes
-      looked plausible; the writer's files no Arrow tool reads (#40). Both
-      are refused, and so is a .arrow, .feather or .ipc path (maintainer,
-      2026-11-18: no Arrow IPC in v0.1.0).
-  - commit: 69917820e317fe8bf4e21dd44baf55d3ba450da8
-    subject: "Refuse the SQLite, Excel and Avro readers"
-    reason: >-
-      Against real files the SQLite parser read a REAL 0 as uninitialised
-      memory, summed wrongly and cut long text short, and the .xlsx reader
-      returned garbage after the first column; the Avro reader is untested
-      (#55). All three, and their file extensions, are refused before any
-      byte is parsed (maintainer, 2026-11-18, revisiting Q11).
-
-test_exclude:
-  - path: test/unit/ask/test_nl_to_sql.cpp
-    reason: Tests src/ask, which is excluded.
-  - path: test/unit/execution/test_extensions.cpp
-    reason: Tests src/extension, which is excluded.

@@ -1,43 +1,46 @@
-zuslothdb bundles, under src/vendor/slothdb, the SlothDB SQL engine and
+zuslothdb bundles, under src/vendor/libzugodb, its engine libzugodb and
 the third-party code it carries. They are copied by tools/vendor.R from
 
-  https://github.com/pedrobtz/slothdb (zuslothdb's fork of SlothDB)
+  https://github.com/pedrobtz/libzugodb
 
-at the commit tools/vendor.yaml (installed as vendor.yaml) names: upstream
+at the release tools/vendor.yaml (installed as vendor.yaml) names.
+libzugodb is derived from SlothDB,
 
   https://github.com/SouravRoy-ETL/slothdb
   commit 8180f215847015944c935f56f008d194e2c1494c
 
-and zuslothdb's changes to it, which that file lists. Each component keeps its own licence, whose full
-text is in the file named.
+with the changes its CHANGELOG.md lists. Each component keeps its own
+licence, whose full text is in the file named.
 
-SlothDB (src/vendor/slothdb/src, src/vendor/slothdb/include)
+libzugodb, derived from SlothDB
+(src/vendor/libzugodb/src, src/vendor/libzugodb/include)
   Copyright (c) 2026 SlothDB Contributors
-  MIT licence: src/vendor/slothdb/LICENSE
+  Copyright (c) 2026 libzugodb contributors
+  MIT licence: src/vendor/libzugodb/LICENSE
 
 Zstandard, the decompressor only
-(src/vendor/slothdb/third_party/zstd/lib)
+(src/vendor/libzugodb/third_party/zstd/lib)
   Copyright (c) Meta Platforms, Inc. and affiliates
   BSD 3-clause licence (zstd is dual-licensed BSD or GPL-2.0; it is used
-  here under BSD): src/vendor/slothdb/third_party/zstd/LICENSE
+  here under BSD): src/vendor/libzugodb/third_party/zstd/LICENSE
 
-Snappy 1.2.1 (src/vendor/slothdb/third_party/snappy)
+Snappy 1.2.1 (src/vendor/libzugodb/third_party/snappy)
   Copyright 2011, Google Inc.
-  BSD 3-clause licence: src/vendor/slothdb/third_party/snappy/COPYING
+  BSD 3-clause licence: src/vendor/libzugodb/third_party/snappy/COPYING
 
 FastPFor bitpacking, as copied by DuckDB
-(src/vendor/slothdb/third_party/fastpforlib)
+(src/vendor/libzugodb/third_party/fastpforlib)
   (c) Daniel Lemire
-  Apache License 2.0: src/vendor/slothdb/third_party/fastpforlib/LICENSE
+  Apache License 2.0: src/vendor/libzugodb/third_party/fastpforlib/LICENSE
 
-miniz 3.0.0 (src/vendor/slothdb/src/storage/miniz.c, miniz.h)
+miniz 3.0.0 (src/vendor/libzugodb/src/storage/miniz.c, miniz.h)
   Copyright 2013-2014 RAD Game Tools and Valve Software
   Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
   MIT licence, in the header of miniz.c; miniz.h's banner also places the
   original code in the public domain under the Unlicense
 
 ankerl::unordered_dense and its STL shim
-(src/vendor/slothdb/include/third_party/unordered_dense.h, stl.h)
+(src/vendor/libzugodb/include/third_party/unordered_dense.h, stl.h)
   Copyright (c) 2022 Martin Leitner-Ankerl
   MIT licence, in the header of each file
 

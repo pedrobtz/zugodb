@@ -1,15 +1,15 @@
 // Databases and connections behind external pointers (design §4.3, Q9, Q13).
 //
 // Ownership:
-// - An SdbDatabase owns a slothdb::Database and knows its open connections.
+// - An SdbDatabase owns a zugodb::Database and knows its open connections.
 //   Its external pointer is held by the driver (R/driver.R).
-// - An SdbConnection owns a slothdb::Connection, which refers to the
+// - An SdbConnection owns a zugodb::Connection, which refers to the
 //   Database by reference. Its external pointer's `prot` slot is the
 //   database's external pointer, so the SdbDatabase struct outlives every
 //   connection to it: `owner` stays a valid pointer for as long as the
 //   connection's pointer exists.
 // - Closing a database (CloseDatabase) first destroys each of its
-//   connections' slothdb::Connection, then the slothdb::Database, which
+//   connections' zugodb::Connection, then the zugodb::Database, which
 //   writes a file-backed database to disk. The structs stay, marked
 //   closed, so a later call reports zuslothdb_closed_error.
 //
@@ -32,12 +32,12 @@
 namespace sdb {
 
 bool LastIsDml(const std::string &sql) {
-  auto statements = slothdb::Parser::Parse(sql);
+  auto statements = zugodb::Parser::Parse(sql);
   if (statements.empty()) return false;
   switch (statements.back()->GetType()) {
-  case slothdb::StatementType::INSERT:
-  case slothdb::StatementType::UPDATE:
-  case slothdb::StatementType::DELETE_STMT:
+  case zugodb::StatementType::INSERT:
+  case zugodb::StatementType::UPDATE:
+  case zugodb::StatementType::DELETE_STMT:
     return true;
   default:
     return false;
@@ -112,10 +112,10 @@ void ConnectionFinalizer(SEXP ptr) {
 void EngineOpen(const char *path, bool read_only, SdbDatabase *d,
                 sdb::EngineError *err) {
   try {
-    slothdb::DatabaseConfig config;
+    zugodb::DatabaseConfig config;
     config.path = path;
     config.read_only = read_only;
-    d->db = std::make_unique<slothdb::Database>(std::move(config));
+    d->db = std::make_unique<zugodb::Database>(std::move(config));
   } catch (const std::exception &e) {
     err->set(e.what());
   } catch (...) {
@@ -125,7 +125,7 @@ void EngineOpen(const char *path, bool read_only, SdbDatabase *d,
 
 void EngineConnect(SdbDatabase *d, SdbConnection *c, sdb::EngineError *err) {
   try {
-    c->con = std::make_unique<slothdb::Connection>(*d->db);
+    c->con = std::make_unique<zugodb::Connection>(*d->db);
     c->owner = d;
     d->conns.push_back(c);
   } catch (const std::exception &e) {
@@ -142,12 +142,12 @@ void EngineExecute(SdbConnection *c, const char *sql, double *affected,
   try {
     // Parsed first: a "Count" row means rows affected only after DML.
     const bool dml = sdb::LastIsDml(sql);
-    slothdb::QueryResult res = c->con->Query(sql);
+    zugodb::QueryResult res = c->con->Query(sql);
     *affected = 0;
     if (dml && res.ColumnCount() == 1 && res.RowCount() == 1 &&
         res.column_names[0] == "Count") {
-      const slothdb::Value &v = res.GetValue(0, 0);
-      if (!v.IsNull() && v.type().id() == slothdb::LogicalTypeId::BIGINT) {
+      const zugodb::Value &v = res.GetValue(0, 0);
+      if (!v.IsNull() && v.type().id() == zugodb::LogicalTypeId::BIGINT) {
         *affected = static_cast<double>(v.GetValue<int64_t>());
       }
     }
@@ -282,8 +282,8 @@ SEXP sdb_set_threads(SEXP n) {
   }
   const unsigned int v = static_cast<unsigned int>(INTEGER(n)[0]);
   try {
-    slothdb::SetThreadCap(v);
-    slothdb::ThreadPool::SetGlobalThreadCount(0);
+    zugodb::SetThreadCap(v);
+    zugodb::ThreadPool::SetGlobalThreadCount(0);
   } catch (const std::exception &e) {
     err.set(e.what());
   }

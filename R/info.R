@@ -1,22 +1,19 @@
 #' Information about the bundled engine
 #'
-#' Reports which SlothDB source the package was built from. The engine is
-#' vendored from pedrobtz/slothdb, zuslothdb's fork of upstream SlothDB: an
-#' upstream commit and the changes made on top of it, one commit each. A
-#' database file is tied to this commit.
+#' Reports which engine source the package was built from: a tagged release
+#' of libzugodb, the package's engine, which descends from SlothDB.
 #'
-#' @return A list with elements `engine` (`"SlothDB"`), `repository` and
-#'   `commit` (the fork and its full commit hash), `tag` (the fork's tag of
-#'   that commit), `upstream` and `upstream_commit` (upstream SlothDB and
-#'   the commit the fork is based on), `describe` (the last upstream release
-#'   before it, as `"v0.2.7+"`), `changes` (a character vector of the
-#'   fork's commit subjects since that commit, oldest first) and `threads`
-#'   (the engine's thread cap, an integer).
+#' @return A list with elements `engine` (`"libzugodb"`), `repository`,
+#'   `commit` and `tag` (libzugodb's repository, the full commit hash and its
+#'   release tag), `origin` and `origin_commit` (SlothDB and the commit
+#'   libzugodb descends from), `describe` (the last SlothDB release before
+#'   it, as `"v0.2.7+"`) and `threads` (the engine's thread cap, an
+#'   integer).
 #' @export
 #' @examples
 #' info <- zuslothdb_info()
 #' info$commit
-#' info$changes
+#' info$tag
 zuslothdb_info <- function() {
   .Call(sdb_info)
 }

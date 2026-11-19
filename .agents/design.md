@@ -939,6 +939,8 @@ any of them.
   patched for as long as upstream stays quiet; should upstream move,
   the branch is rebased onto it. Nothing is offered upstream without
   the maintainer's say.
+  *Superseded 2026-11-18 by D12:* the fork is now `pedrobtz/libzugodb`,
+  vendored by release tag, and the per-commit ledger has ended.
 - **D4 (C).** Offline only: no HTTP, S3, extensions or `ask` (§4.2).
 - **D5 (C).** Two threads by default.
 - **D6 (C).** `Imports: DBI, methods`, not `Depends: DBI` as `duckdb`
