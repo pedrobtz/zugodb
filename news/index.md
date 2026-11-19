@@ -2,6 +2,14 @@
 
 ## zuslothdb 0.0.0.9000
 
+- The engine is now libzugodb (<https://github.com/pedrobtz/libzugodb>),
+  this package’s own fork of SlothDB, vendored by release tag. Its 0.1.1
+  fixes a data race on every multi-threaded Parquet scan, which UBSan
+  under libstdc++ 15 stopped as “unreachable program point”.
+  [`zuslothdb_info()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_info.md)
+  reports its tag and the SlothDB commit it descends from (`origin`,
+  `origin_commit`), and no longer a list of changes. Nothing else
+  changes.
 - SQLite, Excel and Avro files are not supported: SlothDB’s readers for
   the first two returned wrong values against real files, and its Avro
   reader is untested. `sqlite_scan()`, `read_xlsx()`, `read_avro()` and
