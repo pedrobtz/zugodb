@@ -3,7 +3,7 @@
 ### All vignettes
 
 - [Get started with
-  zuslothdb](https://pedrobtz.github.io/zuslothdb/articles/zuslothdb.md):
+  zugodb](https://pedrobtz.github.io/zugodb/articles/zugodb.md):
 
   Connect, query a local file with SQL, and see how values and failures
   come back to R.

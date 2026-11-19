@@ -1,82 +1,83 @@
-# zuslothdb
+# zugodb
 
-zuslothdb is to [SlothDB](https://github.com/SouravRoy-ETL/slothdb) what
-duckdb is to DuckDB. The engine’s C++ source is bundled into the package
-and compiled when you install it. On top of it sits a DBI driver, so SQL
-over local CSV, Parquet and JSON files works with no system library, no
-server and no download. SlothDB calls itself experimental, and so is
-this package: it is not a duckdb replacement.
+zugodb is to [libzugodb](https://github.com/pedrobtz/libzugodb) what
+duckdb is to DuckDB. libzugodb is a small columnar SQL engine in C++20,
+derived from [SlothDB](https://github.com/SouravRoy-ETL/slothdb); its
+source is bundled into the package and compiled when you install it. On
+top of it sits a DBI driver, so SQL works with no system library, no
+server and no download. The engine is experimental, and so is this
+package: it is not a duckdb replacement.
 
 The package is in development. Nothing of the engine is built yet; the
-[roadmap](https://github.com/pedrobtz/zuslothdb/blob/main/.agents/roadmap.md)
+[roadmap](https://github.com/pedrobtz/zugodb/blob/main/.agents/roadmap.md)
 takes it to its first release.
 
 ## Installation
 
-You can install the development version of zuslothdb from
-[GitHub](https://github.com/pedrobtz/zuslothdb) with:
+You can install the development version of zugodb from
+[GitHub](https://github.com/pedrobtz/zugodb) with:
 
 ``` r
 
 # install.packages("pak")
-pak::pak("pedrobtz/zuslothdb")
+pak::pak("pedrobtz/zugodb")
 ```
 
 # Package index
 
 ## All functions
 
-- [`dbConnect(`*`<zuslothdb_driver>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/dbConnect-zuslothdb_driver-method.md)
-  [`dbIsValid(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/dbConnect-zuslothdb_driver-method.md)
-  [`show(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/dbConnect-zuslothdb_driver-method.md)
-  [`dbGetInfo(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/dbConnect-zuslothdb_driver-method.md)
-  : Connect to a zuslothdb database
-- [`dbDisconnect(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/dbDisconnect-zuslothdb_connection-method.md)
-  : Disconnect from a zuslothdb database
-- [`dbExecute(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/dbExecute-zuslothdb_connection-character-method.md)
+- [`dbConnect(`*`<zugodb_driver>`*`)`](https://pedrobtz.github.io/zugodb/reference/dbConnect-zugodb_driver-method.md)
+  [`dbIsValid(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/dbConnect-zugodb_driver-method.md)
+  [`show(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/dbConnect-zugodb_driver-method.md)
+  [`dbGetInfo(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/dbConnect-zugodb_driver-method.md)
+  : Connect to a zugodb database
+- [`dbDisconnect(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/dbDisconnect-zugodb_connection-method.md)
+  : Disconnect from a zugodb database
+- [`dbExecute(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/dbExecute-zugodb_connection-character-method.md)
   : Run a statement
-- [`zuslothdb()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb.md)
-  [`show(`*`<zuslothdb_driver>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb.md)
-  [`dbIsValid(`*`<zuslothdb_driver>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb.md)
-  [`dbGetInfo(`*`<zuslothdb_driver>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb.md)
-  : The zuslothdb driver
-- [`zuslothdb_info()`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_info.md)
+- [`zug_info()`](https://pedrobtz.github.io/zugodb/reference/zug_info.md)
   : Information about the bundled engine
-- [`dbSendQuery(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbSendStatement(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbFetch(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbClearResult(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbIsValid(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbHasCompleted(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbGetRowCount(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbGetRowsAffected(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbGetStatement(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbColumnInfo(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`dbBind(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
-  [`show(`*`<zuslothdb_result>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_result.md)
+- [`zugodb()`](https://pedrobtz.github.io/zugodb/reference/zugodb.md)
+  [`show(`*`<zugodb_driver>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb.md)
+  [`dbIsValid(`*`<zugodb_driver>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb.md)
+  [`dbGetInfo(`*`<zugodb_driver>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb.md)
+  : The zugodb driver
+- [`dbSendQuery(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbSendStatement(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbFetch(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbClearResult(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbIsValid(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbHasCompleted(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbGetRowCount(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbGetRowsAffected(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbGetStatement(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbColumnInfo(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`dbBind(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
+  [`show(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
   : Query results
-- [`dbWriteTable(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbWriteTable(`*`<zuslothdb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbWriteTable(`*`<zuslothdb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbAppendTable(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbAppendTable(`*`<zuslothdb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbAppendTable(`*`<zuslothdb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbListTables(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbExistsTable(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbExistsTable(`*`<zuslothdb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbExistsTable(`*`<zuslothdb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbListFields(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbListFields(`*`<zuslothdb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbListFields(`*`<zuslothdb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbRemoveTable(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbRemoveTable(`*`<zuslothdb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbRemoveTable(`*`<zuslothdb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbQuoteIdentifier(`*`<zuslothdb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbDataType(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbDataType(`*`<zuslothdb_driver>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbBegin(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbCommit(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
-  [`dbRollback(`*`<zuslothdb_connection>`*`)`](https://pedrobtz.github.io/zuslothdb/reference/zuslothdb_tables.md)
+- [`dbWriteTable(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbWriteTable(`*`<zugodb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbWriteTable(`*`<zugodb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbAppendTable(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbAppendTable(`*`<zugodb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbAppendTable(`*`<zugodb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbListTables(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbExistsTable(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbExistsTable(`*`<zugodb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbExistsTable(`*`<zugodb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbListFields(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbListFields(`*`<zugodb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbListFields(`*`<zugodb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbRemoveTable(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbRemoveTable(`*`<zugodb_connection>`*`,`*`<Id>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbRemoveTable(`*`<zugodb_connection>`*`,`*`<SQL>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbQuoteIdentifier(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbDataType(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbDataType(`*`<zugodb_driver>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbBegin(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbCommit(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
+  [`dbRollback(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_tables.md)
   : Write, list and remove tables
 
 # Articles
@@ -84,7 +85,7 @@ pak::pak("pedrobtz/zuslothdb")
 ### All vignettes
 
 - [Get started with
-  zuslothdb](https://pedrobtz.github.io/zuslothdb/articles/zuslothdb.md):
+  zugodb](https://pedrobtz.github.io/zugodb/articles/zugodb.md):
 
   Connect, query a local file with SQL, and see how values and failures
   come back to R.

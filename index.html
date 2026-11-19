@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>SQL over Local Files with the Embedded SlothDB Engine • zuslothdb</title>
+<title>A Small Embedded SQL Engine with a DBI Driver • zugodb</title>
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="SQL over Local Files with the Embedded SlothDB Engine">
-<meta name="description" content="A DBI driver for SlothDB (&lt;https://github.com/SouravRoy-ETL/slothdb&gt;), an analytical SQL engine whose C++ source is bundled and compiled when the package is installed. SQL queries over local CSV, Parquet and JSON files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for duckdb: it is offline only, and a database file is tied to the engine commit the package bundles.">
-<meta property="og:description" content="A DBI driver for SlothDB (&lt;https://github.com/SouravRoy-ETL/slothdb&gt;), an analytical SQL engine whose C++ source is bundled and compiled when the package is installed. SQL queries over local CSV, Parquet and JSON files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for duckdb: it is offline only, and a database file is tied to the engine commit the package bundles.">
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="A Small Embedded SQL Engine with a DBI Driver">
+<meta name="description" content="A DBI driver for libzugodb (&lt;https://github.com/pedrobtz/libzugodb&gt;), a small columnar SQL engine derived from SlothDB (&lt;https://github.com/SouravRoy-ETL/slothdb&gt;), whose C++ source is bundled and compiled when the package is installed. SQL queries over local CSV, Parquet and JSON files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for duckdb: it is offline only, and a database file is tied to the engine commit the package bundles.">
+<meta property="og:description" content="A DBI driver for libzugodb (&lt;https://github.com/pedrobtz/libzugodb&gt;), a small columnar SQL engine derived from SlothDB (&lt;https://github.com/SouravRoy-ETL/slothdb&gt;), whose C++ source is bundled and compiled when the package is installed. SQL queries over local CSV, Parquet and JSON files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for duckdb: it is offline only, and a database file is tied to the engine commit the package bundles.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -19,7 +19,7 @@
 
     <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="index.html">zuslothdb</a>
+    <a class="navbar-brand me-2" href="index.html">zugodb</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
 
@@ -30,7 +30,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="articles/zuslothdb.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="articles/zugodb.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
@@ -38,7 +38,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/pedrobtz/zuslothdb/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/pedrobtz/zugodb/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -47,26 +47,26 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="zuslothdb">zuslothdb<a class="anchor" aria-label="anchor" href="#zuslothdb"></a>
+<div class="page-header"><h1 id="zugodb">zugodb<a class="anchor" aria-label="anchor" href="#zugodb"></a>
 </h1></div>
 <!-- badges: start -->
 
-<p>zuslothdb is to <a href="https://github.com/SouravRoy-ETL/slothdb" class="external-link">SlothDB</a> what duckdb is to DuckDB. The engine’s C++ source is bundled into the package and compiled when you install it. On top of it sits a DBI driver, so SQL over local CSV, Parquet and JSON files works with no system library, no server and no download. SlothDB calls itself experimental, and so is this package: it is not a duckdb replacement.</p>
-<p>The package is in development. Nothing of the engine is built yet; the <a href="https://github.com/pedrobtz/zuslothdb/blob/main/.agents/roadmap.md" class="external-link">roadmap</a> takes it to its first release.</p>
+<p>zugodb is to <a href="https://github.com/pedrobtz/libzugodb" class="external-link">libzugodb</a> what duckdb is to DuckDB. libzugodb is a small columnar SQL engine in C++20, derived from <a href="https://github.com/SouravRoy-ETL/slothdb" class="external-link">SlothDB</a>; its source is bundled into the package and compiled when you install it. On top of it sits a DBI driver, so SQL works with no system library, no server and no download. The engine is experimental, and so is this package: it is not a duckdb replacement.</p>
+<p>The package is in development. Nothing of the engine is built yet; the <a href="https://github.com/pedrobtz/zugodb/blob/main/.agents/roadmap.md" class="external-link">roadmap</a> takes it to its first release.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>You can install the development version of zuslothdb from <a href="https://github.com/pedrobtz/zuslothdb" class="external-link">GitHub</a> with:</p>
+<p>You can install the development version of zugodb from <a href="https://github.com/pedrobtz/zugodb" class="external-link">GitHub</a> with:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"pedrobtz/zuslothdb"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"pedrobtz/zugodb"</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/pedrobtz/zuslothdb/" class="external-link">Browse source code</a></li>
-<li><a href="https://github.com/pedrobtz/zuslothdb/issues" class="external-link">Report a bug</a></li>
+<li><a href="https://github.com/pedrobtz/zugodb/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/pedrobtz/zugodb/issues" class="external-link">Report a bug</a></li>
 </ul>
 </div>
 
@@ -82,7 +82,7 @@
 <div class="citation">
 <h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing zuslothdb</a></li>
+<li><a href="authors.html#citation">Citing zugodb</a></li>
 </ul>
 </div>
 
@@ -97,8 +97,8 @@
 <div class="dev-status">
 <h2 data-toc-skip>Dev status</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/pedrobtz/zuslothdb/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/pedrobtz/zuslothdb/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
-<li><a href="https://github.com/pedrobtz/zuslothdb/actions/workflows/coverage.yaml" class="external-link"><img src="https://raw.githubusercontent.com/pedrobtz/zuslothdb/gh-pages/badges/coverage.svg" alt="coverage"></a></li>
+<li><a href="https://github.com/pedrobtz/zugodb/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/pedrobtz/zugodb/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
+<li><a href="https://github.com/pedrobtz/zugodb/actions/workflows/coverage.yaml" class="external-link"><img src="https://raw.githubusercontent.com/pedrobtz/zugodb/gh-pages/badges/coverage.svg" alt="coverage"></a></li>
 </ul>
 </div>
 

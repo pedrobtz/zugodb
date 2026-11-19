@@ -5,7 +5,7 @@
 - **Pedro Baltazar**. Author, maintainer, copyright holder.
 
 - **SlothDB Contributors**. Contributor, copyright holder.  
-  bundled SlothDB engine
+  SlothDB, from which the bundled engine derives
 
 - **Meta Platforms, Inc. and affiliates**. Copyright holder.  
   bundled Zstandard decompressor
@@ -31,16 +31,16 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/pedrobtz/zuslothdb/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/pedrobtz/zugodb/blob/main/DESCRIPTION)
 
-Baltazar P (2026). *zuslothdb: SQL over Local Files with the Embedded
-'SlothDB' Engine*. R package version 0.0.0.9000,
-<https://pedrobtz.github.io/zuslothdb/>.
+Baltazar P (2026). *zugodb: A Small Embedded SQL Engine with a 'DBI'
+Driver*. R package version 0.0.0.9000,
+<https://pedrobtz.github.io/zugodb/>.
 
     @Manual{,
-      title = {zuslothdb: SQL over Local Files with the Embedded 'SlothDB' Engine},
+      title = {zugodb: A Small Embedded SQL Engine with a 'DBI' Driver},
       author = {Pedro Baltazar},
       year = {2026},
       note = {R package version 0.0.0.9000},
-      url = {https://pedrobtz.github.io/zuslothdb/},
+      url = {https://pedrobtz.github.io/zugodb/},
     }
