@@ -785,7 +785,7 @@ umbrella for its next version. The order is by what links what.
 | --- | --- | --- | --- |
 | 1 | `zukomp` 0.2.0 | [zukomp#132](https://github.com/pedrobtz/zukomp/issues/132) | The function table's type in a header that does not include R, and the codecs in `libzukomp.a` with a getter for the table |
 | 2 | `zuarrow` 0.1.0 | [zuarrow#251](https://github.com/pedrobtz/zuarrow/issues/251) | The family's Arrow layer: nanoarrow's builder, the exact text parsers and an IPC stream reader, as a header and `libzuarrow.a` |
-| 3 | `zucsv` 0.1.1 | [zucsv#23](https://github.com/pedrobtz/zucsv/issues/23) | An R-free two-pass core and `zucsv_open_stream()` |
+| 3 | `zucsv` 0.2.0 | [zucsv#23](https://github.com/pedrobtz/zucsv/issues/23), under [zucsv#25](https://github.com/pedrobtz/zucsv/issues/25) | An R-free two-pass core and `zucsv_open_stream()`; 0.1.1 is a bug-fix release without them, because the API needs `LinkingTo: zuarrow` |
 | 3 | `qio` 0.1.3 | [qio#71](https://github.com/pedrobtz/qio/issues/71), with [qio#17](https://github.com/pedrobtz/qio/issues/17) | Codecs from zukomp, logical types as Arrow types in C, and `qio_open_stream()` |
 | 4 | `zujson` 0.2.0 | [zujson#108](https://github.com/pedrobtz/zujson/issues/108) | Records to columns across records, and `zujson_open_stream()` |
 | 5 | `zuslothdb` | Stage 10 ([#60](https://github.com/pedrobtz/zuslothdb/issues/60)) | Links them and adds `zuslothdb_read()` |
