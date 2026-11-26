@@ -28,7 +28,9 @@ Imports:
     methods
 Suggests:
     bit64,
+    blob,
     knitr,
+    nanoarrow,
     rmarkdown,
     testthat (>= 3.0.0),
     withr,
@@ -44,6 +46,7 @@ Collate:
     'connection.R'
     'result.R'
     'write.R'
+    'arrow.R'
     'info.R'
     'zugodb-package.R'
 Encoding: UTF-8
