@@ -148,6 +148,8 @@ SEXP zug_stream_append(SEXP conptr, SEXP holder, SEXP table, SEXP quoted,
 SEXP zug_test_stream(SEXP nbatch, SEXP per, SEXP fail_at, SEXP message,
                      SEXP mismatch);
 SEXP zug_test_stream_releases(void);
+SEXP zug_test_raw_stream(SEXP cols, SEXP length, SEXP null_count,
+                         SEXP validity);
 
 static const R_CallMethodDef call_methods[] = {
     {"zug_scalar_int", (DL_FUNC)&zug_scalar_int, 1},
@@ -173,6 +175,7 @@ static const R_CallMethodDef call_methods[] = {
     {"zug_stream_append", (DL_FUNC)&zug_stream_append, 5},
     {"zug_test_stream", (DL_FUNC)&zug_test_stream, 5},
     {"zug_test_stream_releases", (DL_FUNC)&zug_test_stream_releases, 0},
+    {"zug_test_raw_stream", (DL_FUNC)&zug_test_raw_stream, 4},
     {NULL, NULL, 0}};
 
 void attribute_visible R_init_zugodb(DllInfo *dll) {

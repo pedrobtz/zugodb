@@ -1084,6 +1084,157 @@ void TestStreamRelease(ArrowArrayStream *st) {
   g_test_releases++;
 }
 
+// A second test producer: one batch given whole, as each column's format,
+// name, length, null count and buffers (raw bytes, or none), with the
+// batch's own validity. It builds what no R producer will: string and
+// binary views, half floats, intervals, invalid UTF-8, a NUL, a null row,
+// a batch whose layout is not its format's. The schema and the batch own
+// copies of what they point to, and each release of the stream is counted
+// with the other producer's.
+
+struct RawColumn {
+  std::string name, format;
+  int64_t length = 0, null_count = 0;
+  std::vector<std::vector<uint8_t>> bufs;
+  std::vector<bool> present; // false: that buffer is NULL
+};
+
+struct RawStream {
+  std::vector<RawColumn> cols;
+  int64_t length = 0, null_count = 0;
+  std::vector<uint8_t> validity;
+  bool has_validity = false, done = false;
+};
+
+struct RawSchemaPriv {
+  std::vector<std::string> names, formats;
+  std::vector<ArrowSchema> kids;
+  std::vector<ArrowSchema *> kidp;
+};
+
+void RawLeafRelease(ArrowSchema *s) { s->release = nullptr; }
+
+void RawSchemaRelease(ArrowSchema *s) {
+  delete static_cast<RawSchemaPriv *>(s->private_data);
+  s->private_data = nullptr;
+  s->release = nullptr;
+}
+
+int RawGetSchemaOrThrow(ArrowArrayStream *st, ArrowSchema *out) {
+  const RawStream *r = static_cast<const RawStream *>(st->private_data);
+  RawSchemaPriv *p = new RawSchemaPriv();
+  const size_t n = r->cols.size();
+  p->kids.resize(n);
+  p->kidp.resize(n);
+  for (size_t k = 0; k < n; k++) {
+    p->names.push_back(r->cols[k].name);
+    p->formats.push_back(r->cols[k].format);
+  }
+  for (size_t k = 0; k < n; k++) {
+    ArrowSchema &c = p->kids[k];
+    std::memset(&c, 0, sizeof c);
+    c.format = p->formats[k].c_str();
+    c.name = p->names[k].c_str();
+    c.flags = ARROW_FLAG_NULLABLE;
+    c.release = RawLeafRelease;
+    p->kidp[k] = &c;
+  }
+  std::memset(out, 0, sizeof *out);
+  out->format = "+s";
+  out->name = "";
+  out->n_children = static_cast<int64_t>(n);
+  out->children = n ? p->kidp.data() : nullptr;
+  out->release = RawSchemaRelease;
+  out->private_data = p;
+  return 0;
+}
+
+int RawGetSchema(ArrowArrayStream *st, ArrowSchema *out) {
+  try {
+    return RawGetSchemaOrThrow(st, out);
+  } catch (...) {
+    return ENOMEM;
+  }
+}
+
+struct RawBatchPriv {
+  std::vector<std::vector<uint8_t>> data; // every buffer, copied
+  std::vector<std::vector<const void *>> bufp;
+  std::vector<ArrowArray> kids;
+  std::vector<ArrowArray *> kidp;
+  std::vector<uint8_t> validity;
+  const void *topbuf[1];
+};
+
+void RawChildRelease(ArrowArray *a) { a->release = nullptr; }
+
+void RawBatchRelease(ArrowArray *a) {
+  delete static_cast<RawBatchPriv *>(a->private_data);
+  a->private_data = nullptr;
+  a->release = nullptr;
+}
+
+int RawGetNextOrThrow(ArrowArrayStream *st, ArrowArray *out) {
+  RawStream *r = static_cast<RawStream *>(st->private_data);
+  std::memset(out, 0, sizeof *out);
+  if (r->done) return 0; // the end
+  RawBatchPriv *p = new RawBatchPriv();
+  const size_t n = r->cols.size();
+  p->bufp.resize(n);
+  p->kids.resize(n);
+  p->kidp.resize(n);
+  for (size_t k = 0; k < n; k++) {
+    for (const auto &b : r->cols[k].bufs) p->data.push_back(b);
+  }
+  size_t at = 0;
+  for (size_t k = 0; k < n; k++) {
+    const RawColumn &c = r->cols[k];
+    for (size_t j = 0; j < c.bufs.size(); j++, at++) {
+      // An empty buffer that is present still needs an address.
+      if (p->data[at].empty()) p->data[at].push_back(0);
+      p->bufp[k].push_back(c.present[j] ? p->data[at].data() : nullptr);
+    }
+    ArrowArray &a = p->kids[k];
+    std::memset(&a, 0, sizeof a);
+    a.length = c.length;
+    a.null_count = c.null_count;
+    a.n_buffers = static_cast<int64_t>(c.bufs.size());
+    a.buffers = p->bufp[k].empty() ? nullptr : p->bufp[k].data();
+    a.release = RawChildRelease;
+    p->kidp[k] = &a;
+  }
+  p->validity = r->validity;
+  p->topbuf[0] = r->has_validity ? p->validity.data() : nullptr;
+  out->length = r->length;
+  out->null_count = r->null_count;
+  out->n_buffers = 1;
+  out->buffers = p->topbuf;
+  out->n_children = static_cast<int64_t>(n);
+  out->children = n ? p->kidp.data() : nullptr;
+  out->release = RawBatchRelease;
+  out->private_data = p;
+  r->done = true;
+  return 0;
+}
+
+int RawGetNext(ArrowArrayStream *st, ArrowArray *out) {
+  try {
+    return RawGetNextOrThrow(st, out);
+  } catch (...) {
+    std::memset(out, 0, sizeof *out);
+    return ENOMEM;
+  }
+}
+
+const char *RawLastError(ArrowArrayStream *) { return ""; }
+
+void RawStreamRelease(ArrowArrayStream *st) {
+  delete static_cast<RawStream *>(st->private_data);
+  st->private_data = nullptr;
+  st->release = nullptr;
+  g_test_releases++;
+}
+
 void TestXptrFinalizer(SEXP ptr) {
   ArrowArrayStream *st = static_cast<ArrowArrayStream *>(R_ExternalPtrAddr(ptr));
   if (!st) return;
@@ -1280,6 +1431,97 @@ SEXP zug_test_stream(SEXP nbatch, SEXP per, SEXP fail_at, SEXP message,
   st->get_last_error = TestLastError;
   st->release = TestStreamRelease;
   st->private_data = t;
+  R_SetExternalPtrAddr(ptr, st);
+  UNPROTECT(2);
+  return ptr;
+}
+
+// zug_test_raw_stream(cols, length, null_count, validity): the second test
+// producer, above, as a nanoarrow_array_stream. `cols` is a list of
+// list(name, format, length, null_count, buffers), each buffer a raw
+// vector or NULL; `validity` is the batch's own, a raw vector or NULL.
+// Returns NULL if the arguments are not of that shape.
+SEXP zug_test_raw_stream(SEXP cols, SEXP length, SEXP null_count,
+                         SEXP validity) {
+  // Every R read first, into plain values; then the C++ copies, inside
+  // try/catch, with no R call.
+  struct Buf {
+    const uint8_t *p;
+    R_xlen_t n;
+    bool present;
+  };
+  struct Col {
+    const char *name, *format;
+    double length, null_count;
+    Buf *bufs;
+    R_xlen_t nbuf;
+  };
+  if (TYPEOF(cols) != VECSXP || TYPEOF(validity) == VECSXP) return R_NilValue;
+  const R_xlen_t n = XLENGTH(cols);
+  Col *cs = reinterpret_cast<Col *>(R_alloc(n ? n : 1, sizeof(Col)));
+  for (R_xlen_t k = 0; k < n; k++) {
+    SEXP c = VECTOR_ELT(cols, k);
+    if (TYPEOF(c) != VECSXP || XLENGTH(c) != 5) return R_NilValue;
+    SEXP nm = VECTOR_ELT(c, 0), fm = VECTOR_ELT(c, 1), bs = VECTOR_ELT(c, 4);
+    if (TYPEOF(nm) != STRSXP || TYPEOF(fm) != STRSXP || TYPEOF(bs) != VECSXP) {
+      return R_NilValue;
+    }
+    cs[k].name = Rf_translateCharUTF8(STRING_ELT(nm, 0));
+    cs[k].format = CHAR(STRING_ELT(fm, 0));
+    cs[k].length = Rf_asReal(VECTOR_ELT(c, 2));
+    cs[k].null_count = Rf_asReal(VECTOR_ELT(c, 3));
+    cs[k].nbuf = XLENGTH(bs);
+    cs[k].bufs = reinterpret_cast<Buf *>(R_alloc(cs[k].nbuf ? cs[k].nbuf : 1, sizeof(Buf)));
+    for (R_xlen_t j = 0; j < cs[k].nbuf; j++) {
+      SEXP b = VECTOR_ELT(bs, j);
+      if (b != R_NilValue && TYPEOF(b) != RAWSXP) return R_NilValue;
+      cs[k].bufs[j].present = b != R_NilValue;
+      cs[k].bufs[j].n = b == R_NilValue ? 0 : XLENGTH(b);
+      cs[k].bufs[j].p = cs[k].bufs[j].n ? RAW(b) : nullptr;
+    }
+  }
+  const double len = Rf_asReal(length), nulls = Rf_asReal(null_count);
+  const bool has_valid = validity != R_NilValue && TYPEOF(validity) == RAWSXP;
+  const uint8_t *vp = has_valid && XLENGTH(validity) ? RAW(validity) : nullptr;
+  const R_xlen_t vn = has_valid ? XLENGTH(validity) : 0;
+  SEXP ptr = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  R_RegisterCFinalizerEx(ptr, TestXptrFinalizer, TRUE);
+  SEXP cls = PROTECT(Rf_mkString("nanoarrow_array_stream"));
+  Rf_setAttrib(ptr, R_ClassSymbol, cls);
+  ArrowArrayStream *st = nullptr;
+  try {
+    RawStream *r = new RawStream();
+    r->length = static_cast<int64_t>(len);
+    r->null_count = static_cast<int64_t>(nulls);
+    r->has_validity = has_valid;
+    if (vp) r->validity.assign(vp, vp + vn);
+    if (has_valid && r->validity.empty()) r->validity.push_back(0);
+    for (R_xlen_t k = 0; k < n; k++) {
+      RawColumn c;
+      c.name = cs[k].name;
+      c.format = cs[k].format;
+      c.length = static_cast<int64_t>(cs[k].length);
+      c.null_count = static_cast<int64_t>(cs[k].null_count);
+      for (R_xlen_t j = 0; j < cs[k].nbuf; j++) {
+        const Buf &b = cs[k].bufs[j];
+        c.bufs.emplace_back(b.p, b.p + b.n);
+        c.present.push_back(b.present);
+      }
+      r->cols.push_back(std::move(c));
+    }
+    st = new ArrowArrayStream();
+    st->get_schema = RawGetSchema;
+    st->get_next = RawGetNext;
+    st->get_last_error = RawLastError;
+    st->release = RawStreamRelease;
+    st->private_data = r;
+  } catch (...) {
+    st = nullptr; // the test sees NULL; a leak only on out of memory
+  }
+  if (!st) {
+    UNPROTECT(2);
+    return R_NilValue;
+  }
   R_SetExternalPtrAddr(ptr, st);
   UNPROTECT(2);
   return ptr;
