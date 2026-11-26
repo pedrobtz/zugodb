@@ -13,6 +13,7 @@ PKG_LIBS = -pthread
 OBJECTS = zug_database.o \
   zug_glue.o \
   zug_result.o \
+  zug_stream.o \
   zug_write.o \
   vendor/libzugodb/src/binder/binder.o \
   vendor/libzugodb/src/catalog/catalog.o \
