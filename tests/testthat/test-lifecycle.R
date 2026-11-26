@@ -260,3 +260,120 @@ test_that("table functions on a closed connection are zug_closed_error", {
   expect_error(DBI::dbExistsTable(con, "t"), class = "zug_closed_error")
   expect_error(DBI::dbRemoveTable(con, "t"), class = "zug_closed_error")
 })
+
+# Arrow C streams (roadmap Stage 7): a stream is read once and released by
+# the load that reads it (src/zug_stream.cpp).
+
+test_that("a stream released by its producer is a zug_closed_error", {
+  skip_if_not_installed("nanoarrow")
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  stream <- nanoarrow::as_nanoarrow_array_stream(data.frame(x = 1:3))
+  stream$release()
+  expect_error(
+    DBI::dbWriteTableArrow(con, "t", stream),
+    class = "zug_closed_error"
+  )
+  expect_error(
+    DBI::dbAppendTableArrow(con, "t", stream),
+    class = "zug_argument_error"
+  )
+  DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)")
+  expect_error(
+    DBI::dbAppendTableArrow(con, "t", stream),
+    class = "zug_closed_error"
+  )
+  expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS n FROM t")$n, 0)
+})
+
+test_that("a stream read twice is a zug_closed_error the second time", {
+  skip_if_not_installed("nanoarrow")
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  stream <- nanoarrow::as_nanoarrow_array_stream(data.frame(x = 1:3))
+  DBI::dbWriteTableArrow(con, "t", stream)
+  # The load took the stream: the producer's object is left released.
+  expect_false(nanoarrow::nanoarrow_pointer_is_valid(stream))
+  expect_error(
+    DBI::dbWriteTableArrow(con, "t", stream, append = TRUE),
+    class = "zug_closed_error"
+  )
+  expect_error(
+    DBI::dbWriteTableArrow(con, "u", stream),
+    class = "zug_closed_error"
+  )
+  expect_false(DBI::dbExistsTable(con, "u"))
+  expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS n FROM t")$n, 3)
+})
+
+test_that("a batch whose layout differs from the stream's schema is a zug_stream_error", {
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  before <- zug_scripted_releases()
+  stream <- zug_scripted_stream(4, 10, fail_at = 2, mismatch = TRUE)
+  expect_error(
+    DBI::dbWriteTableArrow(con, "t", stream),
+    class = "zug_stream_error"
+  )
+  expect_false(DBI::dbExistsTable(con, "t"))
+  expect_identical(zug_scripted_releases() - before, 1L)
+  skip_if_not_installed("nanoarrow")
+  # A batch of another type than the schema's: a string array where the
+  # schema has int32 (three buffers, not two).
+  schema <- nanoarrow::na_struct(list(x = nanoarrow::na_int32()))
+  wrong <- nanoarrow::nanoarrow_array_set_schema(
+    nanoarrow::as_nanoarrow_array(data.frame(x = c("a", "b"))),
+    schema,
+    validate = FALSE
+  )
+  stream <- nanoarrow::basic_array_stream(
+    list(nanoarrow::as_nanoarrow_array(data.frame(x = 1L)), wrong),
+    schema = schema,
+    validate = FALSE
+  )
+  err <- expect_error(
+    DBI::dbWriteTableArrow(con, "t", stream),
+    class = "zug_stream_error"
+  )
+  expect_match(conditionMessage(err), "Column `x`", fixed = TRUE)
+  expect_false(DBI::dbExistsTable(con, "t"))
+})
+
+test_that("a load on a closed connection leaves the stream to its producer", {
+  skip_if_not_installed("nanoarrow")
+  con <- DBI::dbConnect(zugodb())
+  DBI::dbDisconnect(con)
+  stream <- nanoarrow::as_nanoarrow_array_stream(data.frame(x = 1:3))
+  expect_error(
+    DBI::dbWriteTableArrow(con, "t", stream),
+    class = "zug_closed_error"
+  )
+  expect_error(
+    DBI::dbAppendTableArrow(con, "t", stream),
+    class = "zug_closed_error"
+  )
+  expect_error(
+    DBI::dbCreateTableArrow(con, "t", stream),
+    class = "zug_closed_error"
+  )
+  expect_true(nanoarrow::nanoarrow_pointer_is_valid(stream))
+  expect_identical(nanoarrow::convert_array_stream(stream)$x, 1:3)
+})
+
+test_that("an error after the stream is taken releases it once", {
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  DBI::dbExecute(con, "CREATE TABLE t (y INTEGER)")
+  before <- zug_scripted_releases()
+  # The stream's columns are not the table's: refused after the take.
+  expect_error(
+    DBI::dbAppendTableArrow(con, "t", zug_scripted_stream(2, 5)),
+    class = "zug_argument_error"
+  )
+  expect_identical(zug_scripted_releases() - before, 1L)
+  # A stream never read is released by the finalizer, once.
+  before <- zug_scripted_releases()
+  local(zug_scripted_stream(2, 5))
+  gc()
+  expect_identical(zug_scripted_releases() - before, 1L)
+})
