@@ -1,0 +1,20 @@
+# Valgrind suppressions for native-checks.yaml (r-actions valgrind.yml,
+# `suppressions` input). Each entry names a finding that is not this
+# package's, and the issue that tracks it; remove it when that closes.
+
+# cli starts a thread for its progress ticks; in a child that
+# parallel::mcparallel() forks (tests/testthat/test-fork.R) the thread is
+# gone but its TLS block, allocated by pthread_create, is "possibly lost".
+# Only that stack: a possible leak of a thread's TLS created from cli.so.
+# pedrobtz/r-actions#131.
+{
+   cli-thread-tls-in-forked-child
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   ...
+   fun:_dl_allocate_tls
+   ...
+   fun:pthread_create*
+   obj:*/cli/libs/cli.so
+}
