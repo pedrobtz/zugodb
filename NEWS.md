@@ -1,5 +1,15 @@
 # zugodb 0.0.0.9000
 
+* `dbWriteTableArrow()`, `dbAppendTableArrow()` and `dbCreateTableArrow()`
+  take an Arrow C stream from any producer (a `nanoarrow_array_stream`,
+  or a data frame with `nanoarrow` installed) and load it into a table
+  batch by batch, with no data frame in between. The stream is read once
+  and released. A column of a type the engine cannot hold (a decimal, a
+  time, a list, a struct, a dictionary, ...) is a `zug_type_error` naming
+  it, before any row is read; a producer's error is a new
+  `zug_stream_error`. A load that fails part-way leaves nothing: an
+  append or an overwrite goes through a staging table first.
+
 * The engine is libzugodb 0.4.0 (it was 0.1.1). What changes for users:
   - SQL reads and writes no file: every file table function
     (`read_csv()`, `read_parquet()`, `read_json()`, ...), a file path used

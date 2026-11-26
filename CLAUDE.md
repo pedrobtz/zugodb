@@ -49,15 +49,15 @@ evidence behind D9: what testing found wrong in the engine and its readers.
 
 ## Current state
 
-Stages 0 to 6 are merged: the patched engine, the DBI driver and
+Stages 0 to 7 are merged: the patched engine, the DBI driver and
 connection, results and scalar types, `DATE`, `TIMESTAMP` and `BLOB`,
-writing, the engine as libzugodb and the package as zugodb, and (Stage 6)
+writing, the engine as libzugodb and the package as zugodb, (Stage 6)
 libzugodb 0.4.0: format 1001 with a checksum, no file read from SQL, and
-the engine's readers and their codecs gone. The roadmap in [.agents/roadmap.md](.agents/roadmap.md) was
-restaged on 2026-11-18 from Stage 6 on:
+the engine's readers and their codecs gone, and (Stage 7) Arrow C streams
+in through `dbWriteTableArrow()`, the adapter the readers use later. The
+roadmap in [.agents/roadmap.md](.agents/roadmap.md) was restaged on
+2026-11-18 from Stage 6 on:
 
-- Stage 7: Arrow C streams in, through DBI's `dbWriteTableArrow()`; the
-  adapter the readers use later.
 - Stage 8: the core measured against sqllogictest. The bar for v0.1.0 is no
   wrong answer, crash or hang on a pinned subset (Q18).
 - Stage 10: the zu readers linked, `zugodb_read()`, readers registered
@@ -65,7 +65,7 @@ restaged on 2026-11-18 from Stage 6 on:
 
 v0.1.0 has no CRAN date. D1 in the design records why the package goes on.
 
-Next: Stage 7, Arrow C streams in.
+Next: Stage 8, core conformance.
 
 ## Versions and dependents
 
@@ -115,7 +115,15 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
   C++ phase copies the engine's whole result into plain buffers (and
   finds any value R cannot hold); the R phase only slices those buffers
   into vectors, so no C++ object is live while R allocates.
+- [src/zug_stream.cpp](src/zug_stream.cpp): an Arrow C stream into a
+  table ([src/zug_arrow.h](src/zug_arrow.h) has the specification's
+  structs). A load moves the stream into a holder that releases it once;
+  the producer's callbacks run in the `.Call` frame, each batch is
+  converted inside `try`/`catch`. It also holds the tests' scripted
+  producer, `zug_scripted_stream()`, which counts its releases.
 - `R/`: [R/result.R](R/result.R) (the `zugodb_result` methods),
+  [R/arrow.R](R/arrow.R) (the Arrow methods: a new table dropped on
+  failure, an append or overwrite through a staging table),
   [R/driver.R](R/driver.R) (`zugodb()`, the database it holds,
   opened at the first connection), [R/connection.R](R/connection.R)
   (`dbConnect()` to `dbExecute()`), [R/conditions.R](R/conditions.R)
@@ -158,7 +166,8 @@ and `test-conditions.R`; Stage 3's `test-oracle-scalar.R`, `test-fetch.R`,
 `test-bigint.R` and `test-varchar.R`; Stage 6's `test-persist.R` (a
 fresh R process, and the golden file `fixtures/golden/`, written by
 `tools/golden.R` only with a new format version), `test-hostile.R`,
-`test-refused.R` and `test-hygiene.R`. Recorded answers: run
+`test-refused.R` and `test-hygiene.R`; Stage 7's `test-arrow-stream.R`
+(with `nanoarrow`, and the scripted producer). Recorded answers: run
 `Rscript tools/oracle.R [name]` (needs duckdb) after adding or changing a
 `tests/testthat/oracle/*.sql`; a disagreement is either fixed or listed
 in `oracle/known-differences.md`, whose rows the tests hold to "still

@@ -471,7 +471,9 @@ inherit from `zuslothdb_error`: `zuslothdb_sql_error` (the engine's
 message), `zuslothdb_type_error`, `zuslothdb_unsupported`,
 `zuslothdb_closed_error`, and `zuslothdb_argument_error` for a bad
 argument (added 2026-11-17, Stage 2, so a caller can tell an argument
-from an engine error).
+from an engine error). `zug_stream_error` was added on 2026-11-26
+(Stage 7) for an Arrow C stream whose producer fails or gives a batch
+that does not match its schema (§7.3).
 
 ### 5.1 The API against its two references
 
@@ -696,6 +698,56 @@ glue has one adapter from a stream to the engine.
   load creates a new table and drops it if the stream fails part-way.
   An append to an existing table needs another answer, a staging table
   being the proposal; the stage that builds the adapter settles it.
+  *Settled 2026-11-26 (Stage 7): a staging table.* An append, and an
+  overwrite of a table that exists, read the whole stream into a
+  staging table first (an append's of the table's own types, by
+  `CREATE TABLE ... AS SELECT * FROM t LIMIT 0`), and only then change
+  the table: an append by `INSERT INTO t SELECT ... FROM staging`, an
+  overwrite by dropping the old table, creating the new and copying
+  into it. A new table is loaded in place and dropped on failure. The
+  staging table is dropped whatever happens, by `on.exit()`, so an R
+  error or an interrupt between batches leaves nothing either. The cost
+  is one copy of the rows; `INSERT ... SELECT` was checked to keep every
+  type and every NULL past a row group before it was chosen.
+
+*As built in Stage 7 (2026-11-26).* `src/zug_stream.cpp` and
+`R/arrow.R`.
+
+- **Ownership.** A load moves the stream out of the producer's object
+  (`nanoarrow_array_stream`), as the C stream interface's move does,
+  into a holder of the package's that releases it, its schema and the
+  batch being read exactly once, however the load ends; the producer's
+  object is left released, so a stream is read once and a second load
+  of it is a `zug_closed_error`. A load on a closed connection, or one
+  refused before the move (a bad name, an existing table), leaves the
+  stream with its producer. Anything else `nanoarrow` converts (a data
+  frame, an Arrow table) is converted first; `nanoarrow` stays in
+  `Suggests`, so without it only a `nanoarrow_array_stream` is taken.
+- **§4.3.** The producer's callbacks and R's interrupt check run in the
+  `.Call` frame with no C++ object live; each batch is converted and
+  appended inside one `try`/`catch` helper.
+- **Types.** A new table's columns are §6's types: boolean, int8, int16,
+  int32, int64, float, double, the three string layouts (`VARCHAR`), the
+  four binary layouts (`BLOB`), date32 and date64 (`DATE`), and
+  timestamps of every unit and zone (`TIMESTAMP`, the instant). The
+  unsigned types widen, as no unsigned type can be named in SQL: uint8
+  to `SMALLINT`, uint16 to `INTEGER`, uint32 and uint64 to `BIGINT`, a
+  uint64 past 2^63 - 1 being a `zug_type_error`. So are a nanosecond
+  timestamp that is not a whole microsecond (refused, not rounded), a
+  date64 that is not a whole day, a string that is not UTF-8 or holds a
+  NUL, and every other type, from the schema, before any row: decimal,
+  time, duration, interval, list, struct, map, union, dictionary,
+  run-end encoded, an extension type, half float and the null type. An
+  append converts into the table's types as `dbAppendTable()` does.
+- **Errors.** A producer's error, and a batch whose layout does not
+  match the stream's schema (another number of columns, another
+  number of buffers, a null row), are `zug_stream_error`, a class added
+  here, carrying the producer's message. A batch's buffers cannot be
+  bounds-checked through the C data interface, which carries no
+  buffer sizes; offsets are checked to be ordered.
+- **NaN.** `nanoarrow` converts R's `NaN` to a null, so a stream made
+  from a data frame has no `NaN`; one in a valid slot of a stream is
+  stored as `NaN`.
 
 The alternative, set aside, was a bespoke C API per reader and one
 adapter for each. It asks less of the siblings and more of this package,

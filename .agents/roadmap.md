@@ -38,7 +38,7 @@ GitHub or the maintainer's r-universe.
 | 5.1 | [The engine as libzugodb](#stage-51--the-engine-as-libzugodb) | full | [#64](https://github.com/pedrobtz/zuslothdb/issues/64) | [#67](https://github.com/pedrobtz/zugodb/pull/67) | |
 | 5.2 | [The package as zugodb](#stage-52--the-package-as-zugodb) | full | [#65](https://github.com/pedrobtz/zuslothdb/issues/65) | [#68](https://github.com/pedrobtz/zugodb/pull/68) | |
 | 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | [#76](https://github.com/pedrobtz/zugodb/pull/76) | 2026-11-26 |
-| 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | | |
+| 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | | 2026-11-26 |
 | 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | | |
 | 9 | [DBItest conformance](#stage-9--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
 | 10 | [Readers from the zu family](#stage-10--readers-from-the-zu-family) | full | [#60](https://github.com/pedrobtz/zuslothdb/issues/60) | | |
@@ -637,6 +637,18 @@ Stage 10, built and tested before any of them has a release.
   the pull request.
 - Every `**Tests.**` line exists and was seen to fail.
 
+**Deviations (2026-11-26).** The adapter is `src/zug_stream.cpp`, and
+the conditions are `zug_type_error` and a new `zug_stream_error`, as the
+package was renamed in Stage 5.2. The producer scripted to fail is the
+package's own (`zug_scripted_stream()`, internal, in
+`src/zug_stream.cpp`), since `nanoarrow` has none: it fails at a chosen
+batch with a chosen message, or gives a batch of the wrong layout, and
+counts its releases, so "released once" is asserted by a count as well
+as by valgrind. An append stays whole through a staging table, as
+proposed (design §7.3). The Limits rows also straddle what the stage
+added beyond the two sizes: uint64 at 2^63 - 1, each integer column's
+range and 2^53 on an append, and a nanosecond at 999, 1000 and 1001.
+
 **Design.** [§7.3](design.md#73-the-contract-q15),
 [§6](design.md#6-types) and [Q15](design.md#14-open-questions).
 
@@ -1036,6 +1048,7 @@ twice and what the reviews required is fixed.
 - None. Q15 to Q23, and the database file's checksum, were decided on
   2026-11-18 ([design §14](design.md#14-open-questions) and
   [§8](design.md#8-persistence)).
-- Still to find, inside a stage: how an append to an existing table
-  stays whole without undo (Stage 7); how large the cut of the engine's
-  readers is, and what unloading an extension does (Stage 10).
+- Still to find, inside a stage: how large the cut of the engine's
+  readers is, and what unloading an extension does (Stage 10). How an
+  append stays whole was settled in Stage 7: a staging table (design
+  §7.3).
