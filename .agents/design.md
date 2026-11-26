@@ -30,7 +30,8 @@ date.
   returning `not_found` for `slothdb` and `rslothdb`, and no CRAN
   package name containing `sloth`. `Imports: DBI (>= 1.2.0), methods`. `Suggests:
   testthat (>= 3.2.0), withr, DBItest, bit64, nanoarrow, yaml` (`yaml`
-  added 2026-11-17: `test-info.R` reads the installed `vendor.yaml`).
+  added 2026-11-17: `test-info.R` reads the installed `vendor.yaml`;
+  `zuarrow` in place of `nanoarrow` since 2026-11-26, §7.3).
   Vendors SlothDB
   v0.2.7+ at commit `8180f21` (MIT, "SlothDB Contributors"), which
   itself carries zstd's decompressor (BSD-3-Clause, of the BSD/GPL-2.0
@@ -689,7 +690,15 @@ glue has one adapter from a stream to the engine.
 - **Any producer works.** The same adapter is DBI's
   `dbWriteTableArrow()`, `dbAppendTableArrow()` and
   `dbCreateTableArrow()`, so it can be built and tested with `nanoarrow`
-  as the producer before any sibling has a release.
+  as the producer before any sibling has a release. *Changed 2026-11-26
+  (maintainer, Stage 7): the producer is `zuarrow`*, the family's own
+  Arrow layer, not `nanoarrow`: the family uses its own packages, and
+  what one lacks is added to it. zuarrow was extended for the tests
+  (writers for the view layouts, half floats, intervals and `integer64`,
+  a schema of named formats for a data frame, and `arrow_release()`).
+  What no producer should make (invalid UTF-8, a null row, a batch whose
+  layout is not its format's, a producer failing on cue) comes from the
+  package's own test producers in `src/zug_stream.cpp`.
 - **Types follow §6.** A column of a type the engine cannot hold
   (`DECIMAL`, `TIME`, a nested type) is a `zuslothdb_type_error` naming
   the column, raised from the stream's schema before any row is
@@ -720,9 +729,12 @@ glue has one adapter from a stream to the engine.
   object is left released, so a stream is read once and a second load
   of it is a `zug_closed_error`. A load on a closed connection, or one
   refused before the move (a bad name, an existing table), leaves the
-  stream with its producer. Anything else `nanoarrow` converts (a data
-  frame, an Arrow table) is converted first; `nanoarrow` stays in
-  `Suggests`, so without it only a `nanoarrow_array_stream` is taken.
+  stream with its producer. A stream is any handle of class
+  `nanoarrow_array_stream`, the class zuarrow's, nanoarrow's and
+  arrow's handles share, whose pointer is the specification's struct. A
+  data frame is converted by `zuarrow::arrow_stream()` first, and a
+  schema read by `zuarrow::arrow_schema()`; `zuarrow` is in `Suggests`,
+  so without it only a handle is taken.
 - **§4.3.** The producer's callbacks and R's interrupt check run in the
   `.Call` frame with no C++ object live; each batch is converted and
   appended inside one `try`/`catch` helper.
@@ -745,9 +757,8 @@ glue has one adapter from a stream to the engine.
   here, carrying the producer's message. A batch's buffers cannot be
   bounds-checked through the C data interface, which carries no
   buffer sizes; offsets are checked to be ordered.
-- **NaN.** `nanoarrow` converts R's `NaN` to a null, so a stream made
-  from a data frame has no `NaN`; one in a valid slot of a stream is
-  stored as `NaN`.
+- **NaN.** A `NaN` in a valid slot is stored as `NaN`; zuarrow keeps
+  R's `NaN` a value and makes `NA` a null.
 
 The alternative, set aside, was a bespoke C API per reader and one
 adapter for each. It asks less of the siblings and more of this package,
@@ -852,9 +863,10 @@ umbrella for its next version. The order is by what links what.
 | 5 | `zuslothdb` | Stage 10 ([#60](https://github.com/pedrobtz/zuslothdb/issues/60)) | Links them and adds `zuslothdb_read()` |
 <!-- markdownlint-enable MD013 -->
 
-Stage 7's adapter needs none of them: it is built against `nanoarrow`
-as the producer, and takes the readers' streams unchanged when they
-arrive.
+Stage 7's adapter needs none of them as archives: it is tested with
+`zuarrow`'s R package as the producer (from GitHub, by `Remotes:`,
+until zuarrow 0.1.0 is on CRAN, which comes before this package's
+release), and takes the readers' streams unchanged when they arrive.
 
 Each provider keeps a consumer fixture under `tools/` and a
 `consumer.yaml` workflow, and each `LinkingTo` floor here is the CRAN

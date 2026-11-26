@@ -167,7 +167,8 @@ and `test-conditions.R`; Stage 3's `test-oracle-scalar.R`, `test-fetch.R`,
 fresh R process, and the golden file `fixtures/golden/`, written by
 `tools/golden.R` only with a new format version), `test-hostile.R`,
 `test-refused.R` and `test-hygiene.R`; Stage 7's `test-arrow-stream.R`
-(with `nanoarrow`, and the scripted producer). Recorded answers: run
+(with `zuarrow`, and the package's own producers for what no
+producer should make). Recorded answers: run
 `Rscript tools/oracle.R [name]` (needs duckdb) after adding or changing a
 `tests/testthat/oracle/*.sql`; a disagreement is either fixed or listed
 in `oracle/known-differences.md`, whose rows the tests hold to "still

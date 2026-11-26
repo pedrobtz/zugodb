@@ -1,8 +1,9 @@
 # zugodb 0.0.0.9000
 
 * `dbWriteTableArrow()`, `dbAppendTableArrow()` and `dbCreateTableArrow()`
-  take an Arrow C stream from any producer (a `nanoarrow_array_stream`,
-  or a data frame with `nanoarrow` installed) and load it into a table
+  take an Arrow C stream from any producer (a stream handle from
+  zuarrow, nanoarrow, arrow or an ADBC driver, or a data frame with
+  `zuarrow` installed) and load it into a table
   batch by batch, with no data frame in between. The stream is read once
   and released. A column of a type the engine cannot hold (a decimal, a
   time, a list, a struct, a dictionary, ...) is a `zug_type_error` naming

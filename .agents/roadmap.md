@@ -602,7 +602,7 @@ Stage 10, built and tested before any of them has a release.
   one chunk at a time, so Q19's scan operator can use it later.
 - `dbWriteTableArrow()`, `dbAppendTableArrow()` and
   `dbCreateTableArrow()`. `nanoarrow` joins `Suggests` as the tests'
-  producer.
+  producer (`zuarrow` instead, 2026-11-26: see the deviations).
 - Types as design §6. A column of a type the engine cannot hold is
   refused from the stream's schema, before any row is appended.
 - A load that fails part-way leaves nothing: a new table is dropped.
@@ -641,13 +641,19 @@ Stage 10, built and tested before any of them has a release.
 the conditions are `zug_type_error` and a new `zug_stream_error`, as the
 package was renamed in Stage 5.2. The producer scripted to fail is the
 package's own (`zug_scripted_stream()`, internal, in
-`src/zug_stream.cpp`), since `nanoarrow` has none: it fails at a chosen
+`src/zug_stream.cpp`), since no producer package has one: it fails at a chosen
 batch with a chosen message, or gives a batch of the wrong layout, and
 counts its releases, so "released once" is asserted by a count as well
 as by valgrind. An append stays whole through a staging table, as
 proposed (design §7.3). The Limits rows also straddle what the stage
 added beyond the two sizes: uint64 at 2^63 - 1, each integer column's
 range and 2^53 on an append, and a nanosecond at 999, 1000 and 1001.
+The tests' producer is `zuarrow`, not `nanoarrow` (maintainer: the
+family uses its own packages, and extends one that lacks something).
+zuarrow was extended for it, and a second internal producer,
+`zug_raw_stream()`, builds the batches no producer should make: a
+string that is not UTF-8, a null row, a column of the wrong layout, a
+date64 that is not a whole day.
 
 **Design.** [§7.3](design.md#73-the-contract-q15),
 [§6](design.md#6-types) and [Q15](design.md#14-open-questions).
