@@ -1,5 +1,27 @@
 # zugodb 0.0.0.9000
 
+* The engine is libzugodb 0.4.0 (it was 0.1.1). What changes for users:
+  - SQL reads and writes no file: every file table function
+    (`read_csv()`, `read_parquet()`, `read_json()`, ...), a file path used
+    as a table, `DESCRIBE` of one, `COPY` to or from a file and `CREATE
+    LIVE VIEW` are a `zug_sql_error`, "Reading or writing files from SQL
+    is not supported". Files come back through the zu family's readers
+    (design §7).
+  - A database file is format 1001, with a checksum. A file written by
+    earlier versions of zugodb (format 1), a damaged one, a truncated one
+    and one that is not a database are each a `zug_sql_error` when
+    opened, and are left as they were.
+  - DuckDB's answers where SlothDB's differed: names match ignoring
+    case, `TINYINT` arithmetic overflows as an error, `substr()` counts
+    characters, a `BLOB` literal's `\x` escapes are bytes, `Infinity` fits
+    a `FLOAT` column, a `NaN` written is stored and read back as `NaN`,
+    and many wrong answers are fixed (libzugodb's `CHANGELOG.md`).
+  - `BEGIN`, `COMMIT` and `ROLLBACK` are refused, and `HUGEINT`,
+    `INTERVAL`, `UUID` and `DECIMAL` are refused by SQL. `TIME` values
+    are right now, and still a `zug_type_error` when read (#43).
+  - `dbExecute()` of `CREATE TABLE ... AS` returns the rows it made.
+  - The package bundles no zstd, snappy, fastpforlib or miniz.
+
 * The package is renamed from zuslothdb to zugodb, and its repository to
   pedrobtz/zugodb (design D12). The driver is `zugodb()`, `zuslothdb_info()`
   is `zug_info()`, the classes are `zugodb_driver`, `zugodb_connection`

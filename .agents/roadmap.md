@@ -37,7 +37,7 @@ GitHub or the maintainer's r-universe.
 | 5 | [Writing and transactions](#stage-5--writing-and-transactions) | quick | [#7](https://github.com/pedrobtz/zuslothdb/issues/7) | [#50](https://github.com/pedrobtz/zuslothdb/pull/50) | 2026-11-18 |
 | 5.1 | [The engine as libzugodb](#stage-51--the-engine-as-libzugodb) | full | [#64](https://github.com/pedrobtz/zuslothdb/issues/64) | [#67](https://github.com/pedrobtz/zugodb/pull/67) | |
 | 5.2 | [The package as zugodb](#stage-52--the-package-as-zugodb) | full | [#65](https://github.com/pedrobtz/zuslothdb/issues/65) | [#68](https://github.com/pedrobtz/zugodb/pull/68) | |
-| 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | |
+| 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | | 2026-11-26 |
 | 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | | |
 | 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | | |
 | 9 | [DBItest conformance](#stage-9--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
@@ -478,6 +478,38 @@ files through the engine's readers. Those are refused here, and files
 come back in Stage 10 through the zu family's readers. What the stage had
 already landed stays: #36 to #40 (fork changes 13 to 16) and #55 (pull
 request #56).
+
+**Deviations (2026-11-26).** The engine's half of the stage was done in
+libzugodb, as D12 moved engine work there, and arrives here as one pin,
+libzugodb v0.4.0 (tagged this day, so the package adapts once rather than
+at 0.2.0, 0.3.0 and 0.4.0): its 0.2.0 refuses every file route from SQL,
+takes the database file to format 1001 with a CRC-32, hardens
+`Checkpoint::Load` and rethrows a worker's exception after the join; 0.4.0
+removes the readers, zstd, snappy, fastpforlib and miniz (#71).
+- The refusal's message is the engine's ("Reading or writing files from
+  SQL is not supported") and does not name `zugodb_read()`, which does not
+  exist until Stage 10; Stage 10 adds the name when it adds the function.
+- No `fuzz.yaml` here (maintainer, 2026-11-26): the harness for the
+  database file, with the CRC-32 recomputed and a reach floor, is
+  libzugodb's `fuzz/checkpoint_load.cpp`, run by its CI on every pull
+  request and weekly at the commit vendored; the glue parses no bytes of
+  its own. The assurance rows say `n/a` with that reason (#21).
+- No query this package can send throws on a worker thread: since the
+  readers went, the window operator's parallel partition sort is the one
+  worker phase, and its keys are computed before it. libzugodb's
+  doctest (`ArmWorkerFault`) carries the exception; `test-conditions.R`
+  carries the parallel answer at caps 1 and 4, against R's ranks.
+- The pin brings DuckDB's behaviour where SlothDB's differed, and the
+  tests that held the old behaviour now hold the new: names match
+  ignoring case, `BEGIN`, `COMMIT` and `ROLLBACK` are refused, `HUGEINT`,
+  `INTERVAL`, `UUID` and `DECIMAL` are refused by SQL, a `CREATE TABLE AS`
+  reports its rows (`QueryResult::is_count`), and three known
+  differences from DuckDB agree now (`oracle/known-differences.md`).
+- A damaged or other-version file is a `zug_sql_error` carrying the
+  engine's message (design Q7).
+- Upstream's doctests are 491 cases, built with `ZUGODB_SOURCE_DIR` and
+  without `test/unit/tools/`, as libzugodb's CMake builds them without its
+  conformance runner.
 
 **Work.**
 

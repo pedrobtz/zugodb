@@ -49,13 +49,13 @@ evidence behind D9: what testing found wrong in the engine and its readers.
 
 ## Current state
 
-Stages 0 to 5 are merged: the patched engine, the DBI driver and
-connection, results and scalar types, `DATE`, `TIMESTAMP` and `BLOB`, and
-writing. The roadmap in [.agents/roadmap.md](.agents/roadmap.md) was
+Stages 0 to 6 are merged: the patched engine, the DBI driver and
+connection, results and scalar types, `DATE`, `TIMESTAMP` and `BLOB`,
+writing, the engine as libzugodb and the package as zugodb, and (Stage 6)
+libzugodb 0.4.0: format 1001 with a checksum, no file read from SQL, and
+the engine's readers and their codecs gone. The roadmap in [.agents/roadmap.md](.agents/roadmap.md) was
 restaged on 2026-11-18 from Stage 6 on:
 
-- Stage 6: persistence, the database file's checksum, and the engine's own
-  readers refused.
 - Stage 7: Arrow C streams in, through DBI's `dbWriteTableArrow()`; the
   adapter the readers use later.
 - Stage 8: the core measured against sqllogictest. The bar for v0.1.0 is no
@@ -65,9 +65,7 @@ restaged on 2026-11-18 from Stage 6 on:
 
 v0.1.0 has no CRAN date. D1 in the design records why the package goes on.
 
-Next, before Stage 6 (design D12): the engine moves to its own repository,
-`pedrobtz/libzugodb` (Stage 5.1), and this package is renamed `zugodb`,
-with the prefix `zug_` (Stage 5.2).
+Next: Stage 7, Arrow C streams in.
 
 ## Versions and dependents
 
@@ -131,9 +129,9 @@ Three layers ([.agents/design.md](.agents/design.md) §4):
   Breaking either leaks or crashes the session. The glue never calls
   `Rf_error()`; keep it that way.
 - The shared library exports only `R_init_zugodb` (plus the C++
-  standard library's own template typeinfo). The engine carries a
-  `duckdb_fastpforlib` namespace copied from DuckDB, and zstd, which
-  other packages bundle too. `platform.sh` checks it on each OS, and
+  standard library's own template typeinfo), so no engine symbol binds
+  to another package's (it carried DuckDB's `duckdb_fastpforlib` and
+  zstd until libzugodb 0.4.0). `platform.sh` checks it on each OS, and
   `tools/ci/coexist.R` runs both packages in one session.
 - Nothing vendored is edited by hand: an engine change is a libzugodb
   release, vendored by tag (D12). `tools/vendor/verify` and the vendor
@@ -157,7 +155,10 @@ provenance against the installed `vendor.yaml`), `test-lifecycle.R`
 (out-of-order sequences), `test-connect.R` (arguments, read-only,
 threads), `test-fork.R`, `test-unwind.R` (valgrind is its leak oracle)
 and `test-conditions.R`; Stage 3's `test-oracle-scalar.R`, `test-fetch.R`,
-`test-bigint.R` and `test-varchar.R`. Recorded answers: run
+`test-bigint.R` and `test-varchar.R`; Stage 6's `test-persist.R` (a
+fresh R process, and the golden file `fixtures/golden/`, written by
+`tools/golden.R` only with a new format version), `test-hostile.R`,
+`test-refused.R` and `test-hygiene.R`. Recorded answers: run
 `Rscript tools/oracle.R [name]` (needs duckdb) after adding or changing a
 `tests/testthat/oracle/*.sql`; a disagreement is either fixed or listed
 in `oracle/known-differences.md`, whose rows the tests hold to "still
@@ -166,7 +167,7 @@ file-scope code. A finalizer's warning
 cannot be caught around `gc()` (R runs finalizers through
 `R_ToplevelExec`): test the effect of collection, and call the finalizer
 for the warning. Upstream's own doctest suite runs
-on the vendored tree through `tools/upstream-tests.sh` (378 cases), and
+on the vendored tree through `tools/upstream-tests.sh` (491 cases), and
 `tools/ci/coexist.R` runs `duckdb` in the same session: both from
 `tools/ci/platform.sh`, never from testthat, because §10 keeps `duckdb`
 out of `Suggests`. The design's §10 plans DuckDB's recorded answers as the
@@ -192,10 +193,10 @@ this package's own C++ engine since 2026-11-18 (design D12): SlothDB at
 upstream `8180f215847015944c935f56f008d194e2c1494c` ("v0.2.7+"), by the
 SlothDB Contributors, with the changes in its `CHANGELOG.md`, under the
 C++ namespace `zugodb::`. A tagged release is vendored in
-`src/vendor/libzugodb/` with its `third_party/` subset: the zstd
-decompressor, snappy, fastpforlib and, inside `src/storage/`, miniz;
-`unordered_dense.h` under `include/third_party/`. Left out: `src/api/`
-(the C API) and the CMake files. Holders are in `inst/COPYRIGHTS`;
+`src/vendor/libzugodb/`: `include/`, `src/` and `LICENSE`, with
+`unordered_dense.h` under `include/third_party/` its only third-party
+code (zstd, snappy, fastpforlib and miniz went with the file readers in
+libzugodb 0.4.0). Left out: the CMake files. Holders are in `inst/COPYRIGHTS`;
 [.agents/VENDORED.md](.agents/VENDORED.md) has the details and the
 upstream reports. To change the engine: a pull request to libzugodb, whose
 CI runs its doctests on Linux (with ASan and UBSan), macOS and MinGW-w64;

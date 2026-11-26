@@ -441,7 +441,10 @@ none: `ROLLBACK` only closes the transaction, so an `INSERT`, `DELETE`,
 own test says "we don't have full MVCC undo yet"). So `dbBegin()`,
 `dbCommit()` and `dbRollback()` raise `zuslothdb_unsupported`, and with
 them `dbWithTransaction()`; the fork makes SQL `ROLLBACK` an error saying
-nothing was undone, and closes the transaction. Writes stay whole
+nothing was undone, and closes the transaction. *Since libzugodb 0.3.0
+(Stage 6, 2026-11-26):* the engine refuses `BEGIN`, `COMMIT` and
+`ROLLBACK` alike ("Transactions are not supported"), so no statement
+can look like a transaction. Writes stay whole
 without one: `dbWriteTable()` and `dbAppendTable()` check every value
 against the table's column types before the first row is appended, and
 an overwrite checks the data against a probe table of the new types
@@ -741,8 +744,14 @@ Decided 2026-11-18 (maintainer): refused first, then cut.
    or a file path used as a table, is an error that names
    `zuslothdb_read()`. Fork changes 13 to 15, which made the Parquet and
    JSON readers refuse what they misread, then guard code no query
-   reaches.
-2. **Cut, in Stage 10.** All of the engine's readers leave the fork,
+   reaches. *Done in libzugodb 0.2.0 (Stage 6, 2026-11-26),* with one
+   message for every route, "Reading or writing files from SQL is not
+   supported", which names no R function: `zugodb_read()` arrives in
+   Stage 10, and the name with it.
+2. **Cut, in Stage 10.** *Done early, in libzugodb 0.4.0 (Stage 11
+   there, #71 here), vendored in Stage 6: the readers, zstd, snappy,
+   fastpforlib and miniz are gone, and Stage 10 here has none of this
+   item left.* All of the engine's readers leave the fork,
    with zstd, snappy and fastpforlib. The fork is where the engine is
    maintained (D3), and about 7,300 lines of parser no query reaches
    still cost every analyser, sanitizer and fuzz run. The cut is not yet
@@ -1077,7 +1086,11 @@ any of them.
   written by the package is committed as a golden file and read back
   against its recorded rows in CI, so a layout change made without the
   bump fails there rather than in a user's data. Reading an older
-  version is not in v0.1.0.
+  version is not in v0.1.0. *The class (Stage 6, 2026-11-26):* a file of
+  another version, a damaged file and one that is not a database are
+  each a `zug_sql_error` carrying the engine's message, which names
+  the version found and 1001, or the damage and its offset; a new class
+  would tell the user nothing the message does not.
 - **Q8.** Name: `slothdb` matches upstream and the `duckdb` precedent,
   but suggests an official binding. Ask the upstream author, or choose
   another name. **Decided 2026-11-17: `zuslothdb`**, package, repository

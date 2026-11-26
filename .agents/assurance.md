@@ -14,10 +14,10 @@ backed the native checks and added the engine's own rows.
 
 `compiled` `untrusted-input` `spec` `lifecycle` `emits`
 
-- compiled: the vendored SlothDB C++20 engine and the glue over it.
-- untrusted-input: the CSV, Parquet and JSON readers and the database
-  file parse bytes the package did not write; Arrow IPC (#40), Avro,
-  Excel and SQLite (#55) are refused before any byte is parsed.
+- compiled: the vendored libzugodb C++20 engine and the glue over it.
+- untrusted-input: the database file, which the engine parses whole on
+  open; SQL reads no other file (libzugodb 0.2.0 refuses every route, and
+  0.4.0 removed the readers), until Stage 10 links the zu family's.
 - spec: the DBI specification, and SQL answers compared with DuckDB.
 - lifecycle: database, connection and result objects behind external
   pointers.
@@ -38,8 +38,8 @@ call to r-actions.
 | analyzers     | done    | native-checks.yaml |
 | alloc-failure | done    | alloc-failure.yaml |
 | mutation      | gap #20 |                    |
-| fuzz          | gap #21 |                    |
-| fuzz-reach    | gap #21 |                    |
+| fuzz          | n/a: the one parser of untrusted bytes, the database file's `Checkpoint::Load`, is libzugodb's and fuzzed in its CI at every pull request and weekly (`fuzz/checkpoint_load.cpp`, recomputing the CRC-32 so inputs reach the loader), at the tag vendored here; the glue parses no bytes (Stage 6, 2026-11-26) | |
+| fuzz-reach    | n/a: as `fuzz`; libzugodb's `fuzz` job holds the reach | |
 
 ## Boundaries
 
@@ -56,17 +56,14 @@ One row per boundary the package crosses. An oracle knows the answer:
 <!-- markdownlint-disable MD013 -->
 | Boundary                                | Oracle                                                    | Carried by |
 | --------------------------------------- | --------------------------------------------------------- | ---------- |
-| the patched SlothDB engine              | upstream's own doctest suite (378 cases) on the vendored, patched tree | tools/upstream-tests.sh, in platforms.yaml |
-| the vendored tree                       | upstream at the pinned commit plus tools/patches, rebuilt and compared file by file | tools/vendor/verify, in vendor.yaml |
+| the engine, libzugodb                   | libzugodb's own doctest suite (491 cases) on the vendored tree, with R's compilers and flags | tools/upstream-tests.sh, in platforms.yaml |
+| the vendored tree                       | libzugodb at the pinned tag and commit, rebuilt and compared file by file | tools/vendor/verify, in vendor.yaml |
 | SQL results as R vectors (scalar types) | recorded `duckdb` answers for the same queries            | tests/testthat/test-oracle-scalar.R |
-| SQL results as R vectors (`DATE`, `TIMESTAMP`, `BLOB`, and the refused types) | recorded `duckdb` answers for the same queries, by a table and by a set operation's boxed rows; each refused type a `zuslothdb_type_error` naming its column | tests/testthat/test-temporal.R, tests/testthat/test-oracle-types.R, tests/testthat/test-conditions.R |
-| Parquet scan on decode workers: stopped before its last row group (#32), and their exit on Windows (#34) | every query returns within a time limit, in a child R, with the rows the `duckdb`-written fixture holds | tests/testthat/test-parquet-stop.R (macOS, Linux, Windows) |
-| CSV, Parquet, JSON files                | recorded `duckdb` answers over `duckdb`-written fixtures  | gap #23    |
-| Arrow IPC files (#40)                   | refused, for a file R's `arrow` wrote, by every route: `read_arrow()` and a `.arrow`, `.feather` or `.ipc` path | tests/testthat/test-arrow.R |
-| Parquet column types the reader cannot decode (#36 to #38) | the values `duckdb` wrote, for the types it decodes; a `zuslothdb_sql_error` naming the column for the rest, and the file's other columns read, across row groups and four threads | tests/testthat/test-parquet-types.R |
-| JSON files (#39)                        | the values written, for flat records, arrays of objects, `\u` escapes and 5000 records; a `zuslothdb_sql_error` naming the record and the key for each shape the readers would misread, and malformed input | tests/testthat/test-json.R |
-| Avro, Excel and SQLite files (#55)      | refused, for a SQLite database Python wrote, an `.xlsx` openxlsx wrote and an Avro header, by every route: the table functions and each file extension | tests/testthat/test-refused.R |
-| database file                           | round trip through a fresh R process                      | gap #23    |
+| SQL results as R vectors (`DATE`, `TIMESTAMP`, `BLOB`, and the refused types) | recorded `duckdb` answers for the same queries, by a table and by a set operation's boxed rows; `TIME` a `zug_type_error` naming its column, `HUGEINT`, `INTERVAL` and `UUID` refused by the engine | tests/testthat/test-temporal.R, tests/testthat/test-oracle-types.R, tests/testthat/test-conditions.R |
+| CSV, Parquet, JSON, Arrow IPC, Avro, Excel and SQLite files | refused, for a real file of each format, by every route: each table function, a path of each extension and a glob as a table, `DESCRIBE`, `COPY` to and from, `CREATE LIVE VIEW`, and a batch holding one (which runs none of its statements); a `COPY TO` writes no file | tests/testthat/test-refused.R |
+| database file                           | round trip through a fresh R process, `identical()` to what was written; the golden file (tools/golden.R) against rows recorded from an in-memory database; another format version, a bit flipped at 360 offsets and more, truncated at each, extended, or not a database: each a `zug_sql_error` and the file unchanged | tests/testthat/test-persist.R, tests/testthat/test-hostile.R |
+| the engine's parallel window sort       | its answer at threads 1 and 4, and R's own ranks; the exception rethrown after the join is libzugodb's doctest (`ArmWorkerFault`) | tests/testthat/test-conditions.R |
+| files written                           | a listing of the working directory, `dbdir`'s directory and the home directory before and after a workload: only `dbdir` appears | tests/testthat/test-hygiene.R |
 | DBI specification                       | `DBItest`                                                 | gap #24    |
 | data frames written into tables (`dbWriteTable()`, `dbAppendTable()`) | round trip: what is read back is `identical()` to what went in, for every class written, with `NA`, 0 rows and across 2048-row chunks, and under a hostile locale; SQL `CAST` of what the engine stored, for `integer64` | tests/testthat/test-roundtrip.R, tests/testthat/test-write.R, tests/testthat/test-identifiers.R |
 <!-- markdownlint-enable MD013 -->
@@ -82,7 +79,7 @@ cannot apply.
 | Object     | Sequences | Fork    | Unwind  | Owner   |
 | ---------- | --------- | ------- | ------- | ------- |
 | database   | tests/testthat/test-lifecycle.R | tests/testthat/test-fork.R | tests/testthat/test-unwind.R | the driver (R/driver.R); connections keep it alive through `prot` |
-| connection | tests/testthat/test-lifecycle.R | tests/testthat/test-fork.R | tests/testthat/test-unwind.R | its database's external pointer, in `prot` (src/sdb_database.cpp) |
+| connection | tests/testthat/test-lifecycle.R | tests/testthat/test-fork.R | tests/testthat/test-unwind.R | its database's external pointer, in `prot` (src/zug_database.cpp) |
 | result     | tests/testthat/test-lifecycle.R | n/a: materialised R-side buffers; its connection's guard refuses a foreign process | tests/testthat/test-unwind.R | its external pointer; a cleared or closed-connection result is refused (R/result.R) |
 <!-- markdownlint-enable MD013 -->
 
@@ -97,6 +94,6 @@ One row per limit the package enforces. "Straddled by" is the test of
 | -2^31, R's integer NA         | integer value | tests/testthat/test-spike.R |
 | R's integer range, 2^31 - 1 and -(2^31 - 1) | integer value | tests/testthat/test-spike.R |
 | `threads`, 1 to 2^31 - 1                     | threads       | tests/testthat/test-connect.R |
-| an append chunk, 2048 rows (`src/sdb_write.cpp`) | rows | tests/testthat/test-roundtrip.R (2048, 2049 and 5000 rows) |
+| an append chunk, 2048 rows (`src/zug_write.cpp`) | rows | tests/testthat/test-roundtrip.R (2048, 2049 and 5000 rows) |
 | `SMALLINT`, `INTEGER` and `BIGINT` ranges on write | integer value | tests/testthat/test-write.R (-32768, 32767 and 32768; -2^63, 2^53 and 2^63) |
 | an engine vector, 2048 rows, inside a table's row group (#45) | rows | tests/testthat/test-storage.R (NULLs at rows 2047 to 2049 and 4095 to 4097, by one VALUES list and by many inserts), oracle/scalar-nulls-long |
