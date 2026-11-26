@@ -27,10 +27,10 @@
 \item{name}{The table's name, as for \code{\link[DBI:dbWriteTable]{DBI::dbWriteTable()}}.}
 
 \item{value}{For \code{dbWriteTableArrow()} and \code{dbAppendTableArrow()}, an
-Arrow C stream (a \code{nanoarrow_array_stream}) or what
-\code{\link[nanoarrow:as_nanoarrow_array_stream]{nanoarrow::as_nanoarrow_array_stream()}} converts. For
-\code{dbCreateTableArrow()}, a \code{nanoarrow_schema}, or what
-\code{\link[nanoarrow:infer_nanoarrow_schema]{nanoarrow::infer_nanoarrow_schema()}} reads one from.}
+Arrow C stream handle (class \code{nanoarrow_array_stream}) or a data frame.
+For \code{dbCreateTableArrow()}, a schema handle (class \code{nanoarrow_schema}),
+or a stream handle, data frame or format string, which
+\code{\link[zuarrow:arrow_schema]{zuarrow::arrow_schema()}} reads a schema from.}
 
 \item{...}{Not used.}
 
@@ -48,11 +48,11 @@ invisibly. \code{dbAppendTableArrow()}: the number of rows written.
 replaces one (\code{overwrite = TRUE}) or adds to one (\code{append = TRUE});
 \code{\link[DBI:dbAppendTableArrow]{DBI::dbAppendTableArrow()}} adds a stream's rows to a table that exists;
 \code{\link[DBI:dbCreateTableArrow]{DBI::dbCreateTableArrow()}} creates an empty table from an Arrow schema.
-Any producer of the Arrow C stream interface works: a
-\code{nanoarrow_array_stream}, or anything \code{\link[nanoarrow:as_nanoarrow_array_stream]{nanoarrow::as_nanoarrow_array_stream()}}
-converts, such as a data frame (\code{nanoarrow} is then needed). The stream
-is read once, one batch at a time, and released: it cannot be read
-again.
+Any producer of the Arrow C stream interface works: a stream handle of
+class \code{nanoarrow_array_stream}, as \code{zuarrow}, \code{nanoarrow}, \code{arrow} and
+'ADBC' drivers make, or a data frame, which \code{\link[zuarrow:arrow_stream]{zuarrow::arrow_stream()}}
+converts (\code{zuarrow} is then needed). The stream is read once, one batch
+at a time, and released: it cannot be read again.
 }
 \details{
 A new table's columns take these engine types:\tabular{ll}{
@@ -87,9 +87,9 @@ changed once the whole stream has been read. The engine has no
 transactions, so this costs a copy of the rows.
 }
 \examples{
-\dontshow{if (requireNamespace("nanoarrow", quietly = TRUE)) withAutoprint(\{ # examplesIf}
+\dontshow{if (requireNamespace("zuarrow", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 con <- DBI::dbConnect(zugodb())
-stream <- nanoarrow::as_nanoarrow_array_stream(head(mtcars))
+stream <- zuarrow::arrow_stream(head(mtcars))
 DBI::dbWriteTableArrow(con, "cars", stream)
 DBI::dbAppendTableArrow(con, "cars", tail(mtcars))
 DBI::dbGetQuery(con, "SELECT count(*) AS n FROM cars")

@@ -28,13 +28,14 @@ Imports:
     methods
 Suggests:
     bit64,
-    blob,
     knitr,
-    nanoarrow,
     rmarkdown,
     testthat (>= 3.0.0),
     withr,
-    yaml
+    yaml,
+    zuarrow
+Remotes:
+    pedrobtz/zuarrow@from-r-views-half-intervals
 VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.1
 Config/testthat/edition: 3

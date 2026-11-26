@@ -4,11 +4,11 @@
 #' replaces one (`overwrite = TRUE`) or adds to one (`append = TRUE`);
 #' [DBI::dbAppendTableArrow()] adds a stream's rows to a table that exists;
 #' [DBI::dbCreateTableArrow()] creates an empty table from an Arrow schema.
-#' Any producer of the Arrow C stream interface works: a
-#' `nanoarrow_array_stream`, or anything [nanoarrow::as_nanoarrow_array_stream()]
-#' converts, such as a data frame (`nanoarrow` is then needed). The stream
-#' is read once, one batch at a time, and released: it cannot be read
-#' again.
+#' Any producer of the Arrow C stream interface works: a stream handle of
+#' class `nanoarrow_array_stream`, as `zuarrow`, `nanoarrow`, `arrow` and
+#' 'ADBC' drivers make, or a data frame, which [zuarrow::arrow_stream()]
+#' converts (`zuarrow` is then needed). The stream is read once, one batch
+#' at a time, and released: it cannot be read again.
 #'
 #' A new table's columns take these engine types:
 #'
@@ -44,10 +44,10 @@
 #' @param conn A `zugodb_connection`.
 #' @param name The table's name, as for [DBI::dbWriteTable()].
 #' @param value For `dbWriteTableArrow()` and `dbAppendTableArrow()`, an
-#'   Arrow C stream (a `nanoarrow_array_stream`) or what
-#'   [nanoarrow::as_nanoarrow_array_stream()] converts. For
-#'   `dbCreateTableArrow()`, a `nanoarrow_schema`, or what
-#'   [nanoarrow::infer_nanoarrow_schema()] reads one from.
+#'   Arrow C stream handle (class `nanoarrow_array_stream`) or a data frame.
+#'   For `dbCreateTableArrow()`, a schema handle (class `nanoarrow_schema`),
+#'   or a stream handle, data frame or format string, which
+#'   [zuarrow::arrow_schema()] reads a schema from.
 #' @param overwrite,append `TRUE` to replace or to add to a table that
 #'   exists; at most one of them.
 #' @param temporary Not supported: the engine has no temporary tables.
@@ -55,9 +55,9 @@
 #' @return `dbWriteTableArrow()`, `dbCreateTableArrow()`: `TRUE`,
 #'   invisibly. `dbAppendTableArrow()`: the number of rows written.
 #' @name zugodb_arrow
-#' @examplesIf requireNamespace("nanoarrow", quietly = TRUE)
+#' @examplesIf requireNamespace("zuarrow", quietly = TRUE)
 #' con <- DBI::dbConnect(zugodb())
-#' stream <- nanoarrow::as_nanoarrow_array_stream(head(mtcars))
+#' stream <- zuarrow::arrow_stream(head(mtcars))
 #' DBI::dbWriteTableArrow(con, "cars", stream)
 #' DBI::dbAppendTableArrow(con, "cars", tail(mtcars))
 #' DBI::dbGetQuery(con, "SELECT count(*) AS n FROM cars")
@@ -68,15 +68,22 @@ NULL
 # the producer's object is left released.
 take_stream <- function(value, call) {
   if (!inherits(value, "nanoarrow_array_stream")) {
-    if (!requireNamespace("nanoarrow", quietly = TRUE)) {
+    if (!is.data.frame(value)) {
       zug_abort(
-        "`value` must be a nanoarrow_array_stream; to convert another object, install nanoarrow.",
+        "`value` must be an Arrow C stream handle or a data frame.",
+        "argument",
+        call
+      )
+    }
+    if (!requireNamespace("zuarrow", quietly = TRUE)) {
+      zug_abort(
+        "To write a data frame as an Arrow stream, install zuarrow.",
         "argument",
         call
       )
     }
     value <- tryCatch(
-      nanoarrow::as_nanoarrow_array_stream(value),
+      zuarrow::arrow_stream(value),
       error = function(e) {
         zug_abort(
           paste(
@@ -131,15 +138,15 @@ check_arrow_columns <- function(cols, call) {
 
 schema_columns <- function(value, call) {
   if (!inherits(value, "nanoarrow_schema")) {
-    if (!requireNamespace("nanoarrow", quietly = TRUE)) {
+    if (!requireNamespace("zuarrow", quietly = TRUE)) {
       zug_abort(
-        "`value` must be a nanoarrow_schema; to read one from another object, install nanoarrow.",
+        "`value` must be an Arrow schema handle; to read one from another object, install zuarrow.",
         "argument",
         call
       )
     }
     value <- tryCatch(
-      nanoarrow::infer_nanoarrow_schema(value),
+      zuarrow::arrow_schema(value),
       error = function(e) {
         zug_abort(
           paste("`value` has no Arrow schema:", conditionMessage(e)),
@@ -386,4 +393,31 @@ zug_scripted_stream <- function(
 
 zug_scripted_releases <- function() {
   .Call(zug_test_stream_releases)
+}
+
+# The tests' second producer (src/zug_stream.cpp): one batch of `length`
+# rows given whole. `cols` is a named list of list(format, length,
+# null_count, buffers), each buffer a raw vector or NULL; `validity` is the
+# batch's own. Internal.
+zug_raw_stream <- function(cols, length, null_count = 0, validity = NULL) {
+  spec <- Map(
+    function(name, c) {
+      list(
+        name,
+        c$format,
+        as.double(if (is.null(c$length)) length else c$length),
+        as.double(if (is.null(c$null_count)) 0 else c$null_count),
+        c$buffers
+      )
+    },
+    names(cols),
+    cols
+  )
+  .Call(
+    zug_test_raw_stream,
+    unname(spec),
+    as.double(length),
+    as.double(null_count),
+    validity
+  )
 }
