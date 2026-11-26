@@ -265,11 +265,11 @@ test_that("table functions on a closed connection are zug_closed_error", {
 # the load that reads it (src/zug_stream.cpp).
 
 test_that("a stream released by its producer is a zug_closed_error", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  stream <- nanoarrow::as_nanoarrow_array_stream(data.frame(x = 1:3))
-  stream$release()
+  stream <- zuarrow::arrow_stream(data.frame(x = 1:3))
+  zuarrow::arrow_release(stream)
   expect_error(
     DBI::dbWriteTableArrow(con, "t", stream),
     class = "zug_closed_error"
@@ -287,13 +287,13 @@ test_that("a stream released by its producer is a zug_closed_error", {
 })
 
 test_that("a stream read twice is a zug_closed_error the second time", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  stream <- nanoarrow::as_nanoarrow_array_stream(data.frame(x = 1:3))
+  stream <- zuarrow::arrow_stream(data.frame(x = 1:3))
   DBI::dbWriteTableArrow(con, "t", stream)
   # The load took the stream: the producer's object is left released.
-  expect_false(nanoarrow::nanoarrow_pointer_is_valid(stream))
+  expect_error(zuarrow::arrow_next(stream), class = "zuarrow_handle_error")
   expect_error(
     DBI::dbWriteTableArrow(con, "t", stream, append = TRUE),
     class = "zug_closed_error"
@@ -310,6 +310,7 @@ test_that("a batch whose layout differs from the stream's schema is a zug_stream
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   before <- zug_scripted_releases()
+  # Another number of columns at the second batch.
   stream <- zug_scripted_stream(4, 10, fail_at = 2, mismatch = TRUE)
   expect_error(
     DBI::dbWriteTableArrow(con, "t", stream),
@@ -317,33 +318,29 @@ test_that("a batch whose layout differs from the stream's schema is a zug_stream
   )
   expect_false(DBI::dbExistsTable(con, "t"))
   expect_identical(zug_scripted_releases() - before, 1L)
-  skip_if_not_installed("nanoarrow")
-  # A batch of another type than the schema's: a string array where the
-  # schema has int32 (three buffers, not two).
-  schema <- nanoarrow::na_struct(list(x = nanoarrow::na_int32()))
-  wrong <- nanoarrow::nanoarrow_array_set_schema(
-    nanoarrow::as_nanoarrow_array(data.frame(x = c("a", "b"))),
-    schema,
-    validate = FALSE
-  )
-  stream <- nanoarrow::basic_array_stream(
-    list(nanoarrow::as_nanoarrow_array(data.frame(x = 1L)), wrong),
-    schema = schema,
-    validate = FALSE
-  )
+  # An int32 column given a string's three buffers.
+  wrong <- bytes_column("u", list(charToRaw("a"), charToRaw("b")))
+  wrong$format <- "i"
   err <- expect_error(
-    DBI::dbWriteTableArrow(con, "t", stream),
+    DBI::dbWriteTableArrow(con, "t", zug_raw_stream(list(x = wrong), length = 2)),
     class = "zug_stream_error"
   )
   expect_match(conditionMessage(err), "Column `x`", fixed = TRUE)
   expect_false(DBI::dbExistsTable(con, "t"))
+  # A column shorter than its batch.
+  short <- fixed_column("i", int32_bytes(1:2), 2)
+  expect_error(
+    DBI::dbWriteTableArrow(con, "t", zug_raw_stream(list(x = short), length = 3)),
+    class = "zug_stream_error"
+  )
+  expect_false(DBI::dbExistsTable(con, "t"))
 })
 
 test_that("a load on a closed connection leaves the stream to its producer", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   DBI::dbDisconnect(con)
-  stream <- nanoarrow::as_nanoarrow_array_stream(data.frame(x = 1:3))
+  stream <- zuarrow::arrow_stream(data.frame(x = 1:3))
   expect_error(
     DBI::dbWriteTableArrow(con, "t", stream),
     class = "zug_closed_error"
@@ -356,8 +353,7 @@ test_that("a load on a closed connection leaves the stream to its producer", {
     DBI::dbCreateTableArrow(con, "t", stream),
     class = "zug_closed_error"
   )
-  expect_true(nanoarrow::nanoarrow_pointer_is_valid(stream))
-  expect_identical(nanoarrow::convert_array_stream(stream)$x, 1:3)
+  expect_identical(as.data.frame(stream)$x, 1:3)
 })
 
 test_that("an error after the stream is taken releases it once", {

@@ -1,12 +1,13 @@
 # Arrow C streams into tables (design §7.3, §6; roadmap Stage 7). The
-# oracles: what dbWriteTable() makes of the same data frame (a second
-# route to one value), the input itself read back with identical(), and
-# the scripted producer's own count of its releases.
+# producer is zuarrow, the family's Arrow layer; what no producer should
+# make comes from the package's own (helper-arrow.R). The oracles: what
+# dbWriteTable() makes of the same data frame (a second route to one
+# value), the input itself read back with identical(), and the scripted
+# producer's own count of its releases.
 
 test_that("each type with NULLs, through a stream, is the table dbWriteTable() makes", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   skip_if_not_installed("bit64")
-  skip_if_not_installed("blob")
   con <- DBI::dbConnect(zugodb(), bigint = "integer64")
   withr::defer(DBI::dbDisconnect(con))
   value <- data.frame(
@@ -27,13 +28,9 @@ test_that("each type with NULLs, through a stream, is the table dbWriteTable() m
     "-9223372036854775807",
     "0"
   ))
-  value$bin <- blob::blob(as.raw(1:3), NULL, raw(), as.raw(0))
+  value$bin <- list(as.raw(1:3), NULL, raw(), as.raw(0))
   DBI::dbWriteTable(con, "by_frame", value)
-  DBI::dbWriteTableArrow(
-    con,
-    "by_stream",
-    nanoarrow::as_nanoarrow_array_stream(value)
-  )
+  DBI::dbWriteTableArrow(con, "by_stream", zuarrow::arrow_stream(value))
   expect_identical(
     DBI::dbGetQuery(con, "DESCRIBE by_stream"),
     DBI::dbGetQuery(con, "DESCRIBE by_frame")
@@ -42,7 +39,7 @@ test_that("each type with NULLs, through a stream, is the table dbWriteTable() m
     DBI::dbReadTable(con, "by_stream"),
     DBI::dbReadTable(con, "by_frame")
   )
-  # A data frame is converted by nanoarrow, as DBI's default would.
+  # A data frame is converted by zuarrow.
   DBI::dbWriteTableArrow(con, "by_convert", value)
   expect_identical(
     DBI::dbReadTable(con, "by_convert"),
@@ -51,16 +48,13 @@ test_that("each type with NULLs, through a stream, is the table dbWriteTable() m
 })
 
 test_that("NaN is a value and a NULL is NA, through a stream", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  # nanoarrow makes NaN a null from R; this array has NaN as a value.
-  dbl <- raw_array(nanoarrow::na_double(), writeBin(c(NaN, 1, -0), raw()), 3)
-  DBI::dbWriteTableArrow(con, "t", struct_stream(list(x = dbl)))
-  got <- DBI::dbReadTable(con, "t")$x
-  expect_identical(got, c(NaN, 1, -0))
+  DBI::dbWriteTableArrow(con, "t", data.frame(x = c(NaN, 1, -0, NA)))
+  got <- DBI::dbGetQuery(con, "SELECT x FROM t")$x
+  expect_identical(got, c(NaN, 1, -0, NA))
   expect_identical(1 / got[[3]], -Inf)
-  DBI::dbAppendTableArrow(con, "t", data.frame(x = NA_real_))
   expect_identical(
     DBI::dbGetQuery(con, "SELECT count(*) AS n FROM t WHERE x IS NULL")$n,
     1
@@ -68,7 +62,7 @@ test_that("NaN is a value and a NULL is NA, through a stream", {
 })
 
 test_that("batches across a chunk and a row group read back identical", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   frame <- function(n) {
@@ -85,56 +79,51 @@ test_that("batches across a chunk and a row group read back identical", {
   }
   for (n in c(2047L, 2048L, 2049L, 122879L, 122880L, 122881L)) {
     value <- frame(n)
-    DBI::dbWriteTableArrow(con, "t", value, overwrite = TRUE)
+    DBI::dbWriteTableArrow(con, "t", zua_stream(value, batch = 200000L), overwrite = TRUE)
     expect_identical(
       DBI::dbGetQuery(con, "SELECT * FROM t ORDER BY k"),
       value,
       label = n
     )
   }
-  # Batches of uneven lengths, so chunks do not line up with them.
+  # Batches whose length is not the chunk's, so chunks do not line up with
+  # them: 2047, 2047, 2047 and 4 rows.
   value <- frame(6145L)
-  cuts <- list(1:2047, 2048:4096, 4097L, 4098:6145)
-  batches <- lapply(cuts, function(r) {
-    part <- value[r, ]
-    rownames(part) <- NULL
-    nanoarrow::as_nanoarrow_array(part)
-  })
-  stream <- nanoarrow::basic_array_stream(batches)
-  DBI::dbWriteTableArrow(con, "u", stream)
+  DBI::dbWriteTableArrow(con, "u", zua_stream(value, batch = 2047L))
   expect_identical(DBI::dbGetQuery(con, "SELECT * FROM u ORDER BY k"), value)
 })
 
 test_that("a column of a type the engine cannot hold is refused from the schema", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  ext <- nanoarrow::nanoarrow_schema_modify(
-    nanoarrow::na_int32(),
-    list(metadata = list("ARROW:extension:name" = "an.extension"))
-  )
+  # Each column of one row, with the format it is written as where its R
+  # class does not say.
   refused <- list(
-    dec = nanoarrow::na_decimal128(10, 2),
-    clock = nanoarrow::na_time64("us"),
-    items = nanoarrow::na_list(nanoarrow::na_int32()),
-    rec = nanoarrow::na_struct(list(a = nanoarrow::na_int32())),
-    dict = nanoarrow::na_dictionary(nanoarrow::na_string()),
-    span = nanoarrow::na_duration("s"),
-    months = nanoarrow::na_interval_months(),
-    pairs = nanoarrow::na_map(
-      nanoarrow::na_string(nullable = FALSE),
-      nanoarrow::na_int32()
-    ),
-    half = nanoarrow::na_half_float(),
-    nothing = nanoarrow::na_na(),
-    extended = ext
+    dec = list(structure("1.50", arrow_type = "d:10,2")),
+    clock = list(structure("01:02:03.000000", arrow_type = "ttu")),
+    items = list(list(1:2)),
+    rec = list(data.frame(a = 1L)),
+    dict = list(factor("a")),
+    span = list(as.difftime(1, units = "secs")),
+    pairs = list(structure(
+      list(data.frame(key = "a", value = 1L)),
+      arrow_keys_sorted = FALSE
+    )),
+    extended = list(structure(1L, arrow_extension = "an.extension")),
+    half = list(0.5, "e"),
+    months = list(structure("14M", arrow_type = "tiM")),
+    nothing = list(NA, "n")
   )
   DBI::dbExecute(con, "CREATE TABLE have (ok INTEGER)")
   for (col in names(refused)) {
-    types <- list(ok = nanoarrow::na_int32())
-    types[[col]] <- refused[[col]]
+    df <- frame_of(ok = 1L, x = refused[[col]][[1L]])
+    names(df)[[2L]] <- col
+    schema <- if (length(refused[[col]]) > 1L) {
+      stats::setNames(refused[[col]][[2L]], col)
+    }
     err <- expect_error(
-      DBI::dbWriteTableArrow(con, "t", empty_stream(types)),
+      DBI::dbWriteTableArrow(con, "t", zua_stream(df, schema = schema)),
       class = "zug_type_error",
       label = col
     )
@@ -145,7 +134,11 @@ test_that("a column of a type the engine cannot hold is refused from the schema"
     )
     expect_false(DBI::dbExistsTable(con, "t"), label = col)
     expect_error(
-      DBI::dbCreateTableArrow(con, "t", nanoarrow::na_struct(types)),
+      DBI::dbCreateTableArrow(
+        con,
+        "t",
+        zuarrow::arrow_schema(zua_stream(df, schema = schema))
+      ),
       class = "zug_type_error",
       label = col
     )
@@ -153,7 +146,7 @@ test_that("a column of a type the engine cannot hold is refused from the schema"
     # An append to a table with that column is refused before any row.
     DBI::dbExecute(con, sprintf('ALTER TABLE have ADD COLUMN "%s" DOUBLE', col))
     err <- expect_error(
-      DBI::dbAppendTableArrow(con, "have", empty_stream(types)),
+      DBI::dbAppendTableArrow(con, "have", zua_stream(df, schema = schema)),
       class = "zug_type_error",
       label = col
     )
@@ -163,6 +156,7 @@ test_that("a column of a type the engine cannot hold is refused from the schema"
       fixed = TRUE
     )
   }
+  expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS n FROM have")$n, 0)
   expect_identical(tables_of(con), "have")
 })
 
@@ -229,7 +223,7 @@ test_that("a value its column cannot hold, in a later batch, leaves the table as
 })
 
 test_that("an append matches columns by name and converts as dbAppendTable() does", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbExecute(
@@ -263,7 +257,7 @@ test_that("an append matches columns by name and converts as dbAppendTable() doe
 })
 
 test_that("an overwrite replaces the table, and an existing table needs one of the flags", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbWriteTable(con, "t", data.frame(old = 1:3))
@@ -303,74 +297,43 @@ test_that("an overwrite replaces the table, and an existing table needs one of t
     DBI::dbWriteTableArrow(con, "u", data.frame(a = 1L, A = 2L)),
     class = "zug_argument_error"
   )
+  expect_error(
+    DBI::dbWriteTableArrow(con, "u", list(a = 1L)),
+    class = "zug_argument_error"
+  )
   expect_false(DBI::dbExistsTable(con, "u"))
 })
 
 test_that("dbCreateTableArrow() makes an empty table of the schema's types", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  na <- asNamespace("nanoarrow")
-  types <- list(
-    b = na$na_bool(),
-    i8 = na$na_int8(),
-    i16 = na$na_int16(),
-    i32 = na$na_int32(),
-    i64 = na$na_int64(),
-    u8 = na$na_uint8(),
-    u16 = na$na_uint16(),
-    u32 = na$na_uint32(),
-    u64 = na$na_uint64(),
-    f = na$na_float(),
-    g = na$na_double(),
-    s = na$na_string(),
-    ls = na$na_large_string(),
-    sv = na$na_string_view(),
-    z = na$na_binary(),
-    lz = na$na_large_binary(),
-    zv = na$na_binary_view(),
-    w = na$na_fixed_size_binary(4),
-    d32 = na$na_date32(),
-    d64 = na$na_date64(),
-    tss = na$na_timestamp("s"),
-    tsm = na$na_timestamp("ms", "UTC"),
-    tsu = na$na_timestamp("us", "Europe/Lisbon"),
-    tsn = na$na_timestamp("ns")
+  types <- c(
+    b = "b", i8 = "c", i16 = "s", i32 = "i", i64 = "l",
+    u8 = "C", u16 = "S", u32 = "I", u64 = "L",
+    f = "f", g = "g",
+    s = "u", ls = "U", sv = "vu",
+    z = "z", lz = "Z", zv = "vz", w = "w:4",
+    d32 = "tdD", d64 = "tdm",
+    tss = "tss:", tsm = "tsm:UTC", tsu = "tsu:Europe/Lisbon", tsn = "tsn:"
   )
-  DBI::dbCreateTableArrow(con, "t", na$na_struct(types))
+  DBI::dbCreateTableArrow(con, "t", zuarrow::arrow_schema(types))
   got <- DBI::dbGetQuery(con, "DESCRIBE t")
   expect_identical(got$column_name, names(types))
   expect_identical(
     got$column_type,
     c(
-      "BOOLEAN",
-      "TINYINT",
-      "SMALLINT",
-      "INTEGER",
-      "BIGINT",
-      "SMALLINT",
-      "INTEGER",
-      "BIGINT",
-      "BIGINT",
-      "FLOAT",
-      "DOUBLE",
-      "VARCHAR",
-      "VARCHAR",
-      "VARCHAR",
-      "BLOB",
-      "BLOB",
-      "BLOB",
-      "BLOB",
-      "DATE",
-      "DATE",
-      "TIMESTAMP",
-      "TIMESTAMP",
-      "TIMESTAMP",
-      "TIMESTAMP"
+      "BOOLEAN", "TINYINT", "SMALLINT", "INTEGER", "BIGINT",
+      "SMALLINT", "INTEGER", "BIGINT", "BIGINT",
+      "FLOAT", "DOUBLE",
+      "VARCHAR", "VARCHAR", "VARCHAR",
+      "BLOB", "BLOB", "BLOB", "BLOB",
+      "DATE", "DATE",
+      "TIMESTAMP", "TIMESTAMP", "TIMESTAMP", "TIMESTAMP"
     )
   )
   expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS n FROM t")$n, 0)
-  # A data frame's schema, as nanoarrow infers it; an existing table.
+  # A data frame's schema, as zuarrow reads it; an existing table.
   DBI::dbCreateTableArrow(con, "u", data.frame(x = 1L, y = "a"))
   expect_identical(DBI::dbListFields(con, "u"), c("x", "y"))
   expect_error(
@@ -380,25 +343,14 @@ test_that("dbCreateTableArrow() makes an empty table of the schema's types", {
 })
 
 test_that("strings and binaries of every layout read back as written", {
-  skip_if_not_installed("nanoarrow")
-  skip_if_not_installed("blob")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   s <- c("short", "a string longer than twelve bytes", NA, "", "é中")
   bins <- lapply(s, function(x) if (is.na(x)) NULL else charToRaw(enc2utf8(x)))
-  value <- data.frame(s = s, ls = s, sv = s)
-  value$z <- value$lz <- value$zv <- blob::as_blob(bins)
-  value <- value[c("s", "ls", "sv", "z", "lz", "zv")]
-  schema <- nanoarrow::na_struct(list(
-    s = nanoarrow::na_string(),
-    ls = nanoarrow::na_large_string(),
-    sv = nanoarrow::na_string_view(),
-    z = nanoarrow::na_binary(),
-    lz = nanoarrow::na_large_binary(),
-    zv = nanoarrow::na_binary_view()
-  ))
-  stream <- nanoarrow::as_nanoarrow_array_stream(value, schema = schema)
-  DBI::dbWriteTableArrow(con, "t", stream)
+  value <- frame_of(s = s, ls = s, sv = s, z = bins, lz = bins, zv = bins)
+  schema <- c(s = "u", ls = "U", sv = "vu", z = "z", lz = "Z", zv = "vz")
+  DBI::dbWriteTableArrow(con, "t", zua_stream(value, schema = schema))
   expect_identical(
     DBI::dbGetQuery(con, "DESCRIBE t")$column_type,
     rep(c("VARCHAR", "BLOB"), each = 3)
@@ -410,8 +362,8 @@ test_that("strings and binaries of every layout read back as written", {
   for (k in c("z", "lz", "zv")) {
     expect_identical(unclass(got[[k]]), bins, ignore_attr = TRUE, label = k)
   }
-  fixed <- raw_array(nanoarrow::na_fixed_size_binary(3), as.raw(1:6), 2)
-  DBI::dbWriteTableArrow(con, "w", struct_stream(list(w = fixed)))
+  fixed <- structure(list(as.raw(1:3), as.raw(4:6)), arrow_width = 3L)
+  DBI::dbWriteTableArrow(con, "w", frame_of(w = fixed))
   expect_identical(
     unclass(DBI::dbReadTable(con, "w")$w),
     list(as.raw(1:3), as.raw(4:6)),
@@ -420,40 +372,32 @@ test_that("strings and binaries of every layout read back as written", {
 })
 
 test_that("a string that is not UTF-8, or holds a NUL, is a type error naming its row", {
-  skip_if_not_installed("nanoarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  bad <- function(bytes) {
-    a <- nanoarrow::as_nanoarrow_array(c("ok", "xy"))
-    nanoarrow::nanoarrow_array_modify(
-      a,
-      list(
-        buffers = list(
-          NULL,
-          a$buffers[[2]],
-          nanoarrow::as_nanoarrow_buffer(c(charToRaw("ok"), bytes))
-        )
-      )
-    )
-  }
+  # No producer makes these: zuarrow refuses to. The package's raw one does.
   for (bytes in list(
     as.raw(c(0x61, 0xff)),
     as.raw(c(0x61, 0x00)),
-    as.raw(c(0xc0, 0x80))
+    as.raw(c(0xc0, 0x80)),
+    as.raw(c(0xed, 0xa0, 0x80))
   )) {
+    stream <- zug_raw_stream(
+      list(s = bytes_column("u", list(charToRaw("ok"), bytes))),
+      length = 2
+    )
     err <- expect_error(
-      DBI::dbWriteTableArrow(con, "t", struct_stream(list(s = bad(bytes)))),
+      DBI::dbWriteTableArrow(con, "t", stream),
       class = "zug_type_error"
     )
     expect_match(conditionMessage(err), "Column `s`, row 2", fixed = TRUE)
     expect_false(DBI::dbExistsTable(con, "t"))
   }
   # The same bytes in a binary column are a value.
-  blob <- nanoarrow::as_nanoarrow_array(
-    list(as.raw(c(0x61, 0x00, 0xff))),
-    schema = nanoarrow::na_binary()
+  stream <- zug_raw_stream(
+    list(b = bytes_column("z", list(as.raw(c(0x61, 0x00, 0xff))))),
+    length = 1
   )
-  DBI::dbWriteTableArrow(con, "b", struct_stream(list(b = blob)))
+  DBI::dbWriteTableArrow(con, "b", stream)
   expect_identical(
     DBI::dbReadTable(con, "b")$b[[1]],
     as.raw(c(0x61, 0x00, 0xff))
@@ -461,43 +405,25 @@ test_that("a string that is not UTF-8, or holds a NUL, is a type error naming it
 })
 
 test_that("unsigned integers widen, and a uint64 past 2^63 - 1 is refused", {
-  skip_if_not_installed("nanoarrow")
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb(), bigint = "character")
   withr::defer(DBI::dbDisconnect(con))
-  cols <- list(
-    # From bytes: nanoarrow needs arrow to make unsigned arrays from R.
-    u8 = raw_array(nanoarrow::na_uint8(), as.raw(c(0, 255)), 2),
-    u16 = raw_array(
-      nanoarrow::na_uint16(),
-      writeBin(c(0L, 65535L), raw(), size = 2, endian = "little"),
-      2
-    ),
-    # -1 as four bytes is 2^32 - 1 unsigned.
-    u32 = raw_array(
-      nanoarrow::na_uint32(),
-      writeBin(c(0L, -1L), raw(), size = 4, endian = "little"),
-      2
-    ),
-    u64 = raw_array(
-      nanoarrow::na_uint64(),
-      u64_bytes(c("7ffffffffffffffe", "7fffffffffffffff")),
-      2
-    )
+  typed <- function(x, format) structure(x, arrow_type = format)
+  value <- frame_of(
+    u8 = typed(c("0", "255"), "C"),
+    u16 = typed(c("0", "65535"), "S"),
+    u32 = typed(c("0", "4294967295"), "I"),
+    u64 = typed(c("9223372036854775806", "9223372036854775807"), "L")
   )
-  DBI::dbWriteTableArrow(con, "t", struct_stream(cols))
+  DBI::dbWriteTableArrow(con, "t", value)
   got <- DBI::dbReadTable(con, "t")
   expect_identical(got$u8, c(0L, 255L))
   expect_identical(got$u16, c(0L, 65535L))
   expect_identical(got$u32, c("0", "4294967295"))
   expect_identical(got$u64, c("9223372036854775806", "9223372036854775807"))
-  big <- raw_array(
-    nanoarrow::na_uint64(),
-    u64_bytes(c("1", "8000000000000000")),
-    2
-  )
+  big <- frame_of(u64 = typed(c("1", "9223372036854775808"), "L"))
   err <- expect_error(
-    DBI::dbWriteTableArrow(con, "u", struct_stream(list(u64 = big))),
+    DBI::dbWriteTableArrow(con, "u", big),
     class = "zug_type_error"
   )
   expect_match(conditionMessage(err), "Column `u64`, row 2", fixed = TRUE)
@@ -505,19 +431,19 @@ test_that("unsigned integers widen, and a uint64 past 2^63 - 1 is refused", {
 })
 
 test_that("an append straddles each integer column's range and 2^53 for a double", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   DBI::dbExecute(
     con,
     "CREATE TABLE t (t8 TINYINT, t16 SMALLINT, t32 INTEGER, d DOUBLE, f FLOAT)"
   )
-  one <- function(col, x, type) {
-    cols <- list(nanoarrow::as_nanoarrow_array(x, schema = type))
-    names(cols) <- col
-    struct_stream(cols)
+  # int64 values, by their exact text.
+  one <- function(col, x) {
+    df <- frame_of(x = structure(sprintf("%.0f", x), arrow_type = "l"))
+    names(df) <- col
+    df
   }
-  i64 <- nanoarrow::na_int64()
   fits <- list(
     t8 = c(-128, 127),
     t16 = c(-32768, 32767),
@@ -532,142 +458,114 @@ test_that("an append straddles each integer column's range and 2^53 for a double
   )
   for (col in names(fits)) {
     expect_identical(
-      DBI::dbAppendTableArrow(con, "t", one(col, fits[[col]], i64)),
+      DBI::dbAppendTableArrow(con, "t", one(col, fits[[col]])),
       2,
       label = col
     )
     for (x in misfits[[col]]) {
       expect_error(
-        DBI::dbAppendTableArrow(con, "t", one(col, x, i64)),
+        DBI::dbAppendTableArrow(con, "t", one(col, x)),
         class = "zug_type_error",
         label = paste(col, x)
       )
     }
   }
   expect_error(
-    DBI::dbAppendTableArrow(con, "t", one("f", 1e39, nanoarrow::na_double())),
+    DBI::dbAppendTableArrow(con, "t", data.frame(f = 1e39)),
     class = "zug_type_error"
   )
-  expect_identical(
-    DBI::dbAppendTableArrow(con, "t", one("f", 3e38, nanoarrow::na_double())),
-    1
-  )
+  expect_identical(DBI::dbAppendTableArrow(con, "t", data.frame(f = 3e38)), 1)
   expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS n FROM t")$n, 9)
 })
 
 test_that("timestamps of each unit and dates of each width are the same instant", {
-  skip_if_not_installed("nanoarrow")
+  skip_if_not_installed("zuarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  skip_if_not_installed("bit64")
-  # An array of `type` whose int64 values are `values`, decimal strings.
-  int64_array <- function(type, values) {
-    bytes <- writeBin(unclass(bit64::as.integer64(values)), raw())
-    raw_array(type, bytes, length(values))
-  }
-  ts <- function(unit, values) {
-    int64_array(nanoarrow::na_timestamp(unit, "UTC"), values)
-  }
-  cols <- list(
-    s = nanoarrow::as_nanoarrow_array(
-      as.POSIXct(c(-1, 1e9), tz = "UTC"),
-      schema = nanoarrow::na_timestamp("s", "UTC")
-    ),
-    ms = nanoarrow::as_nanoarrow_array(
-      as.POSIXct(c(-0.001, 1e9 + 0.25), tz = "UTC"),
-      schema = nanoarrow::na_timestamp("ms")
-    ),
-    us = nanoarrow::as_nanoarrow_array(
-      as.POSIXct(c(-1e-6, 1e9 + 0.5), tz = "UTC"),
-      schema = nanoarrow::na_timestamp("us", "America/New_York")
-    ),
-    ns = nanoarrow::as_nanoarrow_array(
-      as.POSIXct(c(-1e-6, 1e9 + 0.75), tz = "UTC"),
-      schema = nanoarrow::na_timestamp("ns")
-    )
-  )
-  DBI::dbWriteTableArrow(con, "t", struct_stream(cols))
-  got <- DBI::dbReadTable(con, "t")
   utc <- function(x) as.POSIXct(x, origin = "1970-01-01", tz = "UTC")
+  value <- frame_of(
+    s = utc(c(-1, 1e9)),
+    ms = utc(c(-0.001, 1e9 + 0.25)),
+    us = utc(c(-1e-6, 1e9 + 0.5)),
+    ns = utc(c(-1e-6, 1e9 + 0.75))
+  )
+  schema <- c(s = "tss:UTC", ms = "tsm:", us = "tsu:America/New_York", ns = "tsn:")
+  DBI::dbWriteTableArrow(con, "t", zua_stream(value, schema = schema))
+  got <- DBI::dbReadTable(con, "t")
   expect_identical(got$s, utc(c(-1, 1e9)))
   expect_identical(got$ms, utc(c(-0.001, 1e9 + 0.25)))
   expect_equal(got$us, utc(c(-1e-6, 1e9 + 0.5)), tolerance = 0)
   expect_equal(got$ns, utc(c(-1e-6, 1e9 + 0.75)), tolerance = 0)
   # A fraction of a microsecond is refused, not rounded: 999, 1000, 1001 ns.
+  ns <- function(text) {
+    frame_of(t = structure(text, arrow_type = "tsn:UTC"))
+  }
   expect_error(
-    DBI::dbWriteTableArrow(con, "n", struct_stream(list(t = ts("ns", "999")))),
+    DBI::dbWriteTableArrow(con, "n", ns("1970-01-01T00:00:00.000000999Z")),
     class = "zug_type_error"
   )
-  DBI::dbWriteTableArrow(con, "n", struct_stream(list(t = ts("ns", "1000"))))
+  DBI::dbWriteTableArrow(con, "n", ns("1970-01-01T00:00:00.000001000Z"))
   expect_identical(DBI::dbReadTable(con, "n")$t, utc(1e-6))
   expect_error(
-    DBI::dbWriteTableArrow(
-      con,
-      "n2",
-      struct_stream(list(t = ts("ns", "1001")))
-    ),
+    DBI::dbWriteTableArrow(con, "n2", ns("1970-01-01T00:00:00.000001001Z")),
     class = "zug_type_error"
   )
-  # Seconds past TIMESTAMP's range overflow when scaled.
+  # Seconds past TIMESTAMP's range overflow when scaled to microseconds.
   expect_error(
     DBI::dbWriteTableArrow(
       con,
       "n3",
-      struct_stream(list(t = ts("s", "9223372036855")))
+      zua_stream(frame_of(t = utc(9223372036855)), schema = c(t = "tss:UTC"))
     ),
     class = "zug_type_error"
   )
-  dates <- list(
-    d32 = nanoarrow::as_nanoarrow_array(
-      as.Date(c("1969-12-31", "2024-02-29")),
-      schema = nanoarrow::na_date32()
-    ),
-    d64 = nanoarrow::as_nanoarrow_array(
-      as.Date(c("1969-12-31", "2024-02-29")),
-      schema = nanoarrow::na_date64()
-    )
-  )
-  DBI::dbWriteTableArrow(con, "d", struct_stream(dates))
-  got <- DBI::dbReadTable(con, "d")
-  expect_identical(got$d32, as.Date(c("1969-12-31", "2024-02-29")))
-  expect_identical(got$d64, got$d32)
-  part_day <- function(ms) int64_array(nanoarrow::na_date64(), ms)
-  expect_error(
-    DBI::dbWriteTableArrow(
-      con,
-      "d2",
-      struct_stream(list(d = part_day("86400001")))
-    ),
-    class = "zug_type_error"
-  )
+  dates <- as.Date(c("1969-12-31", "2024-02-29"))
   DBI::dbWriteTableArrow(
     con,
-    "d3",
-    struct_stream(list(d = part_day("86400000")))
+    "d",
+    zua_stream(frame_of(d32 = dates, d64 = dates), schema = c(d64 = "tdm"))
   )
+  got <- DBI::dbReadTable(con, "d")
+  expect_identical(got$d32, dates)
+  expect_identical(got$d64, dates)
+  # A date64 that is not a whole day breaks the format's rule, so only the
+  # package's raw producer makes one: 86399999, 86400000, 86400001 ms.
+  day64 <- function(ms) {
+    zug_raw_stream(list(d = fixed_column("tdm", int64_bytes(ms), 1)), length = 1)
+  }
+  expect_error(
+    DBI::dbWriteTableArrow(con, "d2", day64(86399999)),
+    class = "zug_type_error"
+  )
+  DBI::dbWriteTableArrow(con, "d3", day64(86400000))
   expect_identical(DBI::dbReadTable(con, "d3")$d, as.Date("1970-01-02"))
+  expect_error(
+    DBI::dbWriteTableArrow(con, "d4", day64(86400001)),
+    class = "zug_type_error"
+  )
 })
 
 test_that("a batch with a null row is a stream error", {
-  skip_if_not_installed("nanoarrow")
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  arr <- struct_array(list(x = nanoarrow::as_nanoarrow_array(1:3)))
-  arr <- nanoarrow::nanoarrow_array_modify(
-    arr,
-    list(
-      null_count = 1,
-      buffers = list(nanoarrow::as_nanoarrow_buffer(as.raw(0x05)))
-    )
-  )
-  stream <- nanoarrow::basic_array_stream(
-    list(arr),
-    schema = nanoarrow::infer_nanoarrow_schema(arr),
-    validate = FALSE
+  # Rows 1 and 3 valid, row 2 null, in the batch's own validity.
+  stream <- zug_raw_stream(
+    list(x = fixed_column("i", int32_bytes(1:3), 3)),
+    length = 3,
+    null_count = 1,
+    validity = as.raw(0x05)
   )
   expect_error(
     DBI::dbWriteTableArrow(con, "t", stream),
     class = "zug_stream_error"
   )
   expect_false(DBI::dbExistsTable(con, "t"))
+  # The same batch with every row valid loads.
+  stream <- zug_raw_stream(
+    list(x = fixed_column("i", int32_bytes(1:3), 3)),
+    length = 3,
+    validity = as.raw(0x07)
+  )
+  DBI::dbWriteTableArrow(con, "t", stream)
+  expect_identical(DBI::dbReadTable(con, "t")$x, 1:3)
 })

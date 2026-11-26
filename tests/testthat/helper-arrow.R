@@ -1,44 +1,44 @@
-# Arrow C streams for test-arrow-stream.R and test-lifecycle.R, made with
-# nanoarrow (Suggests) or with the package's scripted producer
-# (src/zug_stream.cpp, zug_scripted_stream()).
+# Arrow C streams for test-arrow-stream.R and test-lifecycle.R. Valid
+# streams come from zuarrow (Suggests), the family's Arrow layer. The ones
+# no producer should make (a string that is not UTF-8, a null row, a batch
+# whose layout is not its format's, a producer that fails on cue) come from
+# the package's own producers in src/zug_stream.cpp: zug_scripted_stream()
+# and zug_raw_stream().
 
-# A stream of one batch holding the columns `cols`, a named list of
-# nanoarrow arrays of one length.
-struct_stream <- function(cols) {
-  arr <- struct_array(cols)
-  nanoarrow::basic_array_stream(
-    list(arr),
-    schema = nanoarrow::infer_nanoarrow_schema(arr),
-    validate = FALSE
-  )
+# A data frame of the columns `...`, each of `n` rows, kept as given (a
+# list column stays a list, a data frame column a data frame).
+frame_of <- function(..., n = NULL) {
+  cols <- list(...)
+  if (is.null(n)) {
+    first <- cols[[1L]]
+    n <- if (is.data.frame(first)) nrow(first) else length(first)
+  }
+  structure(cols, class = "data.frame", row.names = .set_row_names(n))
 }
 
-struct_array <- function(cols) {
-  schema <- nanoarrow::na_struct(lapply(
-    cols,
-    nanoarrow::infer_nanoarrow_schema
-  ))
-  n <- if (length(cols)) cols[[1L]]$length else 0L
-  nanoarrow::nanoarrow_array_modify(
-    nanoarrow::nanoarrow_array_init(schema),
-    list(length = n, null_count = 0, children = cols)
-  )
+# A zuarrow stream of `df`, its columns of the formats `schema` (a named
+# character vector) where given.
+zua_stream <- function(df, schema = NULL, batch = 65536L) {
+  zuarrow::arrow_stream(df, batch = batch, schema = schema)
 }
 
-# A fixed-width array of `type` with `bytes` as its data and no NULL.
-raw_array <- function(type, bytes, length) {
-  nanoarrow::nanoarrow_array_modify(
-    nanoarrow::nanoarrow_array_init(type),
-    list(
-      length = length,
-      null_count = 0,
-      buffers = list(NULL, nanoarrow::as_nanoarrow_buffer(bytes))
-    )
-  )
+# Little-endian bytes for zug_raw_stream()'s buffers.
+int32_bytes <- function(x) {
+  writeBin(as.integer(x), raw(), size = 4, endian = "little")
 }
 
-# The little-endian bytes of unsigned 64-bit integers given as strings of
-# hexadecimal digits ("7fffffffffffffff").
+# Whole numbers of magnitude below 2^53 as int64 bytes.
+int64_bytes <- function(x) {
+  u32 <- function(u) if (u >= 2^31) u - 2^32 else u
+  unlist(lapply(x, function(v) {
+    lo <- v %% 2^32
+    hi <- ((v - lo) / 2^32) %% 2^32
+    writeBin(as.integer(c(u32(lo), u32(hi))), raw(), size = 4, endian = "little")
+  }))
+}
+
+# The little-endian bytes of unsigned 64-bit integers given as hexadecimal
+# digits ("7fffffffffffffff").
 u64_bytes <- function(hex) {
   unlist(lapply(hex, function(h) {
     h <- paste0(strrep("0", 16L - nchar(h)), h)
@@ -46,10 +46,25 @@ u64_bytes <- function(hex) {
   }))
 }
 
-# An empty stream whose schema has the columns `types`, a named list of
-# nanoarrow types.
-empty_stream <- function(types) {
-  nanoarrow::basic_array_stream(list(), schema = nanoarrow::na_struct(types))
+# A zug_raw_stream() column of a string or binary format ("u", "z") from a
+# list of raw vectors, with no NULL.
+bytes_column <- function(format, values) {
+  ends <- cumsum(vapply(values, length, 1L))
+  list(
+    format = format,
+    length = length(values),
+    buffers = list(NULL, int32_bytes(c(0L, ends)), unlist(values))
+  )
+}
+
+# A zug_raw_stream() column of a fixed-width format from its data bytes.
+fixed_column <- function(format, bytes, length, validity = NULL, null_count = 0) {
+  list(
+    format = format,
+    length = length,
+    null_count = null_count,
+    buffers = list(validity, bytes)
+  )
 }
 
 # The tables a connection has, as a set.
