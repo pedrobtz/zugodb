@@ -24,25 +24,10 @@
 
 #include "zug_objects.h"
 
-#include "slothdb/parser/parser.hpp"
-
 #include <algorithm>
 #include <new>
 
 namespace zug {
-
-bool LastIsDml(const std::string &sql) {
-  auto statements = zugodb::Parser::Parse(sql);
-  if (statements.empty()) return false;
-  switch (statements.back()->GetType()) {
-  case zugodb::StatementType::INSERT:
-  case zugodb::StatementType::UPDATE:
-  case zugodb::StatementType::DELETE_STMT:
-    return true;
-  default:
-    return false;
-  }
-}
 
 const char *kClosedConnection =
     "The connection is closed (disconnected, its database shut down, or "
@@ -135,17 +120,15 @@ void EngineConnect(ZugDatabase *d, ZugConnection *c, zug::EngineError *err) {
   }
 }
 
-// Runs `sql`; for INSERT, UPDATE and DELETE the engine returns one row,
-// "Count", with the rows affected. Anything else affected none.
+// Runs `sql`. A count result (INSERT, UPDATE, DELETE, CREATE TABLE AS:
+// `QueryResult::is_count`) holds the rows affected in its one row; a plain
+// CREATE TABLE's has none. Anything else affected none.
 void EngineExecute(ZugConnection *c, const char *sql, double *affected,
                    zug::EngineError *err) {
   try {
-    // Parsed first: a "Count" row means rows affected only after DML.
-    const bool dml = zug::LastIsDml(sql);
     zugodb::QueryResult res = c->con->Query(sql);
     *affected = 0;
-    if (dml && res.ColumnCount() == 1 && res.RowCount() == 1 &&
-        res.column_names[0] == "Count") {
+    if (res.is_count && res.ColumnCount() == 1 && res.RowCount() == 1) {
       const zugodb::Value &v = res.GetValue(0, 0);
       if (!v.IsNull() && v.type().id() == zugodb::LogicalTypeId::BIGINT) {
         *affected = static_cast<double>(v.GetValue<int64_t>());

@@ -226,30 +226,26 @@ test_that("show() reports a result and whether it is cleared", {
   expect_output(show(res), "\\(cleared\\)")
 })
 
-test_that("transaction statements out of order are engine errors (Stage 5)", {
+test_that("transaction statements in any order are engine errors", {
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
-  expect_error(DBI::dbExecute(con, "COMMIT"), class = "zug_sql_error")
-  expect_error(DBI::dbExecute(con, "ROLLBACK"), class = "zug_sql_error")
-  DBI::dbExecute(con, "BEGIN")
-  expect_error(DBI::dbExecute(con, "BEGIN"), class = "zug_sql_error")
-  expect_identical(DBI::dbExecute(con, "COMMIT"), 0)
+  for (sql in c("COMMIT", "ROLLBACK", "BEGIN", "BEGIN", "COMMIT")) {
+    expect_error(DBI::dbExecute(con, sql), class = "zug_sql_error", label = sql)
+  }
+  # The connection is not left inside anything.
+  expect_identical(DBI::dbGetQuery(con, "SELECT 1 AS x")$x, 1L)
 })
 
-test_that("disconnecting inside a transaction keeps its changes in the file", {
+test_that("a refused BEGIN leaves later writes in the file", {
   path <- withr::local_tempfile(fileext = ".db")
   con <- DBI::dbConnect(zugodb(), dbdir = path)
   DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)")
-  DBI::dbExecute(con, "BEGIN")
+  expect_error(DBI::dbExecute(con, "BEGIN"), class = "zug_sql_error")
   DBI::dbWriteTable(con, "t", data.frame(x = 1:3), append = TRUE)
   DBI::dbDisconnect(con)
   con2 <- DBI::dbConnect(zugodb(), dbdir = path)
   withr::defer(DBI::dbDisconnect(con2))
-  # No undo: the rows written inside the transaction are there, and the new
-  # connection is not inside a transaction.
   expect_identical(DBI::dbReadTable(con2, "t")$x, 1:3)
-  expect_identical(DBI::dbExecute(con2, "BEGIN"), 0)
-  expect_identical(DBI::dbExecute(con2, "COMMIT"), 0)
 })
 
 test_that("table functions on a closed connection are zug_closed_error", {

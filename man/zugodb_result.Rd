@@ -87,10 +87,9 @@ A value R cannot hold as asked is a \code{zug_type_error} naming the
 column and the row, never a silent change: a 64-bit integer beyond 2^53
 with \code{bigint = "numeric"}, an \code{INTEGER} of -2^31 (R's \code{NA}), or a string
 that is not valid UTF-8 or holds a NUL. A column of another type is a
-\code{zug_type_error} naming it: \code{HUGEINT} and \code{TIME}, whose values
-The engine computes wrongly, and \code{INTERVAL} and \code{UUID}, not read yet.
-The engine produces no \code{DECIMAL}, \verb{TIMESTAMP WITH TIME ZONE}, list,
-struct, map or union column.
+\code{zug_type_error} naming it: \code{TIME}, not read yet. The engine refuses
+\code{HUGEINT}, \code{INTERVAL}, \code{UUID} and \code{DECIMAL} in SQL, and produces no
+\verb{TIMESTAMP WITH TIME ZONE}, list, struct, map or union column.
 
 A connection has one open result: sending another query clears the
 first, with a warning.

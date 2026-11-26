@@ -100,3 +100,22 @@ test_that("a query whose one column is a BIGINT named Count is a query", {
   DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)")
   expect_identical(DBI::dbExecute(con, "INSERT INTO t VALUES (1), (2)"), 2)
 })
+
+test_that("CREATE TABLE reports the rows it made, as the engine's count result says", {
+  # libzugodb 0.3.0's QueryResult::is_count: INSERT, UPDATE, DELETE and
+  # CREATE TABLE [AS] return a count; DuckDB's dbExecute() returns the same.
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  expect_identical(DBI::dbExecute(con, "CREATE TABLE t (x INTEGER)"), 0)
+  expect_identical(DBI::dbExecute(con, "INSERT INTO t VALUES (1), (2), (3)"), 3)
+  expect_identical(DBI::dbExecute(con, "CREATE TABLE u AS SELECT x FROM t WHERE x > 1"), 2)
+  expect_identical(DBI::dbExecute(con, "CREATE TABLE e AS SELECT x FROM t WHERE x > 9"), 0)
+  expect_identical(DBI::dbExecute(con, "UPDATE t SET x = x + 1 WHERE x < 3"), 2)
+  expect_identical(DBI::dbExecute(con, "DELETE FROM t"), 3)
+  res <- DBI::dbSendStatement(con, "CREATE TABLE v AS SELECT * FROM u")
+  expect_identical(DBI::dbGetRowsAffected(res), 2)
+  expect_true(DBI::dbHasCompleted(res))
+  DBI::dbClearResult(res)
+  # A query whose answer looks like a count is still a query.
+  expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS Count FROM u")$Count, 2)
+})

@@ -34,11 +34,6 @@ inline bool ConnectionOpen(ZugConnection *c) {
   return c && SameProcess(c->pid) && c->con && c->owner && c->owner->db;
 }
 
-// Whether the last statement of `sql` is INSERT, UPDATE or DELETE: only then
-// is a one-row "Count" result the rows affected, not a query's answer
-// (`SELECT 5 AS Count`). Throws what the parser throws.
-bool LastIsDml(const std::string &sql);
-
 extern const char *kClosedConnection;
 
 } // namespace zug

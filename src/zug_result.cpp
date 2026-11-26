@@ -106,14 +106,9 @@ Kind KindOf(zugodb::LogicalTypeId id) {
 
 // Why a type that does not convert is refused (design §6).
 const char *UnsupportedWhy(zugodb::LogicalTypeId id) {
-  if (id == zugodb::LogicalTypeId::HUGEINT) {
-    return "which zugodb does not read: SlothDB computes HUGEINT values "
-           "wrongly";
-  }
-  if (id == zugodb::LogicalTypeId::TIME) {
-    return "which zugodb does not read: SlothDB computes every TIME "
-           "value as midnight";
-  }
+  // HUGEINT, INTERVAL and UUID are refused by the engine's SQL (libzugodb
+  // 0.2.0), so TIME is the one a query reaches today (#43).
+  (void)id;
   return "which zugodb cannot read yet";
 }
 
@@ -197,13 +192,20 @@ int64_t ValueInt(const zugodb::Value &v) {
   }
 }
 
+// The engine keeps a NaN's bits (libzugodb 0.4.0), and R reads one payload,
+// 1954, as NA: every NaN comes back as one quiet NaN, R's NaN, so no stored
+// payload is taken for NA (design §6).
+inline double OneNaN(double x) {
+  return std::isnan(x) ? std::numeric_limits<double>::quiet_NaN() : x;
+}
+
 double ValueDouble(const zugodb::Value &v) {
   using T = zugodb::LogicalTypeId;
   switch (v.type().id()) {
   case T::FLOAT:
-    return v.GetValue<float>();
+    return OneNaN(v.GetValue<float>());
   case T::DOUBLE:
-    return v.GetValue<double>();
+    return OneNaN(v.GetValue<double>());
   case T::UBIGINT:
     return static_cast<double>(v.GetValue<uint64_t>());
   default:
@@ -324,15 +326,14 @@ void AppendVector(Column &col, zugodb::LogicalTypeId id,
   case T::FLOAT: {
     const float *data = vec.GetData<float>();
     for (uint64_t r = 0; r < n; r++) {
-      col.d.push_back(valid.RowIsValid(r) ? static_cast<double>(data[r])
-                                          : NA_REAL);
+      col.d.push_back(valid.RowIsValid(r) ? OneNaN(data[r]) : NA_REAL);
     }
     return;
   }
   case T::DOUBLE: {
     const double *data = vec.GetData<double>();
     for (uint64_t r = 0; r < n; r++) {
-      col.d.push_back(valid.RowIsValid(r) ? data[r] : NA_REAL);
+      col.d.push_back(valid.RowIsValid(r) ? OneNaN(data[r]) : NA_REAL);
     }
     return;
   }
@@ -414,14 +415,16 @@ void AppendVector(Column &col, zugodb::LogicalTypeId id,
 void EngineSend(zug::ZugConnection *c, const char *sql, ZugResult *out,
                 zug::EngineError *err) {
   try {
-    const bool dml = zug::LastIsDml(sql);
     zugodb::QueryResult res = c->con->Query(sql);
-    if (dml && res.ColumnCount() == 1 && res.RowCount() == 1 &&
-        res.column_names[0] == "Count") {
-      const zugodb::Value &v = res.GetValue(0, 0);
+    if (res.is_count) {
+      // INSERT, UPDATE, DELETE and CREATE TABLE [AS]: the rows affected,
+      // in the one row, or none for a plain CREATE TABLE.
       out->is_query = false;
-      out->rows_affected =
-          v.IsNull() ? 0 : static_cast<double>(ValueInt(v));
+      out->rows_affected = 0;
+      if (res.ColumnCount() == 1 && res.RowCount() == 1) {
+        const zugodb::Value &v = res.GetValue(0, 0);
+        out->rows_affected = v.IsNull() ? 0 : static_cast<double>(ValueInt(v));
+      }
       return;
     }
     const uint64_t ncol = res.ColumnCount();

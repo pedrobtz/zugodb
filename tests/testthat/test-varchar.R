@@ -28,11 +28,11 @@ test_that("the same under LC_ALL=C and a hostile set of options", {
 })
 
 test_that("an invalid UTF-8 string is refused, not passed on", {
-  # SlothDB's substr() cuts bytes (oracle/known-differences.md).
+  # unhex() makes a string of any bytes; 0xFF is never UTF-8.
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   err <- expect_error(
-    DBI::dbGetQuery(con, "SELECT substr('é', 1, 1) AS s"),
+    DBI::dbGetQuery(con, "SELECT unhex('61FF') AS s"),
     class = "zug_type_error"
   )
   expect_match(conditionMessage(err), "not valid UTF-8")

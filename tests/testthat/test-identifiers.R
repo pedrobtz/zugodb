@@ -1,7 +1,8 @@
 # Table and column names that need quoting round-trip through every table
 # function (roadmap Stage 5): spaces, a single quote, reserved words, dots,
-# a leading digit, UTF-8, and case. SlothDB's parser cannot read a name
-# holding a double quote, so that one is refused.
+# a leading digit, UTF-8, and case. Names match ignoring ASCII case and
+# keep their spelling, as DuckDB's (libzugodb 0.3.0): "Mixed" and "mixed"
+# are one table. A name holding a double quote is refused (below).
 
 test_that("names that need quoting round-trip through every table function", {
   con <- DBI::dbConnect(zugodb())
@@ -14,7 +15,6 @@ test_that("names that need quoting round-trip through every table function", {
     "1lead",
     "été 日",
     "Mixed",
-    "mixed",
     "x;y"
   )
   for (nm in names) {
@@ -36,8 +36,13 @@ test_that("names that need quoting round-trip through every table function", {
     )
   }
   expect_setequal(DBI::dbListTables(con), names)
-  # Case is kept: "Mixed" and "mixed" are two tables.
-  expect_true(all(c("Mixed", "mixed") %in% DBI::dbListTables(con)))
+  # Case is kept in the name and ignored in a match: "mixed" is "Mixed".
+  expect_true("Mixed" %in% DBI::dbListTables(con))
+  expect_identical(DBI::dbReadTable(con, "MIXED")$Mixed, c(1L, 1L))
+  expect_error(
+    DBI::dbWriteTable(con, "mixed", data.frame(x = 1L)),
+    class = "zug_error"
+  )
   for (nm in names) {
     DBI::dbRemoveTable(con, nm)
   }
