@@ -120,8 +120,8 @@ dbRollback(conn, ...)
   The table's name: a string,
   [`DBI::Id()`](https://dbi.r-dbi.org/reference/Id.html) with only a
   `table`, or [`DBI::SQL()`](https://dbi.r-dbi.org/reference/SQL.html)
-  of a quoted name. Names are case-sensitive. the engine's parser cannot
-  read a name holding `"`, so such a name is an error.
+  of a quoted name. Names keep their spelling and match ignoring ASCII
+  case, as DuckDB's. A name holding `"` is an error.
 
 - value:
 
@@ -203,8 +203,8 @@ The engine has no transactions:
 [`DBI::dbCommit()`](https://dbi.r-dbi.org/reference/transactions.html)
 and
 [`DBI::dbRollback()`](https://dbi.r-dbi.org/reference/transactions.html)
-are `zug_unsupported` errors, and SQL `ROLLBACK` is an error saying that
-nothing was undone.
+are `zug_unsupported` errors, and SQL `BEGIN`, `COMMIT` and `ROLLBACK`
+are refused.
 
 ## Examples
 

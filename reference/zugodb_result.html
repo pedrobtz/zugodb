@@ -131,10 +131,9 @@ non-<code>NULL</code> value is a <code>zug_unsupported</code> error.</p></dd>
 column and the row, never a silent change: a 64-bit integer beyond 2^53
 with <code>bigint = "numeric"</code>, an <code>INTEGER</code> of -2^31 (R's <code>NA</code>), or a string
 that is not valid UTF-8 or holds a NUL. A column of another type is a
-<code>zug_type_error</code> naming it: <code>HUGEINT</code> and <code>TIME</code>, whose values
-The engine computes wrongly, and <code>INTERVAL</code> and <code>UUID</code>, not read yet.
-The engine produces no <code>DECIMAL</code>, <code>TIMESTAMP WITH TIME ZONE</code>, list,
-struct, map or union column.</p>
+<code>zug_type_error</code> naming it: <code>TIME</code>, not read yet. The engine refuses
+<code>HUGEINT</code>, <code>INTERVAL</code>, <code>UUID</code> and <code>DECIMAL</code> in SQL, and produces no
+<code>TIMESTAMP WITH TIME ZONE</code>, list, struct, map or union column.</p>
 <p>A connection has one open result: sending another query clears the
 first, with a warning.</p>
     </div>

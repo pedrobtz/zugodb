@@ -22,7 +22,7 @@ descends from), `describe` (the last SlothDB release before it, as
 ``` r
 info <- zug_info()
 info$commit
-#> [1] "d3ec8c5ff1818c5079ecac0185514656fb715e66"
+#> [1] "c331257f39b6c5d94013253679daca0f68224b45"
 info$tag
-#> [1] "v0.1.1"
+#> [1] "v0.4.0"
 ```

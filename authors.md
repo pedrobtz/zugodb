@@ -7,24 +7,6 @@
 - **SlothDB Contributors**. Contributor, copyright holder.  
   SlothDB, from which the bundled engine derives
 
-- **Meta Platforms, Inc. and affiliates**. Copyright holder.  
-  bundled Zstandard decompressor
-
-- **Google Inc.**. Copyright holder.  
-  bundled Snappy
-
-- **Daniel Lemire**. Contributor, copyright holder.  
-  bundled FastPFor bitpacking
-
-- **RAD Game Tools and Valve Software**. Copyright holder.  
-  bundled miniz
-
-- **Rich Geldreich**. Contributor, copyright holder.  
-  bundled miniz
-
-- **Tenacious Software LLC**. Copyright holder.  
-  bundled miniz
-
 - **Martin Leitner-Ankerl**. Contributor, copyright holder.  
   bundled unordered_dense
 

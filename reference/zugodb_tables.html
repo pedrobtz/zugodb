@@ -159,8 +159,8 @@ exists. Columns are written as these SQL types, which
 
 <dt id="arg-name">name<a class="anchor" aria-label="anchor" href="#arg-name"></a></dt>
 <dd><p>The table's name: a string, <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id()</a></code> with only a <code>table</code>,
-or <code><a href="https://dbi.r-dbi.org/reference/SQL.html" class="external-link">DBI::SQL()</a></code> of a quoted name. Names are case-sensitive. the engine's
-parser cannot read a name holding <code>"</code>, so such a name is an error.</p></dd>
+or <code><a href="https://dbi.r-dbi.org/reference/SQL.html" class="external-link">DBI::SQL()</a></code> of a quoted name. Names keep their spelling and match
+ignoring ASCII case, as DuckDB's. A name holding <code>"</code> is an error.</p></dd>
 
 
 <dt id="arg-value">value<a class="anchor" aria-label="anchor" href="#arg-value"></a></dt>
@@ -224,8 +224,8 @@ valid UTF-8) or a column the table does not have is an error, raised
 before any row is written: the table is as it was. <code>NA</code> is written as
 <code>NULL</code>; <code>NaN</code> stays <code>NaN</code>.</p>
 <p>The engine has no transactions: <code><a href="https://dbi.r-dbi.org/reference/transactions.html" class="external-link">DBI::dbBegin()</a></code>, <code><a href="https://dbi.r-dbi.org/reference/transactions.html" class="external-link">DBI::dbCommit()</a></code> and
-<code><a href="https://dbi.r-dbi.org/reference/transactions.html" class="external-link">DBI::dbRollback()</a></code> are <code>zug_unsupported</code> errors, and SQL
-<code>ROLLBACK</code> is an error saying that nothing was undone.</p>
+<code><a href="https://dbi.r-dbi.org/reference/transactions.html" class="external-link">DBI::dbRollback()</a></code> are <code>zug_unsupported</code> errors, and SQL <code>BEGIN</code>,
+<code>COMMIT</code> and <code>ROLLBACK</code> are refused.</p>
     </div>
 
     <div class="section level2">
