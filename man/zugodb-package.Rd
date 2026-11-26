@@ -5,7 +5,7 @@
 \alias{zugodb-package}
 \title{zugodb: A Small Embedded SQL Engine with a 'DBI' Driver}
 \description{
-A 'DBI' driver for 'libzugodb' (\url{https://github.com/pedrobtz/libzugodb}), a small columnar SQL engine derived from 'SlothDB' (\url{https://github.com/SouravRoy-ETL/slothdb}), whose C++ source is bundled and compiled when the package is installed. SQL queries over local 'CSV', 'Parquet' and 'JSON' files, and over in-memory or file-backed databases, then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for 'duckdb': it is offline only, and a database file is tied to the engine commit the package bundles.
+A 'DBI' driver for 'libzugodb' (\url{https://github.com/pedrobtz/libzugodb}), a small columnar SQL engine derived from 'SlothDB' (\url{https://github.com/SouravRoy-ETL/slothdb}), whose C++ source is bundled and compiled when the package is installed. SQL queries over in-memory or file-backed databases then need no system library, no server and no download. The engine is experimental, and this package is not a replacement for 'duckdb': it is offline only, and a database file is tied to the engine commit the package bundles.
 }
 \seealso{
 Useful links:
@@ -27,12 +27,6 @@ Authors:
 Other contributors:
 \itemize{
   \item SlothDB Contributors (SlothDB, from which the bundled engine derives) [contributor, copyright holder]
-  \item Meta Platforms, Inc. and affiliates (bundled Zstandard decompressor) [copyright holder]
-  \item Google Inc. (bundled Snappy) [copyright holder]
-  \item Daniel Lemire (bundled FastPFor bitpacking) [contributor, copyright holder]
-  \item RAD Game Tools and Valve Software (bundled miniz) [copyright holder]
-  \item Rich Geldreich (bundled miniz) [contributor, copyright holder]
-  \item Tenacious Software LLC (bundled miniz) [copyright holder]
   \item Martin Leitner-Ankerl (bundled unordered_dense) [contributor, copyright holder]
 }
 

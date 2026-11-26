@@ -1,6 +1,6 @@
-#include "slothdb/common/types/vector.hpp"
-#include "slothdb/common/enums.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/common/types/vector.hpp"
+#include "zugodb/common/enums.hpp"
+#include "zugodb/common/exception.hpp"
 #include <cstring>
 
 namespace zugodb {
@@ -30,7 +30,7 @@ Vector::Vector(const LogicalType &type, data_ptr_t data)
 
 Vector::Vector(Vector &&other) noexcept
     : vector_type_(other.vector_type_), type_(std::move(other.type_)),
-      data_(other.data_), validity_(std::move(other.validity_)),
+      data_(other.data_), validity_(std::move(other.validity_)), capacity_(other.capacity_),
       buffer_(std::move(other.buffer_)), auxiliary_(std::move(other.auxiliary_)) {
     other.data_ = nullptr;
 }
@@ -41,6 +41,7 @@ Vector &Vector::operator=(Vector &&other) noexcept {
         type_ = std::move(other.type_);
         data_ = other.data_;
         validity_ = std::move(other.validity_);
+        capacity_ = other.capacity_;
         buffer_ = std::move(other.buffer_);
         auxiliary_ = std::move(other.auxiliary_);
         other.data_ = nullptr;
@@ -49,9 +50,10 @@ Vector &Vector::operator=(Vector &&other) noexcept {
 }
 
 void Vector::Initialize(idx_t capacity) {
-    // zuslothdb: one validity bit per row of the capacity, not one
+    // zugodb: one validity bit per row of the capacity, not one
     // vector's 2048 (#45); a statement's VALUES can make a larger vector.
     validity_.SetCapacity(capacity);
+    capacity_ = capacity;
     auto physical = type_.GetInternalType();
     idx_t type_size = GetTypeIdSize(physical);
     if (type_size > 0) {
@@ -65,6 +67,12 @@ void Vector::Initialize(idx_t capacity) {
 }
 
 void Vector::SetValue(idx_t index, const Value &val) {
+    // A write past the buffers is refused (libzugodb Stage 10); this path
+    // is per value, so the compare costs nothing that matters.
+    if (capacity_ != 0 && index >= capacity_) {
+        throw InternalException("Vector::SetValue: row " + std::to_string(index) +
+                                " is past the vector's capacity of " + std::to_string(capacity_));
+    }
     if (val.IsNull()) {
         validity_.SetInvalid(index);
         return;
@@ -161,6 +169,8 @@ Value Vector::GetValue(idx_t index) const {
         return Value::TIMESTAMP(GetData<int64_t>()[index]);
     case LogicalTypeId::TIME:
         return Value::TIME(GetData<int64_t>()[index]);
+    case LogicalTypeId::BLOB:
+        return Value::BLOB(GetData<string_t>()[index].GetString());
     default:
         break;
     }
@@ -254,6 +264,7 @@ void Vector::Reference(Vector &other) {
     type_ = other.type_;
     data_ = other.data_;
     validity_ = other.validity_;
+    capacity_ = other.capacity_;
     buffer_ = other.buffer_;
     auxiliary_ = other.auxiliary_;
 }

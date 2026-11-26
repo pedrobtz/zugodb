@@ -1,6 +1,7 @@
-# zugodb and duckdb in one R session (roadmap Stage 1). SlothDB carries
-# DuckDB's duckdb_fastpforlib namespace; were its symbols exported, one
-# package's calls could bind to the other's copy. Each must answer its own
+# zugodb and duckdb in one R session (roadmap Stage 1). The engine
+# carried DuckDB's duckdb_fastpforlib namespace until libzugodb 0.4.0, and
+# shares much of DuckDB's design; were its symbols exported, one package's
+# calls could bind to the other's. Each must answer its own
 # query, in both load orders, before and after the other has run.
 #
 #   Rscript tools/ci/coexist.R zugodb-first | duckdb-first

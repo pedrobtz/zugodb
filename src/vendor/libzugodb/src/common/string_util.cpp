@@ -1,4 +1,4 @@
-#include "slothdb/common/string_util.hpp"
+#include "zugodb/common/string_util.hpp"
 #include <cctype>
 #include <cstdio>
 #include <sstream>

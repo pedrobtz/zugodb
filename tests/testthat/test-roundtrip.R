@@ -88,3 +88,26 @@ test_that("a round trip is the same under a hostile locale and options", {
   DBI::dbWriteTable(con, "t", df)
   expect_identical(DBI::dbReadTable(con, "t"), df)
 })
+
+test_that("every NaN reads back as R's NaN, whatever its payload, and NA as NA", {
+  # libzugodb 0.4.0 stores a NaN's bits; R reads the payload 1954 as NA.
+  # The glue writes NA as NULL (R_IsNA) and reads every NaN back as one
+  # quiet NaN, so no stored payload can come back as NA.
+  bits <- function(x) writeBin(x, raw(), size = 8, endian = "little")
+  from_bits <- function(hex) readBin(as.raw(strtoi(hex, 16L)), "double", size = 8, endian = "little")
+  neg_nan <- from_bits(c("00", "00", "00", "00", "00", "00", "f8", "ff"))
+  payload <- from_bits(c("a3", "07", "00", "00", "00", "00", "f8", "7f")) # 1955
+  value <- data.frame(d = c(NaN, neg_nan, payload, NA, 1))
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  DBI::dbWriteTable(con, "t", value)
+  got <- DBI::dbGetQuery(con, "SELECT d FROM t")$d
+  expect_identical(DBI::dbGetQuery(con, "SELECT count(*) AS n FROM t WHERE d IS NULL")$n, 1)
+  expect_true(all(is.nan(got[1:3])))
+  for (i in 1:3) expect_identical(bits(got[[i]]), bits(NaN), label = i)
+  expect_true(is.na(got[[4]]) && !is.nan(got[[4]]))
+  expect_identical(got[[5]], 1)
+  # The same from SQL's own NaNs.
+  sql <- DBI::dbGetQuery(con, "SELECT 'nan'::DOUBLE AS a, -('nan'::DOUBLE) AS b, 'nan'::FLOAT AS c")
+  for (x in sql) expect_identical(bits(x), bits(NaN))
+})

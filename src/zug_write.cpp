@@ -11,7 +11,7 @@
 //    column's type, and only then builds DataChunks and appends them. A
 //    value that does not fit is an error before any row is written, so a
 //    failed append leaves the table as it was (there is no rollback; the
-//    fork makes ROLLBACK an error, design §5).
+//    engine refuses BEGIN, COMMIT and ROLLBACK, design §5).
 
 #include "zug_objects.h"
 

@@ -1,13 +1,120 @@
-#include "slothdb/binder/binder.hpp"
-#include "slothdb/common/exception.hpp"
-#include "slothdb/common/string_util.hpp"
-#include "slothdb/execution/expression_executor.hpp"
-#include "slothdb/main/query_materialize.hpp"
-#include "slothdb/parser/expression/parsed_expression.hpp"
-#include "slothdb/storage/parquet.hpp" // zuslothdb: CheckReadable
+#include "zugodb/binder/binder.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/common/string_util.hpp"
+#include "zugodb/execution/expression_executor.hpp"
+#include "zugodb/main/query_materialize.hpp"
+#include "zugodb/parser/expression/parsed_expression.hpp"
 #include <functional>
 
 namespace zugodb {
+
+// BEGIN FUNCTION REGISTRY (tools/check_dialect.sh reads the names between
+// these markers; docs/dialect.md lists the same ones).
+// Each scalar function with DuckDB's argument counts (its signatures at
+// the pinned tag, where the engine computes them): a call with too few
+// read past the executor's arguments (date_part('year') overflowed a heap
+// buffer, Stage 9's SQL fuzzer), and too many were ignored.
+struct FunctionArity { const char *name; size_t lo, hi; };
+static const FunctionArity kScalarFunctions[] = {
+    // Numbers.
+    {"ABS", 1, 1}, {"ACOS", 1, 1}, {"ACOSH", 1, 1}, {"ASIN", 1, 1}, {"ASINH", 1, 1},
+    {"ATAN", 1, 1}, {"ATAN2", 2, 2}, {"ATANH", 1, 1}, {"CBRT", 1, 1}, {"CEIL", 1, 1},
+    {"CEILING", 1, 1}, {"COS", 1, 1}, {"COSH", 1, 1}, {"DEGREES", 1, 1}, {"EXP", 1, 1},
+    {"FACTORIAL", 1, 1}, {"FLOOR", 1, 1}, {"GCD", 2, 2}, {"ISFINITE", 1, 1},
+    {"ISINF", 1, 1}, {"ISNAN", 1, 1}, {"LCM", 2, 2}, {"LN", 1, 1}, {"LOG", 1, 2},
+    {"LOG10", 1, 1}, {"LOG2", 1, 1}, {"MOD", 2, 2}, {"PI", 0, 0}, {"POW", 2, 2},
+    {"POWER", 2, 2},
+    {"RADIANS", 1, 1}, {"ROUND", 1, 2}, {"SIGN", 1, 1}, {"SIN", 1, 1}, {"SINH", 1, 1},
+    {"SQRT", 1, 1}, {"TAN", 1, 1}, {"TANH", 1, 1}, {"TRUNC", 1, 2},
+    // Text and bytes.
+    {"ASCII", 1, 1}, {"BIT_LENGTH", 1, 1}, {"CHR", 1, 1}, {"CONCAT", 1, SIZE_MAX},
+    {"CONCAT_WS", 2, SIZE_MAX}, {"CONTAINS", 2, 2}, {"ENDS_WITH", 2, 2},
+    {"FROM_BASE64", 1, 1}, {"HEX", 1, 1}, {"INSTR", 2, 2}, {"LEFT", 2, 2}, {"LENGTH", 1, 1},
+    {"LOWER", 1, 1}, {"LPAD", 3, 3}, {"LTRIM", 1, 2}, {"MD5", 1, 1},
+    {"OCTET_LENGTH", 1, 1}, {"POSITION", 2, 2}, {"PREFIX", 2, 2}, {"REPEAT", 2, 2},
+    {"REPLACE", 3, 3}, {"REVERSE", 1, 1}, {"RIGHT", 2, 2}, {"RPAD", 3, 3},
+    {"RTRIM", 1, 2}, {"SHA1", 1, 1}, {"SHA256", 1, 1}, {"SPLIT_PART", 3, 3},
+    {"STARTS_WITH", 2, 2}, {"STRLEN", 1, 1}, {"STRPOS", 2, 2}, {"SUBSTR", 2, 3},
+    {"SUBSTRING", 2, 3}, {"SUFFIX", 2, 2}, {"TO_BASE64", 1, 1}, {"TO_HEX", 1, 1},
+    {"TRANSLATE", 3, 3}, {"TRIM", 1, 2}, {"UNHEX", 1, 1}, {"UPPER", 1, 1},
+    // Dates and times.
+    {"CENTURY", 1, 1}, {"DATE_DIFF", 3, 3}, {"DATEDIFF", 3, 3}, {"DATE_PART", 2, 2},
+    {"DATE_TRUNC", 2, 2}, {"DAY", 1, 1}, {"DAYNAME", 1, 1},
+    {"DAYOFMONTH", 1, 1}, {"DAYOFWEEK", 1, 1}, {"DAYOFYEAR", 1, 1}, {"DECADE", 1, 1},
+    {"EPOCH_MS", 1, 1}, {"HOUR", 1, 1}, {"ISODOW", 1, 1},
+    {"ISOYEAR", 1, 1}, {"LAST_DAY", 1, 1}, {"MAKE_DATE", 3, 3}, {"MAKE_TIMESTAMP", 6, 6},
+    {"MILLENNIUM", 1, 1}, {"MINUTE", 1, 1}, {"MONTH", 1, 1},
+    {"MONTHNAME", 1, 1}, {"QUARTER", 1, 1}, {"SECOND", 1, 1}, {"STRFTIME", 2, 2},
+    {"WEEK", 1, 1}, {"YEAR", 1, 1},
+    // Conditions and NULLs.
+    {"COALESCE", 1, SIZE_MAX}, {"GREATEST", 1, SIZE_MAX}, {"IF", 3, 3}, {"IFNULL", 2, 2},
+    {"LEAST", 1, SIZE_MAX}, {"NULLIF", 2, 2},
+    // The session.
+    {"CURRENT_SCHEMA", 0, 0},
+};
+static const char *const kAggregateFunctions[] = {
+    "AVG", "BOOL_AND", "BOOL_OR", "COUNT", "GROUP_CONCAT", "LISTAGG", "MAX", "MEDIAN", "MIN",
+    "STDDEV", "STDDEV_POP", "STDDEV_SAMP", "STRING_AGG", "SUM", "VAR_POP", "VAR_SAMP",
+    "VARIANCE",
+};
+static const char *const kWindowFunctions[] = {
+    "DENSE_RANK", "FIRST_VALUE", "LAG", "LAST_VALUE", "LEAD", "NTILE", "RANK",
+    "ROW_NUMBER",
+};
+// END FUNCTION REGISTRY
+
+// Names the parser makes for syntax (CASE, x BETWEEN a AND b, x IN (...),
+// EXTRACT(part FROM x)): not functions a query calls by name.
+static const char *const kSyntaxFunctions[] = {"CASE", "BETWEEN", "IN", "EXTRACT", "EXISTS"};
+
+static bool IsRegisteredFunction(const std::string &name) {
+    for (auto &f : kScalarFunctions) if (name == f.name) return true;
+    for (auto *f : kAggregateFunctions) if (name == f) return true;
+    for (auto *f : kWindowFunctions) if (name == f) return true;
+    for (auto *f : kSyntaxFunctions) if (name == f) return true;
+    return false;
+}
+
+// The error for a name outside the registry: why it is refused, where the
+// engine knows (design L4, L23, L25, L26).
+[[noreturn]] static void RefuseFunction(const std::string &name) {
+    static const char *const kNotDuckDB[] = {
+        "NVL", "IIF", "GETDATE", "CURDATE", "CURTIME", "FROM_UNIXTIME", "UNIX_TIMESTAMP",
+        "DATE_FORMAT", "FORMAT_TIMESTAMP", "DATEADD", "TIMESTAMPADD", "TIMESTAMPDIFF",
+        "SUBDATE", "ADDDATE", "BASE64_ENCODE", "BASE64_DECODE", "INITCAP", "SHA512",
+        "SHA2_256", "SHA2_512", "SHA_1", "RAND", "TRUNCATE", "STR_TO_DATE"};
+    for (auto *f : kNotDuckDB) {
+        if (name == f) {
+            throw BinderException(ErrorCode::TYPE_MISMATCH,
+                "Scalar Function with name " + StringUtil::Lower(name) +
+                " does not exist: DuckDB has no such function (design L4)");
+        }
+    }
+    static const char *const kProvided[] = {"RANDOM", "SETSEED", "UUID", "GEN_RANDOM_UUID",
+                                            "UUIDV4", "UUIDV7"};
+    for (auto *f : kProvided) {
+        if (name == f) {
+            throw NotImplementedException(
+                "Function " + StringUtil::Lower(name) +
+                " is not supported: random numbers and UUIDs come from a host-supplied "
+                "provider (libzugodb#40, design L25), which this engine does not have");
+        }
+    }
+    throw NotImplementedException("Function " + StringUtil::Lower(name) + " is not supported");
+}
+
+// A condition is BOOLEAN: AND, OR and NOT's operands, WHERE, HAVING,
+// QUALIFY, ON and CASE WHEN. Another type is cast to BOOLEAN, DuckDB's
+// implicit cast (10 is true, 'abc' an error). The bytes of an INTEGER
+// were read as a bool: NOT 10 was true, CASE WHEN 2 took the ELSE, and
+// 1 WHERE 'abc' gave no row where DuckDB raises (Stage 9's SQL fuzzer).
+static void AsCondition(BoundExprPtr &e) {
+    if (!e) return;
+    auto t = e->GetReturnType().id();
+    if (t == LogicalTypeId::BOOLEAN || t == LogicalTypeId::SQLNULL) return;
+    e = std::make_unique<BoundCast>(std::move(e), LogicalType::BOOLEAN());
+}
+
 
 static bool ContainsAggregate(const BoundExpression &expr);
 // Returns true if `expr` contains a column reference that is neither
@@ -21,7 +128,44 @@ static bool HasUngroupedColumn(const BoundExpression &expr,
 // BindContext
 // ============================================================================
 
+// DuckDB casts to a BLOB only from text (reading its \\xHH escapes) and
+// from a BLOB to text only; any other cast with a BLOB is an error there,
+// under TRY_CAST too (#31).
+static void CheckBlobCast(const LogicalType &from, const LogicalType &to) {
+    auto f = from.id(), t = to.id();
+    if (f == t || f == LogicalTypeId::SQLNULL) return;
+    if (t == LogicalTypeId::BLOB && f != LogicalTypeId::VARCHAR) {
+        throw BinderException(ErrorCode::TYPE_MISMATCH,
+            "Unimplemented type for cast (" + from.ToString() + " -> BLOB)");
+    }
+    if (f == LogicalTypeId::BLOB && t != LogicalTypeId::VARCHAR) {
+        throw BinderException(ErrorCode::TYPE_MISMATCH,
+            "Unimplemented type for cast (BLOB -> " + to.ToString() + ")");
+    }
+}
+
+// Beside a BLOB, a string literal is read as a BLOB, as DuckDB casts a
+// literal to the other operand's type; any other type is refused, since
+// DuckDB has no implicit cast from it to a BLOB (#31).
+static void CoerceBesideBlob(BoundExprPtr &e, const char *what) {
+    auto id = e->GetReturnType().id();
+    if (id == LogicalTypeId::BLOB || id == LogicalTypeId::SQLNULL) return;
+    if (id == LogicalTypeId::VARCHAR && e->GetExpressionType() == BoundExpressionType::CONSTANT) {
+        e = std::make_unique<BoundCast>(std::move(e), LogicalType::BLOB());
+        return;
+    }
+    throw BinderException(ErrorCode::TYPE_MISMATCH,
+        std::string(what) + " of a BLOB and a " + e->GetReturnType().ToString() +
+        " is not supported");
+}
+
 void BindContext::AddTable(const std::string &alias, TableCatalogEntry *entry) {
+    // Two tables of one alias, in any case, are DuckDB's error (FROM t, t;
+    // FROM t AS x, t AS X); the second replaced the first's columns.
+    if (tables.count(alias)) {
+        throw BinderException(ErrorCode::AMBIGUOUS_COLUMN,
+            "Ambiguous reference to table \"" + alias + "\" (duplicate alias)");
+    }
     tables[alias] = entry;
     // Compute offset: sum of all columns from previously added tables.
     idx_t offset = 0;
@@ -84,7 +228,7 @@ LogicalType BindContext::GetColumnType(const std::string &col_name,
 
 idx_t BindContext::GetTableOffset(const std::string &alias) const {
     for (auto &[tbl_alias, offset] : table_order) {
-        if (tbl_alias == alias) return offset;
+        if (IdentifierEquals(tbl_alias, alias)) return offset;
     }
     return 0;
 }
@@ -167,6 +311,7 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
 
                 if (cur->on_condition) {
                     join_info->condition = BindExpression(*cur->on_condition, context);
+                    AsCondition(join_info->condition);
                 }
 
                 running_left_count += join_info->right_col_count;
@@ -191,7 +336,9 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
             auto bound = BindExpression(*expr, context);
             std::string name = expr->alias.empty()
                 ? (expr->GetExpressionType() == ExpressionType::COLUMN_REF
-                    ? static_cast<const ColumnRefExpression &>(*expr).column_name
+                    ? (bound->GetExpressionType() == BoundExpressionType::COLUMN_REF
+                           ? static_cast<const BoundColumnRef &>(*bound).column_name
+                           : static_cast<const ColumnRefExpression &>(*expr).column_name)
                     : "expr")
                 : expr->alias;
             bound->alias = name;
@@ -221,6 +368,7 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
     // BinderException is what SQL standard requires.
     if (stmt.where_clause) {
         result->where_clause = BindExpression(*stmt.where_clause, context);
+        AsCondition(result->where_clause);
         if (ContainsAggregate(*result->where_clause)) {
             throw BinderException(ErrorCode::AGGREGATE_IN_WHERE,
                 "aggregate functions are not allowed in WHERE clause");
@@ -295,10 +443,12 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
                 }
             }
         }
-        // Alias: GROUP BY <result-name>
+        // Alias: GROUP BY <result-name>. A name that is also a column of
+        // the FROM clause is the column, as in DuckDB (having_alias.test:
+        // `SELECT a+1 AS a FROM t1 GROUP BY a` groups by column a).
         if (!resolved && expr->GetExpressionType() == ExpressionType::COLUMN_REF) {
             auto &col_ref = static_cast<ColumnRefExpression &>(*expr);
-            if (col_ref.table_name.empty()) {
+            if (col_ref.table_name.empty() && !context.columns.count(col_ref.column_name)) {
                 auto ref_upper = StringUtil::Upper(col_ref.column_name);
                 for (idx_t i = 0; i < result->result_names.size(); i++) {
                     if (StringUtil::Upper(result->result_names[i]) == ref_upper) {
@@ -368,6 +518,18 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
             if (stmt.select_list[i]->GetExpressionType() == ExpressionType::STAR) continue;
             if (stmt.select_list[i]->GetExpressionType() == ExpressionType::COLUMN_REF) continue;
             auto key = StringUtil::Upper(result->result_names[i]);
+            // A name that is both a grouped column and an alias binds to
+            // the group, as in DuckDB (having_alias.test): `SELECT a+1 AS
+            // a ... GROUP BY a HAVING a=42` compares the column.
+            bool is_group_column = false;
+            for (auto &g : result->group_by) {
+                if (g && g->GetExpressionType() == BoundExpressionType::COLUMN_REF &&
+                    StringUtil::Upper(static_cast<const BoundColumnRef &>(*g).column_name) == key) {
+                    is_group_column = true;
+                    break;
+                }
+            }
+            if (is_group_column) continue;
             // First-wins: a later select-list entry with the same alias
             // would shadow the first; SQL doesn't define HAVING in that
             // case so we just keep the first.
@@ -375,6 +537,7 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
                 context.select_list_aliases[key] = stmt.select_list[i].get();
         }
         result->having_clause = BindExpression(*stmt.having_clause, context);
+        AsCondition(result->having_clause);
         context.select_list_aliases.clear();
         // HAVING implies aggregation even when there's no GROUP BY and
         // no aggregate in the SELECT list:
@@ -415,6 +578,7 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
     // Bind QUALIFY.
     if (stmt.qualify_clause) {
         result->qualify_clause = BindExpression(*stmt.qualify_clause, context);
+        AsCondition(result->qualify_clause);
         result->has_window = true;
     }
 
@@ -440,6 +604,11 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
                     ord = val.GetValue<int64_t>();
                     is_int_ordinal = true;
                 }
+                if (!is_int_ordinal) {
+                    // DuckDB's error: a constant sorts nothing (#35).
+                    throw BinderException(ErrorCode::TYPE_MISMATCH,
+                        "ORDER BY non-integer literal has no effect");
+                }
                 if (is_int_ordinal) {
                     // Reference the post-expansion select_list so
                     // `SELECT * FROM t ORDER BY 2` works (previously
@@ -449,22 +618,33 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
                     if (ord >= 1 &&
                         ord <= static_cast<int64_t>(result->select_list.size())) {
                         idx_t sl_idx = static_cast<idx_t>(ord - 1);
-                        if (sl_idx < stmt.select_list.size() &&
-                            stmt.select_list[sl_idx]->GetExpressionType()
-                                != ExpressionType::STAR) {
+                        // With a * in the list, positions count its
+                        // columns, so stmt.select_list does not line up.
+                        bool has_star = false;
+                        for (auto &e : stmt.select_list) {
+                            has_star = has_star || e->GetExpressionType() == ExpressionType::STAR;
+                        }
+                        if (!has_star && sl_idx < stmt.select_list.size()) {
                             bound_item.expression = BindExpression(
                                 *stmt.select_list[sl_idx], context);
+                            bound_item.select_index = sl_idx;
                             resolved = true;
-                        } else if (sl_idx < result->result_names.size()) {
-                            // Star-expanded column: re-resolve by name.
-                            auto col = std::make_unique<ColumnRefExpression>(
-                                result->result_names[sl_idx]);
-                            try {
-                                bound_item.expression = BindExpression(*col, context);
-                                resolved = true;
-                            } catch (...) {
-                                // Fall through to alias path.
-                            }
+                        } else if (sl_idx < result->result_names.size() &&
+                                   result->select_list[sl_idx]->GetExpressionType() ==
+                                       BoundExpressionType::COLUMN_REF) {
+                            // Star-expanded column: the column itself. By
+                            // its name it was the other table's column of
+                            // that name after a join (SELECT * FROM a JOIN
+                            // b ... ORDER BY 1 sorted by b.i, #38).
+                            auto &cr = static_cast<const BoundColumnRef &>(*result->select_list[sl_idx]);
+                            bound_item.expression = std::make_unique<BoundColumnRef>(
+                                cr.column_name, cr.column_index, cr.GetReturnType());
+                            bound_item.select_index = sl_idx;
+                            resolved = true;
+                        } else {
+                            throw NotImplementedException(
+                                "ORDER BY position " + std::to_string(ord) +
+                                " of this select list is not supported");
                         }
                     } else {
                         throw BinderException(
@@ -502,6 +682,7 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
                         }
                         // Re-bind the original select-list expression.
                         bound_item.expression = BindExpression(*stmt.select_list[sl_idx], context);
+                        bound_item.select_index = i;
                         resolved = true;
                         break;
                     }
@@ -604,6 +785,9 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
         }
         int64_t v = -1;
         if (extract_int(val, v)) {
+            if (v < 0) {
+                throw BinderException(ErrorCode::OUT_OF_RANGE, "LIMIT cannot be negative");
+            }
             result->limit_count = v;
         } else if (!val.IsNull()) {
             throw BinderException(ErrorCode::TYPE_MISMATCH,
@@ -626,6 +810,9 @@ BoundStmtPtr Binder::BindSelect(const SelectStatement &stmt) {
         }
         int64_t v = 0;
         if (extract_int(val, v)) {
+            if (v < 0) {
+                throw BinderException(ErrorCode::OUT_OF_RANGE, "OFFSET cannot be negative");
+            }
             result->offset_count = v;
         } else if (!val.IsNull()) {
             throw BinderException(ErrorCode::TYPE_MISMATCH,
@@ -646,6 +833,13 @@ BoundStmtPtr Binder::BindCreateTable(const CreateTableStatement &stmt) {
     result->if_not_exists = stmt.if_not_exists;
 
     for (auto &col : stmt.columns) {
+        // Two columns of one name, in any case, are DuckDB's error; both
+        // were made, and a reference read the first (design L26).
+        for (auto &prev : result->columns) {
+            if (IdentifierEquals(prev.name, col.name)) {
+                throw CatalogException("Column with name \"" + col.name + "\" already exists");
+            }
+        }
         auto type = ResolveTypeName(col.type_name);
         // A PRIMARY KEY column is implicitly NOT NULL.
         result->columns.emplace_back(col.name, type,
@@ -695,6 +889,7 @@ BoundStmtPtr Binder::BindInsert(const InsertStatement &stmt) {
         auto src_id = bound->GetReturnType().id();
         auto dst_id = col_types[target].id();
         if (src_id != dst_id && src_id != LogicalTypeId::SQLNULL) {
+            CheckBlobCast(bound->GetReturnType(), col_types[target]);
             bound = std::make_unique<BoundCast>(std::move(bound), col_types[target]);
         }
         return bound;
@@ -833,6 +1028,7 @@ BoundStmtPtr Binder::BindUpdate(const UpdateStatement &stmt) {
             auto src_id = ba.value->GetReturnType().id();
             auto dst_id = col_types[idx].id();
             if (src_id != dst_id && src_id != LogicalTypeId::SQLNULL) {
+                CheckBlobCast(ba.value->GetReturnType(), col_types[idx]);
                 ba.value = std::make_unique<BoundCast>(
                     std::move(ba.value), col_types[idx]);
             }
@@ -861,6 +1057,7 @@ BoundStmtPtr Binder::BindUpdate(const UpdateStatement &stmt) {
 
     if (stmt.where_clause) {
         result->where_clause = BindExpression(*stmt.where_clause, context);
+        AsCondition(result->where_clause);
         if (ContainsAggregate(*result->where_clause)) {
             throw BinderException(ErrorCode::AGGREGATE_IN_WHERE,
                 "aggregate functions are not allowed in WHERE clause");
@@ -888,6 +1085,7 @@ BoundStmtPtr Binder::BindDelete(const DeleteStatement &stmt) {
 
     if (stmt.where_clause) {
         result->where_clause = BindExpression(*stmt.where_clause, context);
+        AsCondition(result->where_clause);
         if (ContainsAggregate(*result->where_clause)) {
             throw BinderException(ErrorCode::AGGREGATE_IN_WHERE,
                 "aggregate functions are not allowed in WHERE clause");
@@ -957,13 +1155,6 @@ BoundExprPtr Binder::BindExpression(const ParsedExpression &expr, BindContext &c
     }
 }
 
-// zuslothdb: a column of a Parquet file the reader cannot decode
-// faithfully is refused when a query names it, or expands it with *, so
-// the refusal does not depend on which columns a plan happens to decode.
-static void CheckFileColumnReadable(const TableCatalogEntry &entry, idx_t col) {
-    if (auto reader = entry.GetCachedParquetReader()) reader->CheckReadable(col);
-}
-
 BoundExprPtr Binder::BindColumnRef(const ColumnRefExpression &expr, BindContext &context) {
     // SELECT-list alias resolution (HAVING): when the active context has
     // an alias map populated, an unqualified column ref whose name matches
@@ -972,15 +1163,28 @@ BoundExprPtr Binder::BindColumnRef(const ColumnRefExpression &expr, BindContext 
     if (expr.table_name.empty() && !context.select_list_aliases.empty()) {
         auto it = context.select_list_aliases.find(StringUtil::Upper(expr.column_name));
         if (it != context.select_list_aliases.end() && it->second) {
-            return BindExpression(*it->second, context);
+            // The aliased expression's own names are columns, not aliases:
+            // `sum(a) AS a ... HAVING a > 0` reads column a inside sum. With
+            // the map in place, binding it recursed without end (libzugodb
+            // Stage 7, #11).
+            const auto *target = it->second;
+            auto aliases = std::move(context.select_list_aliases);
+            context.select_list_aliases.clear();
+            struct Restore {
+                BindContext &ctx;
+                decltype(aliases) &saved;
+                ~Restore() { ctx.select_list_aliases = std::move(saved); }
+            } restore{context, aliases};
+            return BindExpression(*target, context);
         }
     }
     auto [table, combined_idx] = context.ResolveColumn(expr.column_name, expr.table_name);
     idx_t offset = context.GetTableOffset(table);
     idx_t local_idx = combined_idx - offset;
-    CheckFileColumnReadable(*context.tables.at(table), local_idx);
-    auto type = context.tables.at(table)->GetColumns()[local_idx].type;
-    return std::make_unique<BoundColumnRef>(expr.column_name, combined_idx, type);
+    auto &column = context.tables.at(table)->GetColumns()[local_idx];
+    // The catalog's spelling, as DuckDB names the result column `Foo` for
+    // SELECT foo of a column Foo (design L26).
+    return std::make_unique<BoundColumnRef>(column.name, combined_idx, column.type);
 }
 
 BoundExprPtr Binder::BindConstant(const ConstantExpression &expr) {
@@ -1033,29 +1237,13 @@ BoundExprPtr Binder::BindConstant(const ConstantExpression &expr) {
         return std::make_unique<BoundConstant>(Value::BOOLEAN(true));
     case TokenType::KW_FALSE:
         return std::make_unique<BoundConstant>(Value::BOOLEAN(false));
-    case TokenType::KW_DATE: {
-        // SQL-92 typed literal DATE 'YYYY-MM-DD' — parsed at the
-        // expression-grammar level so the binder receives a string
-        // tagged with the DATE token; convert via the existing helper.
-        int32_t days;
-        if (!Value::TryParseDateStringEpochDays(expr.value.data(), expr.value.size(), days)) {
-            throw ParserException("Invalid DATE literal '" + expr.value + "'");
-        }
-        return std::make_unique<BoundConstant>(Value::DATE(days));
-    }
-    case TokenType::KW_TIMESTAMP: {
-        int64_t micros;
-        if (!Value::TryParseTimestampMicros(expr.value.data(), expr.value.size(), micros)) {
-            int32_t days;
-            if (!Value::TryParseDateStringEpochDays(expr.value.data(), expr.value.size(), days)) {
-                throw ParserException("Invalid TIMESTAMP literal '" + expr.value + "'");
-            }
-            micros = static_cast<int64_t>(days) * 86400LL * 1000000LL;
-        }
-        return std::make_unique<BoundConstant>(Value::TIMESTAMP(micros));
-    }
+    case TokenType::KW_DATE:
+        // SQL-92 typed literals, read by DuckDB's grammar (design L19).
+        return std::make_unique<BoundConstant>(Value::ParseTemporal(expr.value, LogicalTypeId::DATE));
+    case TokenType::KW_TIMESTAMP:
+        return std::make_unique<BoundConstant>(Value::ParseTemporal(expr.value, LogicalTypeId::TIMESTAMP));
     case TokenType::KW_TIME:
-        throw NotImplementedException("TIME literal not yet supported");
+        return std::make_unique<BoundConstant>(Value::ParseTemporal(expr.value, LogicalTypeId::TIME));
     default:
         throw InternalException("Unknown constant literal type");
     }
@@ -1064,6 +1252,11 @@ BoundExprPtr Binder::BindConstant(const ConstantExpression &expr) {
 BoundExprPtr Binder::BindComparison(const ComparisonExpression &expr, BindContext &context) {
     auto left = BindExpression(*expr.left, context);
     auto right = BindExpression(*expr.right, context);
+    if (left->GetReturnType().id() == LogicalTypeId::BLOB ||
+        right->GetReturnType().id() == LogicalTypeId::BLOB) {
+        CoerceBesideBlob(left, "A comparison");
+        CoerceBesideBlob(right, "A comparison");
+    }
 
     // Promote a literal constant to the column's type when one side is a
     // column reference and the other is a CONSTANT of a compatible numeric
@@ -1148,14 +1341,76 @@ BoundExprPtr Binder::BindComparison(const ComparisonExpression &expr, BindContex
     return std::make_unique<BoundComparison>(expr.op, std::move(left), std::move(right));
 }
 
+// The type of a CASE's branches and of COALESCE's, NULLIF's, GREATEST's
+// and LEAST's arguments, DuckDB's where the engine computes it the same
+// way (Stage 9): NULLs aside, one type is kept as it is (BOOLEAN, DATE,
+// FLOAT, TINYINT, ...), numbers widen to the widest (an integer with a
+// FLOAT is a FLOAT), and a string constant beside one other type takes
+// that type, as DuckDB's string literal does. Every other mix is
+// refused: the engine unified anything but a VARCHAR as an INTEGER, so
+// CASE WHEN c THEN true ELSE false END was an INTEGER, a FLOAT became a
+// DOUBLE and a DATE an error, and a VARCHAR column beside a number made
+// both VARCHAR where DuckDB's answer depends on which side is a literal.
+static LogicalType UnifyTypes(const std::vector<const BoundExpression *> &exprs,
+                              const std::string &fn) {
+    auto int_rank = [](LogicalTypeId x) -> int {
+        switch (x) {
+        case LogicalTypeId::TINYINT: return 1;
+        case LogicalTypeId::SMALLINT: return 2;
+        case LogicalTypeId::INTEGER: return 3;
+        case LogicalTypeId::BIGINT: return 4;
+        default: return 0;
+        }
+    };
+    std::vector<LogicalType> others;
+    bool string_constant = false;
+    for (auto *e : exprs) {
+        auto t = e->GetReturnType();
+        if (t.id() == LogicalTypeId::SQLNULL) continue;
+        if (t.id() == LogicalTypeId::VARCHAR &&
+            e->GetExpressionType() == BoundExpressionType::CONSTANT) {
+            string_constant = true;
+            continue;
+        }
+        others.push_back(t);
+    }
+    if (others.empty()) {
+        return string_constant ? LogicalType::VARCHAR() : LogicalType::SQLNULL();
+    }
+    bool same = true;
+    for (auto &t : others) same = same && t.id() == others[0].id();
+    if (same) return others[0];
+    bool numeric = true, has_float = false, has_double = false;
+    int widest = 0;
+    LogicalType widest_int = LogicalType::INTEGER();
+    for (auto &t : others) {
+        if (t.id() == LogicalTypeId::FLOAT) has_float = true;
+        else if (t.id() == LogicalTypeId::DOUBLE) has_double = true;
+        else if (int_rank(t.id()) > 0) {
+            if (int_rank(t.id()) > widest) { widest = int_rank(t.id()); widest_int = t; }
+        } else numeric = false;
+    }
+    if (numeric) {
+        if (has_double) return LogicalType::DOUBLE();
+        if (has_float) return LogicalType::FLOAT();
+        return widest_int;
+    }
+    std::string list;
+    for (auto &t : others) list += (list.empty() ? "" : ", ") + t.ToString();
+    throw NotImplementedException(fn + " of the types " + list + " is not supported");
+}
+
 BoundExprPtr Binder::BindConjunction(const ConjunctionExpression &expr, BindContext &context) {
     auto left = BindExpression(*expr.left, context);
     auto right = BindExpression(*expr.right, context);
+    AsCondition(left);
+    AsCondition(right);
     return std::make_unique<BoundConjunction>(expr.op, std::move(left), std::move(right));
 }
 
 BoundExprPtr Binder::BindNegation(const NegationExpression &expr, BindContext &context) {
     auto child = BindExpression(*expr.child, context);
+    AsCondition(child);
     return std::make_unique<BoundNegation>(std::move(child));
 }
 
@@ -1187,11 +1442,124 @@ BoundExprPtr Binder::BindIsBool(const IsBoolExpression &expr, BindContext &conte
     return std::make_unique<BoundIsBool>(std::move(child), p, expr.is_not);
 }
 
+// An integer literal, `5` or `-5`, and its value. DuckDB types one as
+// INTEGER_LITERAL, which casts implicitly to any integer type that holds
+// it, so `x + 1` of a TINYINT `x` is TINYINT arithmetic and overflows at
+// 127 (#43). `(1 + 0)` or `1::INTEGER` is not a literal.
+static bool IntegerLiteralValue(const ParsedExpression &e, int64_t &out) {
+    if (e.GetExpressionType() == ExpressionType::CONSTANT) {
+        auto &c = static_cast<const ConstantExpression &>(e);
+        if (c.is_null || c.literal_type != TokenType::INTEGER_LITERAL) return false;
+        try {
+            size_t used = 0;
+            out = std::stoll(c.value, &used);
+            return used == c.value.size();
+        } catch (const std::exception &) {
+            return false;
+        }
+    }
+    if (e.GetExpressionType() == ExpressionType::UNARY_MINUS) {
+        int64_t v = 0;
+        if (!IntegerLiteralValue(*static_cast<const UnaryMinusExpression &>(e).child, v) ||
+            v == std::numeric_limits<int64_t>::min()) {
+            return false;
+        }
+        out = -v;
+        return true;
+    }
+    return false;
+}
+
+// A decimal literal, `2.5` or `-2.5` (not `25e-1`, a DOUBLE in DuckDB):
+// DuckDB types it DECIMAL, the engine DOUBLE.
+static bool IsDecimalLiteral(const ParsedExpression &e) {
+    const ParsedExpression *x = &e;
+    while (x->GetExpressionType() == ExpressionType::UNARY_MINUS) {
+        x = static_cast<const UnaryMinusExpression *>(x)->child.get();
+    }
+    if (x->GetExpressionType() != ExpressionType::CONSTANT) return false;
+    auto &c = static_cast<const ConstantExpression &>(*x);
+    return !c.is_null && c.literal_type == TokenType::FLOAT_LITERAL &&
+           c.value.find_first_of("eE") == std::string::npos;
+}
+
+// Whether DuckDB types the operand `p`, bound as `b`, FLOAT or DOUBLE,
+// rather than DECIMAL or an integer. The engine's DOUBLE operand is a
+// DuckDB DECIMAL when it is a decimal literal, or arithmetic other than
+// `/` of such operands; any other DOUBLE (a column, a cast, a function, an
+// exponent literal) is DuckDB's DOUBLE too (#42).
+static bool DuckDBFloating(const ParsedExpression &p, const BoundExpression &b) {
+    auto id = b.GetReturnType().id();
+    if (id != LogicalTypeId::FLOAT && id != LogicalTypeId::DOUBLE) return false;
+    if (IsDecimalLiteral(p)) return false;
+    if (p.GetExpressionType() == ExpressionType::UNARY_MINUS &&
+        b.GetExpressionType() == BoundExpressionType::UNARY_MINUS) {
+        return DuckDBFloating(*static_cast<const UnaryMinusExpression &>(p).child,
+                              *static_cast<const BoundUnaryMinus &>(b).child);
+    }
+    if (p.GetExpressionType() == ExpressionType::ARITHMETIC &&
+        b.GetExpressionType() == BoundExpressionType::ARITHMETIC) {
+        auto &pa = static_cast<const ArithmeticExpression &>(p);
+        auto &ba = static_cast<const BoundArithmetic &>(b);
+        if (pa.op == "/") return true;
+        return DuckDBFloating(*pa.left, *ba.left) || DuckDBFloating(*pa.right, *ba.right);
+    }
+    return true;
+}
+
+static int IntegerRank(LogicalTypeId t) {
+    switch (t) {
+    case LogicalTypeId::TINYINT: return 1;
+    case LogicalTypeId::SMALLINT: return 2;
+    case LogicalTypeId::INTEGER: return 3;
+    case LogicalTypeId::BIGINT: return 4;
+    default: return 0;
+    }
+}
+
+// The literal `v` as a constant of `target`, an integer type, when that
+// type holds it; otherwise the literal is left as bound.
+static void NarrowIntegerLiteral(BoundExprPtr &bound, int64_t v, const LogicalType &target) {
+    switch (target.id()) {
+    case LogicalTypeId::TINYINT:
+        if (v >= INT8_MIN && v <= INT8_MAX)
+            bound = std::make_unique<BoundConstant>(Value::TINYINT(static_cast<int8_t>(v)));
+        break;
+    case LogicalTypeId::SMALLINT:
+        if (v >= INT16_MIN && v <= INT16_MAX)
+            bound = std::make_unique<BoundConstant>(Value::SMALLINT(static_cast<int16_t>(v)));
+        break;
+    default:
+        break;
+    }
+}
+
 BoundExprPtr Binder::BindArithmetic(const ArithmeticExpression &expr, BindContext &context) {
     auto left = BindExpression(*expr.left, context);
     auto right = BindExpression(*expr.right, context);
+    // DuckDB's integer literals take the other operand's integer type when
+    // they fit it (#43). Only TINYINT and SMALLINT differ from the bound
+    // literal, an INTEGER or a BIGINT, so only those are narrowed.
+    if (expr.op != "||") {
+        int64_t lit = 0;
+        bool left_lit = IntegerLiteralValue(*expr.left, lit);
+        int64_t rlit = 0;
+        bool right_lit = IntegerLiteralValue(*expr.right, rlit);
+        if (left_lit && !right_lit && IntegerRank(right->GetReturnType().id()) > 0) {
+            NarrowIntegerLiteral(left, lit, right->GetReturnType());
+        } else if (right_lit && !left_lit && IntegerRank(left->GetReturnType().id()) > 0) {
+            NarrowIntegerLiteral(right, rlit, left->GetReturnType());
+        }
+    }
     // || is string concatenation.
     if (expr.op == "||") {
+        if (left->GetReturnType().id() == LogicalTypeId::BLOB ||
+            right->GetReturnType().id() == LogicalTypeId::BLOB) {
+            CoerceBesideBlob(left, "||");
+            CoerceBesideBlob(right, "||");
+            return std::make_unique<BoundArithmetic>(expr.op, std::move(left), std::move(right),
+                                                      LogicalType::BLOB());
+        }
         return std::make_unique<BoundArithmetic>(expr.op, std::move(left), std::move(right),
                                                   LogicalType::VARCHAR());
     }
@@ -1207,9 +1575,11 @@ BoundExprPtr Binder::BindArithmetic(const ArithmeticExpression &expr, BindContex
     auto right_id = right->GetReturnType().id();
     bool left_date  = (left_id  == LogicalTypeId::DATE);
     bool right_date = (right_id == LogicalTypeId::DATE);
+    // DuckDB adds an INTEGER (or narrower) to a DATE; DATE + BIGINT is no
+    // function there (Stage 9).
     auto is_int_id = [](LogicalTypeId t) {
         return t == LogicalTypeId::TINYINT  || t == LogicalTypeId::SMALLINT ||
-               t == LogicalTypeId::INTEGER  || t == LogicalTypeId::BIGINT;
+               t == LogicalTypeId::INTEGER;
     };
     if (left_date || right_date) {
         if (expr.op == "+") {
@@ -1238,58 +1608,204 @@ BoundExprPtr Binder::BindArithmetic(const ArithmeticExpression &expr, BindContex
             "Invalid DATE arithmetic: " + left->GetReturnType().ToString() +
             " " + expr.op + " " + right->GetReturnType().ToString());
     }
-    // TIMESTAMP arithmetic: integer operand is seconds.
-    //   TIMESTAMP + N -> TIMESTAMP   (commutative)
-    //   TIMESTAMP - N -> TIMESTAMP   (TIMESTAMP on left only)
-    //   TIMESTAMP - TIMESTAMP -> BIGINT (microseconds difference)
-    // Result type only — the executor needs to scale the integer
-    // operand by 1e6 (sec->micros) before the int64 add/sub; without
-    // result-type tagging here, the integer is added to a TIMESTAMP
-    // (int64 micros) and the result is rendered as raw INTEGER bytes.
+    // TIMESTAMP arithmetic. DuckDB has no TIMESTAMP + INTEGER, and its
+    // TIMESTAMP - TIMESTAMP is an INTERVAL, a type the engine does not
+    // hold; the engine took the integer as seconds and gave the
+    // difference as BIGINT seconds. Both are refused (Stage 9).
     bool left_ts  = (left_id  == LogicalTypeId::TIMESTAMP || left_id == LogicalTypeId::TIMESTAMP_TZ);
     bool right_ts = (right_id == LogicalTypeId::TIMESTAMP || right_id == LogicalTypeId::TIMESTAMP_TZ);
     if (left_ts || right_ts) {
-        auto pick_ts = [&]() -> LogicalType {
-            return LogicalType::TIMESTAMP();
-        };
-        if (expr.op == "+") {
-            if (left_ts && (is_int_id(right_id) || right_id == LogicalTypeId::SQLNULL)) {
-                return std::make_unique<BoundArithmetic>(
-                    expr.op, std::move(left), std::move(right), pick_ts());
-            }
-            if (right_ts && (is_int_id(left_id) || left_id == LogicalTypeId::SQLNULL)) {
-                return std::make_unique<BoundArithmetic>(
-                    expr.op, std::move(left), std::move(right), pick_ts());
-            }
-        } else if (expr.op == "-") {
-            if (left_ts && right_ts) {
-                return std::make_unique<BoundArithmetic>(
-                    expr.op, std::move(left), std::move(right), LogicalType::BIGINT());
-            }
-            if (left_ts && (is_int_id(right_id) || right_id == LogicalTypeId::SQLNULL)) {
-                return std::make_unique<BoundArithmetic>(
-                    expr.op, std::move(left), std::move(right), pick_ts());
-            }
+        if (expr.op == "-" && left_ts && right_ts) {
+            throw NotImplementedException(
+                "TIMESTAMP - TIMESTAMP is not supported: DuckDB's result is an INTERVAL; "
+                "date_diff gives the difference in a part");
         }
         throw BinderException(ErrorCode::TYPE_MISMATCH,
-            "Invalid TIMESTAMP arithmetic: " + left->GetReturnType().ToString() +
-            " " + expr.op + " " + right->GetReturnType().ToString());
+            "No function matches " + left->GetReturnType().ToString() + " " + expr.op + " " +
+            right->GetReturnType().ToString());
+    }
+    // Arithmetic of numbers only. A VARCHAR, BOOLEAN or TIME operand was
+    // typed INTEGER and read as garbage (1::TINYINT + 1::VARCHAR gave 1);
+    // DuckDB has no such function, or casts a literal (#34).
+    auto numeric_or_null = [](LogicalTypeId t) {
+        switch (t) {
+        case LogicalTypeId::TINYINT: case LogicalTypeId::SMALLINT: case LogicalTypeId::INTEGER:
+        case LogicalTypeId::BIGINT: case LogicalTypeId::UTINYINT: case LogicalTypeId::USMALLINT:
+        case LogicalTypeId::UINTEGER: case LogicalTypeId::UBIGINT: case LogicalTypeId::FLOAT:
+        case LogicalTypeId::DOUBLE: case LogicalTypeId::SQLNULL:
+            return true;
+        default:
+            return false;
+        }
+    };
+    bool bitwise = expr.op == "&" || expr.op == "|" || expr.op == "<<" || expr.op == ">>";
+    auto floating = [](LogicalTypeId t) {
+        return t == LogicalTypeId::FLOAT || t == LogicalTypeId::DOUBLE;
+    };
+    if (!numeric_or_null(left_id) || !numeric_or_null(right_id) ||
+        (bitwise && (floating(left_id) || floating(right_id)))) {
+        throw BinderException(ErrorCode::TYPE_MISMATCH,
+            "No function matches " + left->GetReturnType().ToString() + " " + expr.op + " " +
+            right->GetReturnType().ToString());
+    }
+    // DuckDB's ^ is POWER, not the bitwise exclusive or (2 ^ 3 gave 1).
+    if (expr.op == "^") {
+        std::vector<BoundExprPtr> pargs;
+        pargs.push_back(std::move(left));
+        pargs.push_back(std::move(right));
+        return std::make_unique<BoundFunction>("POWER", std::move(pargs), LogicalType::DOUBLE(),
+                                               false);
     }
     auto result_type = ResolveArithmeticType(left->GetReturnType(), right->GetReturnType());
-    return std::make_unique<BoundArithmetic>(expr.op, std::move(left), std::move(right),
-                                             result_type);
+    // DuckDB's / divides as doubles (integer_division is false by
+    // default): 7 / 2 is 3.5, not 3 (#33).
+    if (expr.op == "/" && result_type.id() != LogicalTypeId::DOUBLE &&
+        result_type.id() != LogicalTypeId::FLOAT) {
+        result_type = LogicalType::DOUBLE();
+    }
+    bool decimal_mod = expr.op == "%" &&
+                       (result_type.id() == LogicalTypeId::DOUBLE ||
+                        result_type.id() == LogicalTypeId::FLOAT) &&
+                       !DuckDBFloating(*expr.left, *left) && !DuckDBFloating(*expr.right, *right);
+    auto bound = std::make_unique<BoundArithmetic>(expr.op, std::move(left), std::move(right),
+                                                   result_type);
+    bound->decimal_mod = decimal_mod;
+    return bound;
 }
 
 BoundExprPtr Binder::BindUnaryMinus(const UnaryMinusExpression &expr, BindContext &context) {
+    // `-5` is one literal, as in DuckDB: -2147483648 is an INTEGER, so
+    // `-2147483648 - 1` overflows as INTEGER arithmetic (#43).
+    int64_t lit = 0;
+    if (IntegerLiteralValue(expr, lit)) {
+        if (lit >= INT32_MIN && lit <= INT32_MAX) {
+            return std::make_unique<BoundConstant>(Value::INTEGER(static_cast<int32_t>(lit)));
+        }
+        return std::make_unique<BoundConstant>(Value::BIGINT(lit));
+    }
     auto child = BindExpression(*expr.child, context);
+    // `-0.0` is DuckDB's DECIMAL zero, which has no sign: 1.0 / -0.0 is
+    // inf there. As a DOUBLE it was -0.0 (#42).
+    if (IsDecimalLiteral(expr) && child->GetExpressionType() == BoundExpressionType::CONSTANT) {
+        auto &v = static_cast<const BoundConstant &>(*child).value;
+        if (!v.IsNull() && v.type().id() == LogicalTypeId::DOUBLE) {
+            double d = -v.GetValue<double>();
+            return std::make_unique<BoundConstant>(Value::DOUBLE(d == 0.0 ? 0.0 : d));
+        }
+    }
     return std::make_unique<BoundUnaryMinus>(std::move(child));
+}
+
+// A regex function through the host's provider (Stage 11.1, design L29):
+// regexp_matches, regexp_full_match (SIMILAR TO), regexp_replace and
+// regexp_extract with a group number. The options are a constant of 'c'
+// and 'i' (the last wins), with 'g' for regexp_replace; any other letter
+// is refused. A constant pattern is compiled here, once for the query.
+static BoundExprPtr BindRegexCall(const std::string &name, std::vector<BoundExprPtr> args,
+                                  const zugodb_regex_v1 &api) {
+    auto call = std::make_shared<ProviderRegexCall>();
+    call->api = &api;
+    call->what = StringUtil::Lower(name);
+    size_t lo = 2, hi = 3;
+    LogicalType ret = LogicalType::BOOLEAN();
+    if (name == "REGEXP_MATCHES") {
+        call->kind = ProviderRegexCall::Kind::MATCHES;
+    } else if (name == "REGEXP_FULL_MATCH") {
+        call->kind = ProviderRegexCall::Kind::FULL_MATCH;
+    } else if (name == "REGEXP_REPLACE") {
+        call->kind = ProviderRegexCall::Kind::REPLACE;
+        lo = 3;
+        hi = 4;
+        ret = LogicalType::VARCHAR();
+    } else {
+        call->kind = ProviderRegexCall::Kind::EXTRACT;
+        lo = 2;
+        hi = 4;
+        ret = LogicalType::VARCHAR();
+    }
+    size_t n = args.size();
+    if (n < lo || n > hi) {
+        throw BinderException(ErrorCode::TYPE_MISMATCH,
+            "No function matches " + call->what + "() with " + std::to_string(n) +
+            " argument(s); it takes " + std::to_string(lo) + " to " + std::to_string(hi));
+    }
+    // The text arguments: the string, the pattern and the replacement.
+    size_t text_args = call->kind == ProviderRegexCall::Kind::REPLACE ? 3 : 2;
+    for (size_t i = 0; i < text_args; i++) {
+        auto t = args[i]->GetReturnType().id();
+        if (t != LogicalTypeId::VARCHAR && t != LogicalTypeId::SQLNULL) {
+            throw BinderException(ErrorCode::TYPE_MISMATCH,
+                "No function matches " + call->what + "() of a " +
+                args[i]->GetReturnType().ToString());
+        }
+    }
+    auto constant_of = [](const BoundExprPtr &e) -> const BoundConstant * {
+        return e->GetExpressionType() == BoundExpressionType::CONSTANT
+                   ? static_cast<const BoundConstant *>(e.get())
+                   : nullptr;
+    };
+    // regexp_extract's group: a constant integer, as DuckDB's.
+    size_t opt_index = text_args;
+    if (call->kind == ProviderRegexCall::Kind::EXTRACT && n >= 3) {
+        auto *g = constant_of(args[2]);
+        auto gt = args[2]->GetReturnType().id();
+        if (!g || g->value.IsNull() ||
+            (gt != LogicalTypeId::TINYINT && gt != LogicalTypeId::SMALLINT &&
+             gt != LogicalTypeId::INTEGER && gt != LogicalTypeId::BIGINT)) {
+            throw NotImplementedException(
+                "regexp_extract's group must be a constant integer");
+        }
+        int64_t gv = g->value.GetValue<int64_t>();
+        if (gv < 0 || gv > 1000) {
+            throw InvalidInputException("regexp_extract: group index " + std::to_string(gv) +
+                                        " is out of range");
+        }
+        call->group = static_cast<int>(gv);
+        opt_index = 3;
+    }
+    if (n > opt_index) {
+        auto *o = constant_of(args[opt_index]);
+        if (!o || o->value.IsNull() || o->value.type().id() != LogicalTypeId::VARCHAR) {
+            throw InvalidInputException(call->what + ": the options must be a constant string");
+        }
+        bool caseless = false;
+        for (char c : o->value.GetValue<std::string>()) {
+            if (c == 'c') {
+                caseless = false;
+            } else if (c == 'i') {
+                caseless = true;
+            } else if (c == 'g' && call->kind == ProviderRegexCall::Kind::REPLACE) {
+                call->global = true;
+            } else {
+                throw NotImplementedException(call->what + ": the option '" + std::string(1, c) +
+                                              "' is not supported");
+            }
+        }
+        if (caseless) call->flags |= ZUGODB_REGEX_CASELESS;
+    }
+    if (auto *p = constant_of(args[1])) {
+        if (p->value.IsNull()) {
+            call->constant_null = true;
+        } else {
+            call->constant = ProviderRegex::Compile(api, call->what,
+                                                    p->value.GetValue<std::string>(), call->flags);
+            if (call->group > call->constant->GroupCount()) {
+                throw InvalidInputException(call->what + ": the pattern has " +
+                                            std::to_string(call->constant->GroupCount()) +
+                                            " group(s), not " + std::to_string(call->group));
+            }
+        }
+    }
+    auto fn = std::make_unique<BoundFunction>(name, std::move(args), ret, false);
+    fn->regex = std::move(call);
+    return fn;
 }
 
 BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &context) {
     auto name = StringUtil::Upper(expr.function_name);
     // Canonical alias normalization — collapse SQL-standard synonyms
     // onto SlothDB's primary names so the binder/executor only need to
-    // recognise one spelling. byte-length semantics (slothdb's LENGTH
+    // recognise one spelling. byte-length semantics (SlothDB's LENGTH
     // returns bytes today, matching the byte-oriented LEFT/RIGHT/
     // SUBSTRING family); true UTF-8 codepoint length is a separate
     // future change.
@@ -1297,10 +1813,220 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         name = "LENGTH";
     }
     bool is_agg = IsAggregateFunction(name);
+    // DuckDB's aggregates the engine does not have. Bound as an unknown
+    // scalar function, one was an error per row, so over no rows it gave
+    // no row where DuckDB gives one (Stage 8, #12).
+    static const char *const kMissingAggregates[] = {
+        "ANY_VALUE", "ARBITRARY", "FIRST", "LAST", "ARG_MAX", "ARG_MIN", "ARGMAX", "ARGMIN",
+        "MAX_BY", "MIN_BY", "ARG_MAX_NULL", "ARG_MIN_NULL", "APPROX_COUNT_DISTINCT",
+        "APPROX_QUANTILE", "APPROX_TOP_K", "RESERVOIR_QUANTILE", "MEAN", "BIT_AND", "BIT_OR",
+        "BIT_XOR", "BITSTRING_AGG", "COUNT_IF", "COUNTIF", "CORR", "COVAR_POP", "COVAR_SAMP",
+        "ENTROPY", "FAVG", "FSUM", "SUMKAHAN", "KAHAN_SUM", "GEOMEAN", "GEOMETRIC_MEAN",
+        "HISTOGRAM", "HISTOGRAM_EXACT", "KURTOSIS", "KURTOSIS_POP", "LIST", "ARRAY_AGG", "MAD",
+        "MODE", "PRODUCT", "QUANTILE", "QUANTILE_CONT", "QUANTILE_DISC", "PERCENTILE_CONT",
+        "PERCENTILE_DISC", "REGR_AVGX", "REGR_AVGY", "REGR_COUNT", "REGR_INTERCEPT", "REGR_R2",
+        "REGR_SLOPE", "REGR_SXX", "REGR_SXY", "REGR_SYY", "SEM", "SKEWNESS", "SUM_NO_OVERFLOW",
+        "WEIGHTED_AVG", "WAVG", "BOOL_XOR"};
+    for (auto *m : kMissingAggregates) {
+        if (name == m) throw NotImplementedException("Aggregate function " + name + " is not supported");
+    }
 
     std::vector<BoundExprPtr> args;
     for (auto &arg : expr.arguments) {
         args.push_back(BindExpression(*arg, context));
+    }
+    // Arguments DuckDB refuses (#34): GCD, LCM and FACTORIAL of anything
+    // but integers (a string was read as 0), and CONTAINS of two NULLs,
+    // which matches more than one of DuckDB's overloads.
+    if (name == "GCD" || name == "LCM" || name == "FACTORIAL") {
+        for (auto &a : args) {
+            auto t = a->GetReturnType().id();
+            if (t != LogicalTypeId::TINYINT && t != LogicalTypeId::SMALLINT &&
+                t != LogicalTypeId::INTEGER && t != LogicalTypeId::BIGINT &&
+                t != LogicalTypeId::SQLNULL) {
+                throw BinderException(ErrorCode::TYPE_MISMATCH,
+                    "No function matches " + StringUtil::Lower(name) + "() of a " +
+                    a->GetReturnType().ToString());
+            }
+        }
+    }
+    if (name == "CONTAINS" && !args.empty()) {
+        bool all_null = true;
+        for (auto &a : args) all_null = all_null && a->GetReturnType().id() == LogicalTypeId::SQLNULL;
+        if (all_null) {
+            throw BinderException(ErrorCode::TYPE_MISMATCH,
+                "Could not choose a best candidate function for contains(NULL, NULL)");
+        }
+    }
+    // Regular expressions are refused, every function of them (#32,
+    // design L24): they come from a host's RE2 provider (#40).
+    static const char *const kRegexFunctions[] = {
+        "REGEXP_MATCHES", "REGEXP_FULL_MATCH", "REGEXP_REPLACE", "REGEXP_EXTRACT",
+        "REGEXP_EXTRACT_ALL", "REGEXP_SPLIT_TO_ARRAY", "REGEXP_SPLIT_TO_TABLE",
+        "STRING_SPLIT_REGEX", "STR_SPLIT_REGEX", "REGEXP_ESCAPE", "REGEXP", "REGEXP_LIKE",
+        "REGEXP_MATCH", "SIMILAR_TO"};
+    const ProviderSet *providers = catalog_.GetProviders();
+    const zugodb_regex_v1 *regex_api = providers ? providers->Regex() : nullptr;
+    if (regex_api && (name == "REGEXP_MATCHES" || name == "REGEXP_FULL_MATCH" ||
+                      name == "REGEXP_REPLACE" || name == "REGEXP_EXTRACT")) {
+        return BindRegexCall(name, std::move(args), *regex_api);
+    }
+    for (auto *f : kRegexFunctions) {
+        if (name == f) RefuseRegex("Function " + StringUtil::Lower(name));
+    }
+    // The function registry (Stage 9, design L26): the names the engine
+    // computes, the list docs/dialect.md gives (tools/check_dialect.sh
+    // compares the two). Any other name is refused here; it bound with an
+    // INTEGER type and failed per row, or gave a value DuckDB never gives.
+    if (!IsRegisteredFunction(name)) {
+        RefuseFunction(name);
+    }
+    for (const auto &f : kScalarFunctions) {
+        if (name != f.name) continue;
+        size_t n = args.size();
+        if (n < f.lo || n > f.hi) {
+            throw BinderException(ErrorCode::TYPE_MISMATCH,
+                "No function matches " + StringUtil::Lower(name) + "() with " +
+                std::to_string(n) + " argument(s); it takes " +
+                (f.lo == f.hi     ? std::to_string(f.lo)
+                 : f.hi == SIZE_MAX ? "at least " + std::to_string(f.lo)
+                                    : std::to_string(f.lo) + " to " + std::to_string(f.hi)));
+        }
+        break;
+    }
+    // Text and number functions take the types DuckDB's do ('S' text, 'N'
+    // a number, 'I' an integer; '*' is anything, read by the function
+    // itself). Another type was read as a string_t:
+    // UPPER(x LIKE y) read a BOOLEAN's byte as a string's header and past
+    // its buffer (Stage 9's SQL fuzzer). DuckDB has no such function.
+    {
+        struct TextArgs { const char *name; const char *kinds; };
+        static const TextArgs kTextArgs[] = {
+            {"UPPER", "S"}, {"LOWER", "S"}, {"LENGTH", "S"}, {"STRLEN", "S"},
+            {"REVERSE", "S"}, {"ASCII", "S"}, {"MD5", "S"}, {"SHA1", "S"}, {"SHA256", "S"},
+            {"TRIM", "SS"}, {"LTRIM", "SS"}, {"RTRIM", "SS"}, {"CONTAINS", "SS"},
+            {"STARTS_WITH", "SS"}, {"ENDS_WITH", "SS"}, {"PREFIX", "SS"}, {"SUFFIX", "SS"},
+            {"INSTR", "SS"}, {"STRPOS", "SS"}, {"POSITION", "SS"}, {"TRANSLATE", "SSS"},
+            {"REPLACE", "SSS"}, {"BIT_LENGTH", "S"}, {"OCTET_LENGTH", "S"},
+            {"FROM_BASE64", "S"}, {"UNHEX", "S"}, {"LEFT", "S*"}, {"RIGHT", "S*"},
+            {"REPEAT", "S*"}, {"SUBSTR", "S**"}, {"SUBSTRING", "S**"}, {"LPAD", "S*S"},
+            {"RPAD", "S*S"}, {"SPLIT_PART", "SS*"}, {"STRFTIME", "**"},
+            // Numbers ('N'), integers ('I'): SQRT of a VARCHAR column read its
+            // bytes as a double, ROUND of a DATE gave its day number.
+            {"ABS", "N"}, {"ACOS", "N"}, {"ACOSH", "N"}, {"ASIN", "N"}, {"ASINH", "N"},
+            {"ATAN", "N"}, {"ATAN2", "NN"}, {"ATANH", "N"}, {"CBRT", "N"}, {"CEIL", "N"},
+            {"CEILING", "N"}, {"COS", "N"}, {"COSH", "N"}, {"DEGREES", "N"}, {"EXP", "N"},
+            {"FACTORIAL", "I"}, {"FLOOR", "N"}, {"GCD", "II"}, {"LCM", "II"},
+            {"ISFINITE", "N"}, {"ISINF", "N"}, {"ISNAN", "N"}, {"LN", "N"}, {"LOG", "NN"},
+            {"LOG10", "N"}, {"LOG2", "N"}, {"MOD", "NN"}, {"POW", "NN"}, {"POWER", "NN"},
+            {"RADIANS", "N"}, {"ROUND", "NI"}, {"SIGN", "N"}, {"SIN", "N"}, {"SINH", "N"},
+            {"SQRT", "N"}, {"TAN", "N"}, {"TANH", "N"}, {"TRUNC", "NI"}, {"CHR", "I"},
+            {"MAKE_DATE", "III"}, {"MAKE_TIMESTAMP", "IIIIIN"},
+        };
+        for (const auto &t : kTextArgs) {
+            if (name != t.name) continue;
+            for (size_t k = 0; k < args.size() && t.kinds[k] != '\0'; k++) {
+                if (t.kinds[k] == '*') continue;
+                auto id = args[k]->GetReturnType().id();
+                bool integer = id == LogicalTypeId::TINYINT || id == LogicalTypeId::SMALLINT ||
+                               id == LogicalTypeId::INTEGER || id == LogicalTypeId::BIGINT;
+                bool number = integer || id == LogicalTypeId::FLOAT || id == LogicalTypeId::DOUBLE;
+                bool ok = id == LogicalTypeId::SQLNULL ||
+                          (t.kinds[k] == 'S' && (id == LogicalTypeId::VARCHAR ||
+                                                 id == LogicalTypeId::BLOB)) ||
+                          (t.kinds[k] == 'N' && number) || (t.kinds[k] == 'I' && integer);
+                if (!ok) {
+                    throw BinderException(ErrorCode::TYPE_MISMATCH,
+                        "No function matches " + StringUtil::Lower(name) + "() of a " +
+                        args[k]->GetReturnType().ToString());
+                }
+            }
+            break;
+        }
+    }
+    // Date and time functions take a DATE or a TIMESTAMP, as DuckDB's do.
+    // Another argument was read as one: an INTEGER as seconds, a BIGINT as
+    // seconds or microseconds by its size, a TIME as midnight
+    // (EXTRACT(YEAR FROM bigint_col), STRFTIME(1, '%Y')), where DuckDB has
+    // no such function (Stage 9). EPOCH_MS(INTEGER), DuckDB's TIMESTAMP
+    // from milliseconds, is refused with them.
+    {
+        struct DateArgs { const char *name; int first, last; bool timestamp_only; };
+        static const DateArgs kDateArgs[] = {
+            {"DAYNAME", 0, 0, false},   {"MONTHNAME", 0, 0, false}, {"YEAR", 0, 0, false},
+            {"MONTH", 0, 0, false},     {"DAY", 0, 0, false},       {"HOUR", 0, 0, false},
+            {"MINUTE", 0, 0, false},    {"SECOND", 0, 0, false},    {"DAYOFWEEK", 0, 0, false},
+            {"DAYOFMONTH", 0, 0, false}, {"DAYOFYEAR", 0, 0, false}, {"QUARTER", 0, 0, false},
+            {"WEEK", 0, 0, false},      {"ISODOW", 0, 0, false},    {"ISOYEAR", 0, 0, false},
+            {"CENTURY", 0, 0, false},   {"DECADE", 0, 0, false},    {"MILLENNIUM", 0, 0, false},
+            {"LAST_DAY", 0, 0, false},  {"EXTRACT", 1, 1, false},   {"DATE_PART", 1, 1, false},
+            {"DATE_TRUNC", 1, 1, false}, {"DATE_DIFF", 1, 2, false}, {"DATEDIFF", 1, 2, false},
+            {"EPOCH_MS", 0, 0, true},
+        };
+        for (const auto &d : kDateArgs) {
+            if (name != d.name) continue;
+            if (name == "DATE_DIFF" || name == "DATEDIFF") {
+                if (args.size() != 3) {
+                    throw BinderException(ErrorCode::TYPE_MISMATCH,
+                        "No function matches " + StringUtil::Lower(name) + "() with " +
+                        std::to_string(args.size()) +
+                        " argument(s); it takes 3 (part, start, end), as DuckDB's (design L4)");
+                }
+            }
+            for (int k = d.first; k <= d.last; k++) {
+                if (static_cast<size_t>(k) >= args.size()) break;
+                auto t = args[k]->GetReturnType().id();
+                bool ok = t == LogicalTypeId::TIMESTAMP || t == LogicalTypeId::SQLNULL ||
+                          (!d.timestamp_only && t == LogicalTypeId::DATE);
+                if (!ok) {
+                    throw BinderException(ErrorCode::TYPE_MISMATCH,
+                        "No function matches " + StringUtil::Lower(name) + "() of a " +
+                        args[k]->GetReturnType().ToString());
+                }
+            }
+            break;
+        }
+        if (name == "STRFTIME") {
+            if (args.size() != 2) {
+                throw BinderException(ErrorCode::TYPE_MISMATCH,
+                    "No function matches strftime() with " + std::to_string(args.size()) +
+                    " argument(s); it takes 2");
+            }
+            auto t0 = args[0]->GetReturnType().id(), t1 = args[1]->GetReturnType().id();
+            auto when = [](LogicalTypeId t) {
+                return t == LogicalTypeId::DATE || t == LogicalTypeId::TIMESTAMP ||
+                       t == LogicalTypeId::SQLNULL;
+            };
+            auto text = [](LogicalTypeId t) {
+                return t == LogicalTypeId::VARCHAR || t == LogicalTypeId::SQLNULL;
+            };
+            if (!((when(t0) && text(t1)) || (text(t0) && when(t1)))) {
+                throw BinderException(ErrorCode::TYPE_MISMATCH,
+                    "No function matches strftime(" + args[0]->GetReturnType().ToString() + ", " +
+                    args[1]->GetReturnType().ToString() + ")");
+            }
+        }
+    }
+    // A BLOB argument: the functions that read a BLOB's bytes as DuckDB
+    // does. The others read it as text, gave a VARCHAR of its bytes or
+    // unified it with no type (#31).
+    for (auto &a : args) {
+        if (a->GetReturnType().id() != LogicalTypeId::BLOB) continue;
+        static const char *const kBlobFunctions[] = {
+            "COUNT", "MIN", "MAX", "OCTET_LENGTH", "MD5", "SHA1", "SHA256"};
+        bool ok = false;
+        for (auto *f : kBlobFunctions) ok = ok || name == f;
+        if (!ok) {
+            throw NotImplementedException("Function " + name + " of a BLOB is not supported");
+        }
+    }
+    // STRING_AGG's separator: a constant string (NULL and a column are
+    // not computed as DuckDB does).
+    if ((name == "STRING_AGG" || name == "LISTAGG" || name == "GROUP_CONCAT") && args.size() == 2) {
+        bool ok = args[1]->GetExpressionType() == BoundExpressionType::CONSTANT &&
+                  !static_cast<const BoundConstant &>(*args[1]).value.IsNull() &&
+                  static_cast<const BoundConstant &>(*args[1]).value.type().id() == LogicalTypeId::VARCHAR;
+        if (!ok) throw NotImplementedException(name + " with a separator other than a string constant is not supported");
     }
 
     // Reject nested aggregates (`SUM(COUNT(*))`, `AVG(SUM(x))`). SQL
@@ -1351,6 +2077,40 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         }
     }
 
+    // Scalar arity, as DuckDB's signatures (libzugodb Stage 7, #11). A
+    // call with too few arguments read past the end of the executor's
+    // argument vector; too many were ignored. The executor also checks
+    // each argument it reads (Arg in expression_executor.cpp), for the
+    // functions not listed here.
+    if (!is_agg) {
+        struct ScalarArity { const char *name; size_t lo, hi; };
+        static const ScalarArity kScalarArity[] = {
+            {"ASCII", 1, 1},       {"BIT_LENGTH", 1, 1},   {"OCTET_LENGTH", 1, 1},
+            {"LENGTH", 1, 1},      {"STRLEN", 1, 1},       {"REVERSE", 1, 1},
+            {"UPPER", 1, 1},       {"LOWER", 1, 1},        {"MD5", 1, 1},
+            {"SHA1", 1, 1},        {"SHA256", 1, 1},       {"REPEAT", 2, 2},
+            {"REPLACE", 3, 3},     {"TRANSLATE", 3, 3},    {"SPLIT_PART", 3, 3},
+            {"LPAD", 3, 3},        {"RPAD", 3, 3},         {"LEFT", 2, 2},
+            {"RIGHT", 2, 2},       {"TRIM", 1, 2},         {"LTRIM", 1, 2},
+            {"RTRIM", 1, 2},       {"CONCAT_WS", 2, SIZE_MAX},
+            {"GCD", 2, 2},         {"LCM", 2, 2},          {"FACTORIAL", 1, 1},
+            {"CHR", 1, 1},
+        };
+        for (const auto &a : kScalarArity) {
+            if (name != a.name) continue;
+            size_t n = args.size();
+            if (n < a.lo || n > a.hi) {
+                throw BinderException(ErrorCode::TYPE_MISMATCH,
+                    "No function matches " + StringUtil::Lower(name) + "() with " +
+                    std::to_string(n) + " argument(s); it takes " +
+                    (a.lo == a.hi     ? std::to_string(a.lo)
+                     : a.hi == SIZE_MAX ? "at least " + std::to_string(a.lo)
+                                        : std::to_string(a.lo) + " to " + std::to_string(a.hi)));
+            }
+            break;
+        }
+    }
+
     // Determine return type.
     LogicalType return_type = LogicalType::INTEGER(); // default
     if (name == "COUNT") {
@@ -1394,6 +2154,12 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
                 return_type.id() == LogicalTypeId::TINYINT) {
                 return_type = LogicalType::BIGINT();
             }
+            // DuckDB's SUM of a FLOAT is a DOUBLE; typed FLOAT, the
+            // aggregate wrote its double sum into a float slot and read
+            // back 0 (#36).
+            if (return_type.id() == LogicalTypeId::FLOAT) {
+                return_type = LogicalType::DOUBLE();
+            }
         } else {
             return_type = LogicalType::DOUBLE();
         }
@@ -1420,6 +2186,26 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         return_type = LogicalType::BIGINT();
     } else if (name == "ABS") {
         return_type = args.empty() ? LogicalType::INTEGER() : args[0]->GetReturnType();
+    } else if ((name == "ROUND" || name == "TRUNC") && !args.empty() &&
+               IntegerRank(args[0]->GetReturnType().id()) > 0) {
+        // DuckDB's ROUND and TRUNC of an integer keep its type (typeof
+        // round(7::TINYINT, -1) is TINYINT); they were DOUBLEs, whose text
+        // is "7.0" since #42.
+        return_type = args[0]->GetReturnType();
+    } else if (name == "MOD" && args.size() == 2 && expr.arguments.size() == 2 &&
+               IntegerRank(args[0]->GetReturnType().id()) > 0 &&
+               IntegerRank(args[1]->GetReturnType().id()) > 0) {
+        // MOD of integers is DuckDB's `%`: the operands' integer type
+        // (mod(42, 5) is an INTEGER, mod(42::TINYINT, 5) a TINYINT) and
+        // "Division by zero" for 0. It was a DOUBLE (#42).
+        int64_t lit = 0;
+        bool left_lit = IntegerLiteralValue(*expr.arguments[0], lit);
+        int64_t rlit = 0;
+        bool right_lit = IntegerLiteralValue(*expr.arguments[1], rlit);
+        if (left_lit && !right_lit) NarrowIntegerLiteral(args[0], lit, args[1]->GetReturnType());
+        else if (right_lit && !left_lit) NarrowIntegerLiteral(args[1], rlit, args[0]->GetReturnType());
+        auto type = ResolveArithmeticType(args[0]->GetReturnType(), args[1]->GetReturnType());
+        return std::make_unique<BoundArithmetic>("%", std::move(args[0]), std::move(args[1]), type);
     } else if (name == "CEIL" || name == "CEILING" || name == "FLOOR" ||
                name == "ROUND" || name == "SQRT" || name == "CBRT" ||
                name == "POWER" || name == "POW" || name == "MOD") {
@@ -1437,41 +2223,10 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         //                                                 from INT slot)
         //   COALESCE(int_col, 'foo')              -> int_col (varchar
         //                                                  silently dropped)
-        bool any_varchar = false;
-        bool any_numeric = false;
-        LogicalTypeId widest_numeric = LogicalTypeId::SQLNULL;
-        auto rank = [](LogicalTypeId x) -> int {
-            switch (x) {
-            case LogicalTypeId::DOUBLE:   return 6;
-            case LogicalTypeId::FLOAT:    return 5;
-            case LogicalTypeId::BIGINT:   return 4;
-            case LogicalTypeId::INTEGER:  return 3;
-            case LogicalTypeId::SMALLINT: return 2;
-            case LogicalTypeId::TINYINT:  return 1;
-            default:                      return 0;
-            }
-        };
-        for (auto &a : args) {
-            auto id = a->GetReturnType().id();
-            if (id == LogicalTypeId::SQLNULL) continue;
-            if (id == LogicalTypeId::VARCHAR) { any_varchar = true; continue; }
-            any_numeric = true;
-            if (rank(id) > rank(widest_numeric)) widest_numeric = id;
-        }
-        if (any_varchar) {
-            return_type = LogicalType::VARCHAR();
-        } else if (any_numeric) {
-            switch (widest_numeric) {
-            case LogicalTypeId::DOUBLE:   return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::FLOAT:    return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::BIGINT:   return_type = LogicalType::BIGINT(); break;
-            case LogicalTypeId::INTEGER:  return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::SMALLINT: return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::TINYINT:  return_type = LogicalType::INTEGER(); break;
-            default:                      return_type = LogicalType::INTEGER(); break;
-            }
-        } else {
-            return_type = LogicalType::SQLNULL();
+        {
+            std::vector<const BoundExpression *> branch;
+            for (auto &a : args) branch.push_back(a.get());
+            return_type = UnifyTypes(branch, name);
         }
         // Wrap mismatched args in BoundCast so the executor reads each
         // through a type-compatible buffer. SQLNULL is preserved (NULL
@@ -1487,41 +2242,10 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         //   NULLIF(1, 1.0) returns 1 instead of NULL — the DOUBLE 1.0
         //   was read through an INTEGER Value union slot and compared
         //   as a different value, so the equality check failed.
-        bool any_varchar = false;
-        bool any_numeric = false;
-        LogicalTypeId widest_numeric = LogicalTypeId::SQLNULL;
-        auto rank = [](LogicalTypeId x) -> int {
-            switch (x) {
-            case LogicalTypeId::DOUBLE:   return 6;
-            case LogicalTypeId::FLOAT:    return 5;
-            case LogicalTypeId::BIGINT:   return 4;
-            case LogicalTypeId::INTEGER:  return 3;
-            case LogicalTypeId::SMALLINT: return 2;
-            case LogicalTypeId::TINYINT:  return 1;
-            default:                      return 0;
-            }
-        };
-        for (auto &a : args) {
-            auto id = a->GetReturnType().id();
-            if (id == LogicalTypeId::SQLNULL) continue;
-            if (id == LogicalTypeId::VARCHAR) { any_varchar = true; continue; }
-            any_numeric = true;
-            if (rank(id) > rank(widest_numeric)) widest_numeric = id;
-        }
-        if (any_varchar) {
-            return_type = LogicalType::VARCHAR();
-        } else if (any_numeric) {
-            switch (widest_numeric) {
-            case LogicalTypeId::DOUBLE:   return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::FLOAT:    return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::BIGINT:   return_type = LogicalType::BIGINT(); break;
-            case LogicalTypeId::INTEGER:  return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::SMALLINT: return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::TINYINT:  return_type = LogicalType::INTEGER(); break;
-            default:                      return_type = LogicalType::INTEGER(); break;
-            }
-        } else {
-            return_type = LogicalType::SQLNULL();
+        {
+            std::vector<const BoundExpression *> branch;
+            for (auto &a : args) branch.push_back(a.get());
+            return_type = UnifyTypes(branch, name);
         }
         for (auto &a : args) {
             if (a->GetReturnType().id() != return_type.id() &&
@@ -1542,47 +2266,13 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         // (the DOUBLE 2.5 was written into an INTEGER-typed Value union
         // slot and read back as garbage). Same pattern for any mixed
         // type branch.
-        bool any_varchar = false;
-        bool any_numeric = false;
-        LogicalTypeId widest_numeric = LogicalTypeId::SQLNULL;
-        auto rank = [](LogicalTypeId x) -> int {
-            switch (x) {
-            case LogicalTypeId::DOUBLE:   return 6;
-            case LogicalTypeId::FLOAT:    return 5;
-            case LogicalTypeId::BIGINT:   return 4;
-            case LogicalTypeId::INTEGER:  return 3;
-            case LogicalTypeId::SMALLINT: return 2;
-            case LogicalTypeId::TINYINT:  return 1;
-            default:                      return 0;
-            }
-        };
-        auto consider = [&](const LogicalType &t) {
-            auto id = t.id();
-            if (id == LogicalTypeId::SQLNULL) return;
-            if (id == LogicalTypeId::VARCHAR) { any_varchar = true; return; }
-            any_numeric = true;
-            if (rank(id) > rank(widest_numeric)) widest_numeric = id;
-        };
-        for (size_t i = 1; i < args.size(); i += 2) {
-            consider(args[i]->GetReturnType());
-        }
-        if (args.size() % 2 == 1 && !args.empty()) {
-            consider(args.back()->GetReturnType());
-        }
-        if (any_varchar) {
-            return_type = LogicalType::VARCHAR();
-        } else if (any_numeric) {
-            switch (widest_numeric) {
-            case LogicalTypeId::DOUBLE:   return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::FLOAT:    return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::BIGINT:   return_type = LogicalType::BIGINT(); break;
-            case LogicalTypeId::INTEGER:  return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::SMALLINT: return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::TINYINT:  return_type = LogicalType::INTEGER(); break;
-            default:                      return_type = LogicalType::INTEGER(); break;
-            }
-        } else {
-            return_type = LogicalType::SQLNULL();
+        // Each WHEN is a condition (AsCondition).
+        for (size_t i = 0; i + 1 < args.size(); i += 2) AsCondition(args[i]);
+        {
+            std::vector<const BoundExpression *> branch;
+            for (size_t i = 1; i < args.size(); i += 2) branch.push_back(args[i].get());
+            if (args.size() % 2 == 1 && !args.empty()) branch.push_back(args.back().get());
+            return_type = UnifyTypes(branch, "CASE");
         }
         // Wrap mismatched THEN/ELSE in a BoundCast so the executor's
         // per-row write into the unified-type result Vector reads from
@@ -1603,6 +2293,22 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         }
     } else if (name == "IN" || name == "BETWEEN") {
         return_type = LogicalType::BOOLEAN();
+        // The value and the list, or the bounds, compared in one type, as
+        // DuckDB casts them to theirs (#42). The executor compares Values,
+        // and two of different types compared as neither less nor equal:
+        // a BIGINT or DOUBLE BETWEEN 1 AND 10 was true of every row, and
+        // IN (2, 3) of none; a DATE BETWEEN two strings was always true.
+        std::vector<const BoundExpression *> all;
+        for (auto &a : args) all.push_back(a.get());
+        auto common = UnifyTypes(all, name);
+        if (common.id() != LogicalTypeId::SQLNULL) {
+            for (auto &a : args) {
+                if (a->GetReturnType().id() != common.id() &&
+                    a->GetReturnType().id() != LogicalTypeId::SQLNULL) {
+                    a = std::make_unique<BoundCast>(std::move(a), common);
+                }
+            }
+        }
     } else if (name == "NOW" || name == "CURRENT_TIMESTAMP" ||
                name == "LOCALTIMESTAMP" || name == "MAKE_TIMESTAMP" ||
                name == "GETDATE" || name == "FROM_UNIXTIME") {
@@ -1659,52 +2365,18 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         return_type = LogicalType::DOUBLE();
     } else if (name == "INITCAP") {
         return_type = LogicalType::VARCHAR();
-    } else if (name == "EXISTS" || name == "REGEXP_MATCHES" || name == "REGEXP_MATCH" ||
-               name == "REGEXP" || name == "REGEXP_LIKE") {
+    } else if (name == "EXISTS") {
         return_type = LogicalType::BOOLEAN();
-    } else if (name == "REGEXP_REPLACE" || name == "REGEXP_EXTRACT") {
-        return_type = LogicalType::VARCHAR();
     } else if (name == "LEAST" || name == "GREATEST") {
         // Same numeric/string unification as COALESCE/NULLIF: walk all
         // args, widen to the highest numeric type, fall back to VARCHAR
         // when types mix, SQLNULL when every arg is NULL. Without this,
         // GREATEST(1, 2.5) returned 1 because args[0]'s INTEGER type
         // truncated the DOUBLE second arg at the result-Vector write.
-        bool any_varchar = false;
-        bool any_numeric = false;
-        LogicalTypeId widest_numeric = LogicalTypeId::SQLNULL;
-        auto rank = [](LogicalTypeId x) -> int {
-            switch (x) {
-            case LogicalTypeId::DOUBLE:   return 6;
-            case LogicalTypeId::FLOAT:    return 5;
-            case LogicalTypeId::BIGINT:   return 4;
-            case LogicalTypeId::INTEGER:  return 3;
-            case LogicalTypeId::SMALLINT: return 2;
-            case LogicalTypeId::TINYINT:  return 1;
-            default:                      return 0;
-            }
-        };
-        for (auto &a : args) {
-            auto id = a->GetReturnType().id();
-            if (id == LogicalTypeId::SQLNULL) continue;
-            if (id == LogicalTypeId::VARCHAR) { any_varchar = true; continue; }
-            any_numeric = true;
-            if (rank(id) > rank(widest_numeric)) widest_numeric = id;
-        }
-        if (any_varchar) {
-            return_type = LogicalType::VARCHAR();
-        } else if (any_numeric) {
-            switch (widest_numeric) {
-            case LogicalTypeId::DOUBLE:   return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::FLOAT:    return_type = LogicalType::DOUBLE(); break;
-            case LogicalTypeId::BIGINT:   return_type = LogicalType::BIGINT(); break;
-            case LogicalTypeId::INTEGER:  return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::SMALLINT: return_type = LogicalType::INTEGER(); break;
-            case LogicalTypeId::TINYINT:  return_type = LogicalType::INTEGER(); break;
-            default:                      return_type = LogicalType::INTEGER(); break;
-            }
-        } else {
-            return_type = LogicalType::SQLNULL();
+        {
+            std::vector<const BoundExpression *> branch;
+            for (auto &a : args) branch.push_back(a.get());
+            return_type = UnifyTypes(branch, name);
         }
         for (auto &a : args) {
             if (a->GetReturnType().id() != return_type.id() &&
@@ -1833,14 +2505,145 @@ BoundExprPtr Binder::BindFunction(const FunctionExpression &expr, BindContext &c
         }
     }
 
-    return std::make_unique<BoundFunction>(name, std::move(args), return_type,
-                                            is_agg, expr.is_distinct);
+    auto bound_fn = std::make_unique<BoundFunction>(name, std::move(args), return_type,
+                                                    is_agg, expr.is_distinct);
+    // LENGTH counts code points through the host's UTF-8 table when it has
+    // one (Stage 11.1, design L29).
+    if (name == "LENGTH" && providers) bound_fn->utf8 = providers->Utf8();
+    if (name == "MOD" && bound_fn->arguments.size() == 2 && expr.arguments.size() == 2) {
+        bound_fn->decimal_mod = !DuckDBFloating(*expr.arguments[0], *bound_fn->arguments[0]) &&
+                                !DuckDBFloating(*expr.arguments[1], *bound_fn->arguments[1]);
+    }
+    return bound_fn;
+}
+
+// A decimal literal (`2.5`, `-2.5`; not `25e-1`) cast to an integer type,
+// as DuckDB casts its DECIMAL: rounded half away from zero (2.5 is 3), from
+// the literal's digits. The engine reads the literal as a DOUBLE, whose
+// cast rounds half to even (2.5 was 2) (Stage 9). False when `e` is not
+// such a literal.
+static bool DecimalLiteralToInteger(const ParsedExpression &e, LogicalTypeId target,
+                                    bool is_try, Value &out) {
+    const ParsedExpression *x = &e;
+    bool negative = false;
+    while (x->GetExpressionType() == ExpressionType::UNARY_MINUS) {
+        negative = !negative;
+        x = static_cast<const UnaryMinusExpression *>(x)->child.get();
+    }
+    if (x->GetExpressionType() != ExpressionType::CONSTANT) return false;
+    auto &c = static_cast<const ConstantExpression &>(*x);
+    if (c.is_null || c.literal_type != TokenType::FLOAT_LITERAL) return false;
+    const std::string &t = c.value;
+    if (t.find_first_of("eE") != std::string::npos) return false;
+    auto dot = t.find('.');
+    std::string whole = dot == std::string::npos ? t : t.substr(0, dot);
+    bool round_up = dot != std::string::npos && dot + 1 < t.size() && t[dot + 1] >= '5';
+    // The magnitude, digit by digit, checked against 2^63.
+    unsigned long long mag = 0;
+    const unsigned long long kLimit = 9223372036854775808ULL;
+    bool over = false;
+    for (char ch : whole) {
+        if (ch < '0' || ch > '9') return false;
+        if (mag > (kLimit - static_cast<unsigned>(ch - '0')) / 10) { over = true; break; }
+        mag = mag * 10 + static_cast<unsigned>(ch - '0');
+    }
+    if (!over && round_up) {
+        if (mag >= kLimit) over = true; else mag++;
+    }
+    long long lo, hi;
+    switch (target) {
+    case LogicalTypeId::TINYINT: lo = INT8_MIN; hi = INT8_MAX; break;
+    case LogicalTypeId::SMALLINT: lo = INT16_MIN; hi = INT16_MAX; break;
+    case LogicalTypeId::INTEGER: lo = INT32_MIN; hi = INT32_MAX; break;
+    case LogicalTypeId::BIGINT: lo = INT64_MIN; hi = INT64_MAX; break;
+    default: return false;
+    }
+    bool fits = !over && (negative ? mag <= static_cast<unsigned long long>(-(lo + 1)) + 1
+                                   : mag <= static_cast<unsigned long long>(hi));
+    // TRY_CAST past the range is NULL: the DOUBLE path gives it.
+    if (!fits && is_try) return false;
+    if (!fits) {
+        throw ConversionException("Failed to cast decimal value " + std::string(negative ? "-" : "") +
+                                  t + " to type " + LogicalType(target).ToString());
+    }
+    long long v = negative ? (mag == 0 ? 0 : -static_cast<long long>(mag - 1) - 1)
+                           : static_cast<long long>(mag);
+    switch (target) {
+    case LogicalTypeId::TINYINT: out = Value::TINYINT(static_cast<int8_t>(v)); break;
+    case LogicalTypeId::SMALLINT: out = Value::SMALLINT(static_cast<int16_t>(v)); break;
+    case LogicalTypeId::INTEGER: out = Value::INTEGER(static_cast<int32_t>(v)); break;
+    default: out = Value::BIGINT(static_cast<int64_t>(v)); break;
+    }
+    return true;
 }
 
 BoundExprPtr Binder::BindCast(const CastExpression &expr, BindContext &context) {
-    auto child = BindExpression(*expr.child, context);
     auto target = ResolveTypeName(expr.target_type);
+    Value literal;
+    if (DecimalLiteralToInteger(*expr.child, target.id(), expr.is_try, literal)) {
+        return std::make_unique<BoundConstant>(literal);
+    }
+    auto child = BindExpression(*expr.child, context);
+    CheckBlobCast(child->GetReturnType(), target);
     return std::make_unique<BoundCast>(std::move(child), target, expr.is_try);
+}
+
+// The window operator (PhysicalWindow) computes these functions, each
+// over a column, with the frames SQL gives them by default; any other
+// shape it computed wrongly (a NULL, the whole partition for a running
+// frame, the first ORDER BY key alone for peers), so it is refused here
+// (Stage 8, #12; design L21).
+static void CheckWindowShape(const std::string &name, const WindowExpression &expr,
+                             const std::vector<BoundExprPtr> &args,
+                             const std::vector<BoundWindowOrder> &order) {
+    auto refuse = [&](const std::string &what) {
+        throw NotImplementedException("Window function " + name + ": " + what + " is not supported");
+    };
+    bool ranking = name == "ROW_NUMBER" || name == "RANK" || name == "DENSE_RANK" || name == "NTILE";
+    bool offset = name == "LAG" || name == "LEAD";
+    bool value = name == "FIRST_VALUE" || name == "LAST_VALUE";
+    bool aggregate = name == "SUM" || name == "COUNT" || name == "AVG" || name == "MIN" || name == "MAX";
+    if (!ranking && !offset && !value && !aggregate) refuse("this function");
+    if (expr.is_distinct) refuse("DISTINCT");
+    if (expr.filter) refuse("FILTER");
+    auto is_column = [](const BoundExpression &e) {
+        return e.GetExpressionType() == BoundExpressionType::COLUMN_REF;
+    };
+    auto is_int_constant = [](const BoundExpression &e) {
+        if (e.GetExpressionType() != BoundExpressionType::CONSTANT) return false;
+        auto &v = static_cast<const BoundConstant &>(e).value;
+        auto t = v.type().id();
+        return !v.IsNull() && (t == LogicalTypeId::INTEGER || t == LogicalTypeId::BIGINT);
+    };
+    if (name == "ROW_NUMBER" || name == "RANK" || name == "DENSE_RANK") {
+        if (!args.empty()) refuse("an argument");
+    } else if (name == "NTILE") {
+        if (args.size() != 1 || !is_int_constant(*args[0])) refuse("an argument other than an integer");
+    } else if (offset) {
+        if (args.empty() || args.size() > 2 || !is_column(*args[0]) ||
+            (args.size() == 2 && !is_int_constant(*args[1]))) {
+            refuse("arguments other than a column and an integer offset");
+        }
+    } else if (name == "COUNT" && args.empty()) {
+        // COUNT(*)
+    } else if (args.size() != 1 || !is_column(*args[0])) {
+        refuse("an argument other than one column");
+    }
+    if ((name == "SUM" || name == "AVG") && !args.empty()) {
+        auto t = args[0]->GetReturnType().id();
+        if (t != LogicalTypeId::TINYINT && t != LogicalTypeId::SMALLINT && t != LogicalTypeId::INTEGER &&
+            t != LogicalTypeId::BIGINT && t != LogicalTypeId::FLOAT && t != LogicalTypeId::DOUBLE) {
+            refuse("an argument of type " + args[0]->GetReturnType().ToString());
+        }
+    }
+    for (auto &o : order) {
+        if (!is_column(*o.expression)) refuse("an ORDER BY key other than a column");
+    }
+    // Peers by one key only, and LAST_VALUE's frame end at the current
+    // row's last peer is not computed.
+    bool peers = name == "RANK" || name == "DENSE_RANK" || aggregate;
+    if (peers && order.size() > 1) refuse("ORDER BY with more than one key");
+    if (name == "LAST_VALUE" && !order.empty()) refuse("ORDER BY");
 }
 
 BoundExprPtr Binder::BindWindow(const WindowExpression &expr, BindContext &context) {
@@ -1860,7 +2663,13 @@ BoundExprPtr Binder::BindWindow(const WindowExpression &expr, BindContext &conte
         return_type = args.empty() ? LogicalType::SQLNULL() : args[0]->GetReturnType();
     } else if (name == "SUM") {
         return_type = args.empty() ? LogicalType::BIGINT() : args[0]->GetReturnType();
-        if (return_type.id() == LogicalTypeId::INTEGER) return_type = LogicalType::BIGINT();
+        if (return_type.id() == LogicalTypeId::INTEGER ||
+            return_type.id() == LogicalTypeId::SMALLINT ||
+            return_type.id() == LogicalTypeId::TINYINT) {
+            return_type = LogicalType::BIGINT();
+        }
+        // As the aggregate: a FLOAT's sum is a DOUBLE (#36).
+        if (return_type.id() == LogicalTypeId::FLOAT) return_type = LogicalType::DOUBLE();
     } else if (name == "COUNT") {
         return_type = LogicalType::BIGINT();
     } else if (name == "AVG") {
@@ -1880,11 +2689,7 @@ BoundExprPtr Binder::BindWindow(const WindowExpression &expr, BindContext &conte
         bo.ascending = o.ascending;
         window->order_by.push_back(std::move(bo));
     }
-    // SQL:2003 FILTER on window aggregates — same per-row semantics as
-    // BindFunction's filter (NULL filter result acts as false).
-    if (expr.filter) {
-        window->filter = BindExpression(*expr.filter, context);
-    }
+    CheckWindowShape(name, expr, window->arguments, window->order_by);
 
     return window;
 }
@@ -1983,7 +2788,6 @@ BoundExprPtr Binder::BindStar(const StarExpression &expr, BindContext &context,
         auto *entry = it->second;
         idx_t offset = context.GetTableOffset(expr.table_name);
         for (idx_t i = 0; i < entry->ColumnCount(); i++) {
-            CheckFileColumnReadable(*entry, i);
             auto &col = entry->GetColumns()[i];
             auto ref = std::make_unique<BoundColumnRef>(col.name, offset + i, col.type);
             ref->alias = col.name;
@@ -1994,7 +2798,6 @@ BoundExprPtr Binder::BindStar(const StarExpression &expr, BindContext &context,
         for (auto &[alias, offset] : context.table_order) {
             auto *entry = context.tables.at(alias);
             for (idx_t i = 0; i < entry->ColumnCount(); i++) {
-                CheckFileColumnReadable(*entry, i);
                 auto &col = entry->GetColumns()[i];
                 auto ref = std::make_unique<BoundColumnRef>(col.name, offset + i, col.type);
                 ref->alias = col.name;
@@ -2014,46 +2817,87 @@ LogicalType Binder::ResolveTypeName(const std::string &name) {
 
     // Strip parameters: DECIMAL(10,2) -> DECIMAL
     auto base = upper.substr(0, upper.find('('));
+    // Type parameters as DuckDB reads them (#34): FLOAT(p) is a FLOAT for
+    // p of 1 to 24 and a DOUBLE for 25 to 53; VARCHAR, DECIMAL and
+    // TIMESTAMP take theirs below; any other type takes none (they were
+    // dropped, INTEGER(1000) was an INTEGER).
+    if (upper != base) {
+        auto params = upper.substr(base.size());
+        if (base == "FLOAT" || base == "REAL" || base == "FLOAT4") {
+            if (params.size() < 3 || params.front() != '(' || params.back() != ')') {
+                throw BinderException(ErrorCode::TYPE_MISMATCH, "Invalid type " + name);
+            }
+            auto digits = params.substr(1, params.size() - 2);
+            long long p = -1;
+            if (!digits.empty() && digits.size() <= 6 &&
+                digits.find_first_not_of("0123456789") == std::string::npos) {
+                p = std::stoll(digits);
+            }
+            if (p < 1) {
+                throw BinderException(ErrorCode::TYPE_MISMATCH,
+                    "precision for type float must be at least 1 bit");
+            }
+            if (p > 53) {
+                throw BinderException(ErrorCode::TYPE_MISMATCH,
+                    "precision for type float must be less than 54 bits");
+            }
+            return p <= 24 ? LogicalType::FLOAT() : LogicalType::DOUBLE();
+        }
+        bool takes_params = base == "VARCHAR" || base == "TEXT" || base == "STRING" ||
+                            base == "CHAR" || base == "DECIMAL" || base == "NUMERIC" ||
+                            base == "TIMESTAMP";
+        if (!takes_params) {
+            throw BinderException(ErrorCode::TYPE_MISMATCH,
+                "Type " + base + " does not accept type parameters");
+        }
+    }
 
     if (base == "INTEGER" || base == "INT" || base == "INT4") return LogicalType::INTEGER();
     if (base == "BIGINT" || base == "INT8") return LogicalType::BIGINT();
     if (base == "SMALLINT" || base == "INT2") return LogicalType::SMALLINT();
     if (base == "TINYINT" || base == "INT1") return LogicalType::TINYINT();
-    if (base == "HUGEINT") return LogicalType::HUGEINT();
+    // HUGEINT, INTERVAL and UUID are refused, in every database: the engine
+    // holds no correct non-NULL value of them (a HUGEINT or UUID came back
+    // as garbage, an INTERVAL could not be stored) and the database file
+    // has no encoding for them (design L12).
+    if (base == "HUGEINT" || base == "INTERVAL" || base == "UUID") {
+        throw NotImplementedException(base + " is not supported");
+    }
     if (base == "FLOAT" || base == "REAL" || base == "FLOAT4") return LogicalType::FLOAT();
     if (base == "DOUBLE" || base == "FLOAT8") return LogicalType::DOUBLE();
     if (base == "BOOLEAN" || base == "BOOL") return LogicalType::BOOLEAN();
     if (base == "VARCHAR" || base == "TEXT" || base == "STRING" || base == "CHAR") {
-        // Preserve VARCHAR(n) length so PhysicalInsert can reject over-long
-        // strings. TEXT / STRING are unbounded in standard SQL, so only
-        // attach the length when the user actually wrote it.
-        auto paren = upper.find('(');
-        if (paren != std::string::npos) {
-            auto inner = upper.substr(paren + 1, upper.size() - paren - 2);
-            idx_t n = static_cast<idx_t>(std::stoull(inner));
-            return LogicalType::VARCHAR_N(n);
-        }
+        // As DuckDB does: a length, VARCHAR(n), is accepted and has no
+        // effect; it is neither enforced nor kept (design L13).
         return LogicalType::VARCHAR();
     }
     if (base == "BLOB" || base == "BYTEA") return LogicalType::BLOB();
     if (base == "DATE") return LogicalType::DATE();
     if (base == "TIME") return LogicalType::TIME();
-    if (base == "TIMESTAMP" || base == "TIMESTAMPTZ" ||
-        base == "TIMESTAMP_S" || base == "TIMESTAMP_MS" ||
-        base == "TIMESTAMP_NS" || base == "DATETIME")
-        return LogicalType::TIMESTAMP();
-    if (base == "INTERVAL") return LogicalType::INTERVAL();
-    if (base == "UUID") return LogicalType::UUID();
+    // The engine's TIMESTAMP is DuckDB's: microseconds, no time zone.
+    // DuckDB's seconds, milliseconds and nanoseconds timestamps and its
+    // TIMESTAMPTZ round, print and compare otherwise; aliased to TIMESTAMP
+    // they gave wrong values, so they are refused (Stage 8, #12). So is a
+    // precision other than DuckDB's microsecond ones, 4 to 6.
+    if (base == "TIMESTAMP_S" || base == "TIMESTAMP_MS" || base == "TIMESTAMP_NS" ||
+        base == "TIMESTAMPTZ" || base == "TIMESTAMP_TZ" || base == "TIMETZ" ||
+        base == "TIME_TZ") {
+        throw NotImplementedException(base + " is not supported");
+    }
+    if (base == "TIMESTAMP" && upper != base) {
+        auto p = upper.substr(base.size());
+        if (p != "(4)" && p != "(5)" && p != "(6)") {
+            throw NotImplementedException("TIMESTAMP" + p + " is not supported");
+        }
+    }
+    if (base == "TIMESTAMP" || base == "DATETIME") return LogicalType::TIMESTAMP();
 
     if (base == "DECIMAL" || base == "NUMERIC") {
-        // SlothDB has no native DECIMAL execution path: INSERT into
-        // DECIMAL columns silently stored zeros, SUM/AVG returned 0,
-        // and CAST AS DECIMAL produced 0. Until a real fixed-point
-        // codepath lands, alias DECIMAL/NUMERIC to DOUBLE so the
-        // queries work with approximate semantics instead of silent
-        // wrong results. Width/scale parameters are parsed and
-        // discarded (matches MySQL's "approximate DECIMAL" pragma).
-        return LogicalType::DOUBLE();
+        // The engine has no fixed-point type: DECIMAL(p,s) bound to DOUBLE
+        // and dropped p and s, so its arithmetic, rounding, text and
+        // overflow were a double's, not DuckDB's. Refused until a real
+        // DECIMAL exists (#26). Decimal literals (1.5) stay DOUBLE.
+        throw NotImplementedException(base + " is not supported");
     }
 
     throw BinderException(ErrorCode::TYPE_MISMATCH, "Unknown type: " + name);
@@ -2063,14 +2907,28 @@ LogicalType Binder::ResolveArithmeticType(const LogicalType &left, const Logical
     // Simple numeric promotion rules.
     if (left.id() == LogicalTypeId::DOUBLE || right.id() == LogicalTypeId::DOUBLE)
         return LogicalType::DOUBLE();
+    // FLOAT with a FLOAT, an integer or NULL is FLOAT arithmetic, as
+    // DuckDB's ('-2'::FLOAT / '1.5'::FLOAT is -1.3333334); it was DOUBLE
+    // arithmetic, whose digits DuckDB does not give (#42).
     if (left.id() == LogicalTypeId::FLOAT || right.id() == LogicalTypeId::FLOAT)
-        return LogicalType::DOUBLE();
+        return LogicalType(LogicalTypeId::FLOAT);
     if (left.id() == LogicalTypeId::BIGINT || right.id() == LogicalTypeId::BIGINT)
         return LogicalType::BIGINT();
     if (left.id() == LogicalTypeId::INTEGER || right.id() == LogicalTypeId::INTEGER)
         return LogicalType::INTEGER();
-    if (left.id() == LogicalTypeId::SMALLINT || right.id() == LogicalTypeId::SMALLINT)
-        return LogicalType::INTEGER();
+    // DuckDB computes TINYINT and SMALLINT arithmetic in the wider of the
+    // two types and raises on overflow; it does not widen to INTEGER
+    // (#43). A NULL beside one takes its type.
+    auto small = [](LogicalTypeId t) {
+        return t == LogicalTypeId::TINYINT || t == LogicalTypeId::SMALLINT ||
+               t == LogicalTypeId::SQLNULL;
+    };
+    if (small(left.id()) && small(right.id())) {
+        if (left.id() == LogicalTypeId::SMALLINT || right.id() == LogicalTypeId::SMALLINT)
+            return LogicalType::SMALLINT();
+        if (left.id() == LogicalTypeId::TINYINT || right.id() == LogicalTypeId::TINYINT)
+            return LogicalType::TINYINT();
+    }
     return LogicalType::INTEGER();
 }
 

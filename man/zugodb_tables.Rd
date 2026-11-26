@@ -104,8 +104,8 @@
 \item{conn}{A \code{zugodb_connection}.}
 
 \item{name}{The table's name: a string, \code{\link[DBI:Id]{DBI::Id()}} with only a \code{table},
-or \code{\link[DBI:SQL]{DBI::SQL()}} of a quoted name. Names are case-sensitive. the engine's
-parser cannot read a name holding \verb{"}, so such a name is an error.}
+or \code{\link[DBI:SQL]{DBI::SQL()}} of a quoted name. Names keep their spelling and match
+ignoring ASCII case, as DuckDB's. A name holding \verb{"} is an error.}
 
 \item{value}{A data frame.}
 
@@ -166,8 +166,8 @@ before any row is written: the table is as it was. \code{NA} is written as
 \code{NULL}; \code{NaN} stays \code{NaN}.
 
 The engine has no transactions: \code{\link[DBI:dbBegin]{DBI::dbBegin()}}, \code{\link[DBI:dbCommit]{DBI::dbCommit()}} and
-\code{\link[DBI:dbRollback]{DBI::dbRollback()}} are \code{zug_unsupported} errors, and SQL
-\code{ROLLBACK} is an error saying that nothing was undone.
+\code{\link[DBI:dbRollback]{DBI::dbRollback()}} are \code{zug_unsupported} errors, and SQL \code{BEGIN},
+\code{COMMIT} and \code{ROLLBACK} are refused.
 }
 \examples{
 con <- DBI::dbConnect(zugodb())

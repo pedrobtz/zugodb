@@ -6,16 +6,6 @@ Authors@R: c(
            role = c("aut", "cre", "cph")),
     person("SlothDB Contributors", role = c("ctb", "cph"),
            comment = "SlothDB, from which the bundled engine derives"),
-    person("Meta Platforms, Inc. and affiliates", role = "cph",
-           comment = "bundled Zstandard decompressor"),
-    person("Google Inc.", role = "cph", comment = "bundled Snappy"),
-    person("Daniel", "Lemire", role = c("ctb", "cph"),
-           comment = "bundled FastPFor bitpacking"),
-    person("RAD Game Tools and Valve Software", role = "cph",
-           comment = "bundled miniz"),
-    person("Rich", "Geldreich", role = c("ctb", "cph"),
-           comment = "bundled miniz"),
-    person("Tenacious Software LLC", role = "cph", comment = "bundled miniz"),
     person("Martin", "Leitner-Ankerl", role = c("ctb", "cph"),
            comment = "bundled unordered_dense")
   )
@@ -23,9 +13,8 @@ Description: A 'DBI' driver for 'libzugodb'
     (<https://github.com/pedrobtz/libzugodb>), a small columnar SQL engine
     derived from 'SlothDB' (<https://github.com/SouravRoy-ETL/slothdb>),
     whose C++ source is bundled and compiled when the package is
-    installed. SQL queries over local 'CSV', 'Parquet'
-    and 'JSON' files, and over in-memory or file-backed
-    databases, then need no system library, no server and no download.
+    installed. SQL queries over in-memory or file-backed databases then
+    need no system library, no server and no download.
     The engine is experimental, and this package is not a replacement for
     'duckdb': it is offline only, and a database file is tied to the
     engine commit the package bundles.

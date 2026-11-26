@@ -1,12 +1,12 @@
 // ============================================================================
-// SlothDB CUDA GPU Kernels
+// CUDA GPU kernels (from SlothDB)
 // ============================================================================
 //
 // This file contains CUDA kernel implementations for GPU-accelerated query
 // execution. Compile with nvcc when CUDA toolkit is available.
 //
 // To enable CUDA:
-//   cmake -DSLOTHDB_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda ...
+//   cmake -DZUGODB_CUDA=ON -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda ...
 //
 // Kernels implemented:
 //   - gpu_filter_int32: Parallel filter with predicate pushdown
@@ -29,7 +29,7 @@
 // Note: This file compiles as regular C++ when CUDA is not available.
 // The actual CUDA kernels are conditionally compiled with __global__ specifiers.
 
-#ifdef SLOTHDB_CUDA
+#ifdef ZUGODB_CUDA
 
 #include <cuda_runtime.h>
 
@@ -68,4 +68,4 @@ __global__ void sum_int32_kernel(const int *data, long long *output, int n) {
 } // namespace cuda
 } // namespace zugodb
 
-#endif // SLOTHDB_CUDA
+#endif // ZUGODB_CUDA

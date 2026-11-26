@@ -1,7 +1,8 @@
-#include "slothdb/catalog/table_catalog_entry.hpp"
-#include "slothdb/storage/data_table.hpp"
-#include "slothdb/common/types/data_chunk.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/catalog/table_catalog_entry.hpp"
+#include "zugodb/storage/data_table.hpp"
+#include "zugodb/common/types/data_chunk.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/common/string_util.hpp"
 #include <unordered_set>
 
 namespace zugodb {
@@ -13,7 +14,7 @@ TableCatalogEntry::TableCatalogEntry(const std::string &schema, const std::strin
 
 idx_t TableCatalogEntry::GetColumnIndex(const std::string &col_name) const {
     for (idx_t i = 0; i < columns_.size(); i++) {
-        if (columns_[i].name == col_name) {
+        if (IdentifierEquals(columns_[i].name, col_name)) {
             return i;
         }
     }

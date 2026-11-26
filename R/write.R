@@ -24,13 +24,13 @@
 #' `NULL`; `NaN` stays `NaN`.
 #'
 #' The engine has no transactions: [DBI::dbBegin()], [DBI::dbCommit()] and
-#' [DBI::dbRollback()] are `zug_unsupported` errors, and SQL
-#' `ROLLBACK` is an error saying that nothing was undone.
+#' [DBI::dbRollback()] are `zug_unsupported` errors, and SQL `BEGIN`,
+#' `COMMIT` and `ROLLBACK` are refused.
 #'
 #' @param conn A `zugodb_connection`.
 #' @param name The table's name: a string, [DBI::Id()] with only a `table`,
-#'   or [DBI::SQL()] of a quoted name. Names are case-sensitive. the engine's
-#'   parser cannot read a name holding `"`, so such a name is an error.
+#'   or [DBI::SQL()] of a quoted name. Names keep their spelling and match
+#'   ignoring ASCII case, as DuckDB's. A name holding `"` is an error.
 #' @param value A data frame.
 #' @param overwrite,append `TRUE` to replace or to add to a table that
 #'   exists; at most one of them.
@@ -236,7 +236,7 @@ quote_name <- function(x, call) {
   }
   if (any(grepl("\"", x, fixed = TRUE))) {
     zug_abort(
-      "the engine's parser cannot read an identifier holding `\"`.",
+      "zugodb does not quote an identifier holding `\"` yet.",
       "argument",
       call
     )
@@ -346,7 +346,7 @@ write_table_method <- function(
   }
   # The data is checked against the new table's types in a probe table
   # before an existing table is dropped: the engine has no rollback (its
-  # ROLLBACK is an error, design §5) and no rename.
+  # transaction statements are refused, design §5) and no rename.
   probe <- paste0("__zugodb_write_", table, "__")
   while (probe %in% dbListTables(conn)) {
     probe <- paste0(probe, "_")
@@ -616,7 +616,7 @@ setMethod("dbDataType", "zugodb_driver", function(dbObj, obj, ...) {
 
 transactions_unsupported <- function(call) {
   zug_abort(
-    "The engine has no transactions: ROLLBACK would not undo anything.",
+    "The engine has no transactions: every statement commits as it runs.",
     "unsupported",
     call
   )

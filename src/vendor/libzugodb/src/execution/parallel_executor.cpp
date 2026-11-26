@@ -1,5 +1,6 @@
-#include "slothdb/execution/parallel_executor.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/execution/parallel_executor.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/common/parallel.hpp"
 
 namespace zugodb {
 
@@ -42,12 +43,15 @@ std::vector<std::vector<Value>> ParallelExecutor::ParallelScanFilter(
     auto &table_types = table.GetTypes();
     auto &scan_ref = *scan_state;
 
-    // Launch worker tasks.
+    // Launch worker tasks. libzugodb: each runs under `errors`, which keeps
+    // the first exception; every task is waited for before it is rethrown,
+    // since the tasks read this frame.
+    WorkerErrors errors;
     std::vector<std::future<void>> futures;
     for (unsigned int t = 0; t < num_threads; t++) {
-        futures.push_back(pool.Submit([&]() {
+        futures.push_back(pool.Submit([&]() { errors.Run(WorkerSite::POOL, [&]() {
             DataChunk input;
-            while (table.ParallelScan(scan_ref, input)) {
+            while (!errors.Failed() && table.ParallelScan(scan_ref, input)) {
                 if (input.size() == 0) continue;
 
                 // Apply filter if present.
@@ -87,13 +91,17 @@ std::vector<std::vector<Value>> ParallelExecutor::ParallelScanFilter(
                     collector.AddChunk(filtered);
                 }
             }
-        }));
+        }); }));
     }
 
-    // Wait for all tasks to complete.
+    // Wait for all tasks to complete, then rethrow the first error.
+    for (auto &f : futures) {
+        f.wait();
+    }
     for (auto &f : futures) {
         f.get();
     }
+    errors.Rethrow();
 
     return collector.GetRows();
 }

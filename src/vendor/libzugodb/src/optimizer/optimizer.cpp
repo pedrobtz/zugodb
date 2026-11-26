@@ -1,6 +1,6 @@
-#include "slothdb/optimizer/optimizer.hpp"
-#include "slothdb/common/exception.hpp"
-#include "slothdb/execution/expression_executor.hpp"
+#include "zugodb/optimizer/optimizer.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/execution/expression_executor.hpp"
 #include <cmath>
 
 namespace zugodb {

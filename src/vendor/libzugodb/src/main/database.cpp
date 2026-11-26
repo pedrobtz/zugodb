@@ -1,5 +1,6 @@
-#include "slothdb/main/database.hpp"
-#include "slothdb/storage/checkpoint.hpp"
+#include "zugodb/main/database.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/storage/checkpoint.hpp"
 #include <cstdio>
 
 #ifdef _MSC_VER
@@ -21,6 +22,7 @@ Database::Database() : Database(DatabaseConfig{}) {}
 Database::Database(const std::string &path) {
     config_.path = path;
     catalog_ = std::make_unique<Catalog>();
+    catalog_->SetProviders(&providers_);
     txn_mgr_ = std::make_unique<TransactionManager>();
 
     if (!path.empty() && FileExists(path)) {
@@ -31,6 +33,7 @@ Database::Database(const std::string &path) {
 Database::Database(DatabaseConfig config)
     : config_(std::move(config)) {
     catalog_ = std::make_unique<Catalog>();
+    catalog_->SetProviders(&providers_);
     txn_mgr_ = std::make_unique<TransactionManager>();
 
     if (!config_.path.empty() && FileExists(config_.path)) {
@@ -38,9 +41,25 @@ Database::Database(DatabaseConfig config)
     }
 }
 
+void Database::SetProviders(const zugodb_providers *providers) {
+    if (queried_.load()) {
+        throw InvalidInputException(
+            "SetProviders: the database has run a query; providers are set before the first");
+    }
+    if (providers_set_.exchange(true)) {
+        throw InvalidInputException("SetProviders: the providers are already set");
+    }
+    try {
+        providers_.Set(providers);
+    } catch (...) {
+        providers_set_.store(false);
+        throw;
+    }
+}
+
 Database::~Database() {
     // If path is set, save on close (atomic: write to .tmp then rename).
-    // zuslothdb: never for a database opened read-only.
+    // zugodb: never for a database opened read-only.
     if (!config_.path.empty() && catalog_ && !config_.read_only) {
         try {
             auto tmp_path = config_.path + ".tmp";

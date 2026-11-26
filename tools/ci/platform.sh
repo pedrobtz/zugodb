@@ -107,7 +107,7 @@ endgroup
 # whose outermost scope follows _Z (or _ZN and its cv-qualifiers): St for
 # std, 9__gnu_cxx for __gnu_cxx. A demangled name will not do: it starts
 # with the return type. Everything else must be R_init_zugodb (design
-# §4, the duckdb_fastpforlib and zstd clashes).
+# §4: no engine symbol may bind to another package's).
 std='^_Z(T[ISVT]|GV|TH|TW)?Z?N?[rVKRO]*(St|9__gnu_cxx)'
 grep -vE "$std" "$tmp/exports" > "$tmp/ours" || true
 echo "of which not the C++ standard library's: $(wc -l < "$tmp/ours" | tr -d ' ')"

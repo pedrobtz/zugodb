@@ -1,4 +1,4 @@
-#include "slothdb/common/types/validity_mask.hpp"
+#include "zugodb/common/types/validity_mask.hpp"
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -62,7 +62,7 @@ void ValidityMask::EnsureAllocated() {
 }
 
 void ValidityMask::SetCapacity(idx_t count) {
-    // zuslothdb: grows the mask an allocated one keeps, all valid beyond.
+    // zugodb: grows the mask an allocated one keeps, all valid beyond.
     idx_t words = (count + BITS_PER_VALUE - 1) / BITS_PER_VALUE;
     if (words < STANDARD_MASK_SIZE) words = STANDARD_MASK_SIZE;
     if (words <= words_) return;

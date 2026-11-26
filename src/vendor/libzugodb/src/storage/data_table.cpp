@@ -1,4 +1,4 @@
-#include "slothdb/storage/data_table.hpp"
+#include "zugodb/storage/data_table.hpp"
 #include <algorithm>
 
 namespace zugodb {

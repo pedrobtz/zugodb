@@ -1,5 +1,5 @@
-#include "slothdb/storage/file_handle.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/storage/file_handle.hpp"
+#include "zugodb/common/exception.hpp"
 
 namespace zugodb {
 

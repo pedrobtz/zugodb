@@ -49,8 +49,8 @@ CXX=$("$R" CMD config CXX20)
 CFLAGS=$("$R" CMD config CFLAGS)
 CXXFLAGS="$("$R" CMD config CXX20STD) $("$R" CMD config CXX20FLAGS)"
 v="$here/src/vendor/libzugodb"
-defs="-DNDEBUG -DZSTD_DISABLE_ASM=1 -DZSTD_MULTITHREAD=0"
-incs="-I$v/include -I$v/third_party/zstd/lib -I$v/third_party/fastpforlib -I$v/third_party/snappy"
+defs="-DNDEBUG"
+incs="-I$v/include"
 echo "CC = $CC $CFLAGS"
 echo "CXX = $CXX $CXXFLAGS"
 
@@ -69,18 +69,23 @@ for u in $units; do
     esac
   done
 done
-for t in $(cd "$up" && find test/unit -name '*.cpp' | LC_ALL=C sort); do
+# As libzugodb's test/CMakeLists.txt builds the suite without the
+# conformance runner (ZUGODB_BUILD_SLT off): test/unit/tools/ left out, and
+# ZUGODB_SOURCE_DIR the checkout, where the tests find their fixtures and
+# read src/ and include/ (the same files as the vendored tree, which
+# tools/vendor/verify checks).
+for t in $(cd "$up" && find test/unit -name '*.cpp' | grep -v '^test/unit/tools/' | LC_ALL=C sort); do
   skip=""
   for e in $excluded; do [ "$t" = "$e" ] && skip=1; done
   if [ -n "$skip" ]; then echo "excluded $t"; continue; fi
   o="$obj/$(echo "$t" | tr / _).o"
-  echo "$CXX $CXXFLAGS $defs $incs -I$up/third_party/doctest -c $up/$t -o $o" >> "$list"
+  echo "$CXX $CXXFLAGS $defs -DZUGODB_SOURCE_DIR='\"$up\"' $incs -I$up/third_party/doctest -c $up/$t -o $o" >> "$list"
 done
 echo "compiling $(wc -l < "$list" | tr -d ' ') translation units, $jobs at a time"
 # Each line is a full command; a failure stops xargs with a non-zero status.
 tr '\n' '\0' < "$list" | xargs -0 -P "$jobs" -n 1 sh -c 'eval "$0" || exit 255'
 
-exe="$work/slothdb_tests"
+exe="$work/zugodb_tests"
 case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) exe="$exe.exe" ;; esac
 $CXX $CXXFLAGS "$obj"/*.o -o "$exe" -pthread
 cd "$up"

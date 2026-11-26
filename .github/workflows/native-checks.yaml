@@ -51,6 +51,9 @@ jobs:
     uses: pedrobtz/r-actions/.github/workflows/valgrind.yml@v1
     with:
       profile: auto
+      # Only cli's thread TLS in a forked child (r-actions#131); each entry
+      # there says why and which issue removes it.
+      suppressions: tools/ci/valgrind.supp
 
   lto:
     if: >-

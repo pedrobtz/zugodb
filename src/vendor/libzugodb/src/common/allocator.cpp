@@ -1,5 +1,5 @@
-#include "slothdb/common/allocator.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/common/allocator.hpp"
+#include "zugodb/common/exception.hpp"
 #include <algorithm>
 #include <cstring>
 

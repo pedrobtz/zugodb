@@ -1,4 +1,4 @@
-#include "slothdb/common/types/selection_vector.hpp"
+#include "zugodb/common/types/selection_vector.hpp"
 
 namespace zugodb {
 
