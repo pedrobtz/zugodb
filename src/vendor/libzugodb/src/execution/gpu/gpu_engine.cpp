@@ -1,4 +1,4 @@
-#include "slothdb/execution/gpu/gpu_engine.hpp"
+#include "zugodb/execution/gpu/gpu_engine.hpp"
 #include <algorithm>
 #include <numeric>
 #include <unordered_map>
@@ -158,9 +158,9 @@ GPUEngine::AggResult CPUFallbackEngine::HashAggregate(const int32_t *keys,
 // When on macOS, we'll load the Metal implementation.
 
 bool GPUEngine::IsAvailable() {
-#if defined(SLOTHDB_CUDA)
+#if defined(ZUGODB_CUDA)
     return true; // CUDA available at compile time.
-#elif defined(SLOTHDB_METAL)
+#elif defined(ZUGODB_METAL)
     return true; // Metal available at compile time.
 #else
     return false; // No GPU SDK available.
@@ -168,10 +168,10 @@ bool GPUEngine::IsAvailable() {
 }
 
 std::unique_ptr<GPUEngine> GPUEngine::Create() {
-#if defined(SLOTHDB_CUDA)
+#if defined(ZUGODB_CUDA)
     // TODO: Return CUDAEngine when CUDA SDK is linked.
     return std::make_unique<CPUFallbackEngine>();
-#elif defined(SLOTHDB_METAL)
+#elif defined(ZUGODB_METAL)
     // TODO: Return MetalEngine when Metal framework is linked.
     return std::make_unique<CPUFallbackEngine>();
 #else

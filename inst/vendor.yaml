@@ -14,8 +14,8 @@
 
 source:
   repository: https://github.com/pedrobtz/libzugodb
-  tag: v0.1.1
-  commit: d3ec8c5ff1818c5079ecac0185514656fb715e66
+  tag: v0.4.0
+  commit: c331257f39b6c5d94013253679daca0f68224b45
 
 origin:
   repository: https://github.com/SouravRoy-ETL/slothdb
@@ -30,31 +30,7 @@ copy:
   - LICENSE
   - include
   - src
-  - third_party/zstd/LICENSE
-  - third_party/zstd/lib/zstd.h
-  - third_party/zstd/lib/zstd_errors.h
-  - third_party/zstd/lib/common
-  - third_party/zstd/lib/decompress
-  - third_party/fastpforlib
-  - third_party/snappy
 
 exclude:
-  - path: src/api
-    reason: >-
-      SlothDB's C API, for its Python binding; the glue binds the C++ API
-      (design D2). Its slothdb_api.cpp also raises a
-      -Wreturn-type-c-linkage warning, which R CMD check counts.
-  - path: include/slothdb/api
-    reason: Header of src/api.
   - path: src/CMakeLists.txt
     reason: The package builds from src/Makevars, written by tools/vendor.R.
-  - path: third_party/zstd/lib/decompress/huf_decompress_amd64.S
-    reason: >-
-      Assembly; ZSTD_DISABLE_ASM selects the C path, as upstream's CMake
-      build does.
-  - path: third_party/snappy/snappy-stubs-public.h.in
-    reason: CMake template; snappy-stubs-public.h is already generated.
-  - path: third_party/snappy/README.md
-    reason: Not source.
-  - path: third_party/snappy/config.h
-    reason: Unused; nothing defines HAVE_CONFIG_H, as upstream's build does not.

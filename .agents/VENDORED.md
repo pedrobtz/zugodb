@@ -6,12 +6,13 @@ code: change libzugodb, release it, then re-vendor.
 
 | Library | Version | Commit | Retrieved | License |
 |---|---|---|---|---|
-| [libzugodb](https://github.com/pedrobtz/libzugodb) | `v0.1.1` | `d3ec8c5ff1818c5079ecac0185514656fb715e66` | 2026-11-18 | MIT (`src/vendor/libzugodb/LICENSE`) |
+| [libzugodb](https://github.com/pedrobtz/libzugodb) | `v0.4.0` | `c331257f39b6c5d94013253679daca0f68224b45` | 2026-11-26 | MIT (`src/vendor/libzugodb/LICENSE`) |
 | derived from [SlothDB](https://github.com/SouravRoy-ETL/slothdb) | v0.2.7+ | `8180f215847015944c935f56f008d194e2c1494c` | 2026-11-17 | MIT, "SlothDB Contributors" |
 
-The third-party code inside it (zstd's decompressor, snappy, fastpforlib,
-miniz, `unordered_dense.h`) came with SlothDB; its holders are in
-`inst/COPYRIGHTS`. `tools/vendor.yaml` is the machine-readable form of this
+The third-party code inside it, `unordered_dense.h` and its STL shim, came
+with SlothDB; its holder is in `inst/COPYRIGHTS`. zstd's decompressor,
+snappy, fastpforlib and miniz went with the engine's file readers in
+libzugodb 0.4.0. `tools/vendor.yaml` is the machine-readable form of this
 table, and what `tools/vendor.R` reads.
 
 ## libzugodb
@@ -38,12 +39,11 @@ D11), and the C++ namespace `slothdb::` became `zugodb::`.
 
 ## Included source
 
-From libzugodb at the tag, by `tools/vendor.R`: `LICENSE`, `include/`,
-`src/` and the `third_party/` subset `tools/vendor.yaml` lists under
-`copy`, minus its `exclude` entries, each with its reason: `src/api/` (the
-C API; the glue binds the C++ one, D2) and the CMake files.
-`tools/vendor.R` writes `src/Makevars`, `src/Makevars.win`,
-`src/sdb_provenance.h`, `inst/vendor.yaml` and
+From libzugodb at the tag, by `tools/vendor.R`: `LICENSE`, `include/` and
+`src/`, minus `src/CMakeLists.txt` (the package builds from its own
+`Makevars`). Since libzugodb 0.4.0 there is no `third_party/` to copy and
+no C source. `tools/vendor.R` writes `src/Makevars`, `src/Makevars.win`,
+`src/zug_provenance.h`, `inst/vendor.yaml` and
 `tools/vendor/checksums.md5` from the result; never edit them.
 
 ## Drift

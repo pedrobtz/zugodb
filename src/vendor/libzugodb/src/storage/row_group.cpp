@@ -1,14 +1,14 @@
-#include "slothdb/storage/row_group.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/storage/row_group.hpp"
+#include "zugodb/common/exception.hpp"
 #include <algorithm>
 
 namespace zugodb {
 
-RowGroup::RowGroup(const std::vector<LogicalType> &types, idx_t start_row)
-    : start_row_(start_row), count_(0) {
+RowGroup::RowGroup(const std::vector<LogicalType> &types, idx_t start_row, idx_t capacity)
+    : start_row_(start_row), count_(0), capacity_(capacity) {
     columns_.reserve(types.size());
     for (auto &type : types) {
-        columns_.push_back(std::make_unique<ColumnData>(type, ROW_GROUP_SIZE));
+        columns_.push_back(std::make_unique<ColumnData>(type, capacity));
     }
 }
 

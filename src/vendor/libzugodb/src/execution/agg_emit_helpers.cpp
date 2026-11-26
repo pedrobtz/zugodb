@@ -1,4 +1,6 @@
-#include "slothdb/execution/agg_emit_helpers.hpp"
+#include "zugodb/execution/agg_emit_helpers.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/common/types/float_order.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -45,6 +47,11 @@ bool EmitAggValue(const EmitAggDesc& desc, const EmitAggView& view,
         double s = view.sum;
         if (desc.sum_with_offset) s += desc.sum_offset * (double)view.count;
         if (desc.return_type_id == LogicalTypeId::BIGINT) {
+            // The sum is a double: exact only below 2^53. Past it, DuckDB's
+            // exact (HUGEINT) sum is not what the engine has (Stage 8, #12).
+            if (std::fabs(s) >= 9007199254740992.0) {
+                throw OutOfRangeException("SUM past 2^53 is not computed exactly");
+            }
             out_row.push_back(Value::BIGINT(static_cast<int64_t>(s)));
         } else {
             out_row.push_back(Value::DOUBLE(s));
@@ -115,6 +122,8 @@ bool EmitAggValue(const EmitAggDesc& desc, const EmitAggView& view,
         if (view.count > 0) {
             double mean = view.sum / view.count;
             double var = (view.sum_sq - view.count * mean * mean) / view.count;
+            // One value's is 0, as DuckDB's, a NaN or an infinity too.
+            if (view.count == 1) var = 0.0;
             out_row.push_back(Value::DOUBLE(std::sqrt(var)));
         } else {
             out_row.push_back(Value());
@@ -134,6 +143,7 @@ bool EmitAggValue(const EmitAggDesc& desc, const EmitAggView& view,
         if (view.count > 0) {
             double mean = view.sum / view.count;
             double var = (view.sum_sq - view.count * mean * mean) / view.count;
+            if (view.count == 1) var = 0.0;
             out_row.push_back(Value::DOUBLE(var));
         } else {
             out_row.push_back(Value());
@@ -142,11 +152,23 @@ bool EmitAggValue(const EmitAggDesc& desc, const EmitAggView& view,
     case EmitAggKind::Median:
         if (view.values && !view.values->empty()) {
             auto& vals = *view.values;
-            std::sort(vals.begin(), vals.end());
+            // DuckDB's order, NaN the largest; IEEE's < made the sort
+            // undefined over a NaN (#42).
+            std::sort(vals.begin(), vals.end(),
+                      [](double x, double y) { return SqlLess(x, y); });
             size_t mid = vals.size() / 2;
-            double median = (vals.size() % 2 == 0)
-                ? (vals[mid - 1] + vals[mid]) / 2.0
-                : vals[mid];
+            // DuckDB's interpolation of the middle two: lo * 0.5 + hi * 0.5
+            // for a DOUBLE (the median of -inf and -2 is -inf), and
+            // lo + (hi - lo) * 0.5 in FLOAT for a FLOAT (a NaN there).
+            double median = vals[mid];
+            if (vals.size() % 2 == 0) {
+                if (desc.arg_float) {
+                    float lo = static_cast<float>(vals[mid - 1]), hi = static_cast<float>(vals[mid]);
+                    median = static_cast<double>(lo + (hi - lo) * 0.5f);
+                } else {
+                    median = vals[mid - 1] * (1.0 - 0.5) + vals[mid] * 0.5;
+                }
+            }
             out_row.push_back(Value::DOUBLE(median));
         } else {
             out_row.push_back(Value());

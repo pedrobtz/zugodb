@@ -1,10 +1,10 @@
-#include "slothdb/execution/literal_emit_filter.hpp"
+#include "zugodb/execution/literal_emit_filter.hpp"
 
 #include <algorithm>
 
-#include "slothdb/common/constants.hpp"
-#include "slothdb/common/types/data_chunk.hpp"
-#include "slothdb/common/types/vector.hpp"
+#include "zugodb/common/constants.hpp"
+#include "zugodb/common/types/data_chunk.hpp"
+#include "zugodb/common/types/vector.hpp"
 
 namespace zugodb {
 

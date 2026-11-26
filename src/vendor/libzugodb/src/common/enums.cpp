@@ -1,4 +1,4 @@
-#include "slothdb/common/enums.hpp"
+#include "zugodb/common/enums.hpp"
 #include <stdexcept>
 
 namespace zugodb {

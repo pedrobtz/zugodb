@@ -1,11 +1,11 @@
-#include "slothdb/execution/count_group_agg.hpp"
+#include "zugodb/execution/count_group_agg.hpp"
 
-#include "slothdb/common/types/data_chunk.hpp"
-#include "slothdb/common/types/logical_type.hpp"
-#include "slothdb/common/types/vector.hpp"
-#include "slothdb/common/types/string_type.hpp"
-#include "slothdb/common/types/hugeint.hpp"
-#include "slothdb/execution/physical_operator.hpp"
+#include "zugodb/common/types/data_chunk.hpp"
+#include "zugodb/common/types/logical_type.hpp"
+#include "zugodb/common/types/vector.hpp"
+#include "zugodb/common/types/string_type.hpp"
+#include "zugodb/common/types/hugeint.hpp"
+#include "zugodb/execution/physical_operator.hpp"
 
 #include <algorithm>
 #include <cstring>

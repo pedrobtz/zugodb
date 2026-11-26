@@ -1,5 +1,5 @@
-#include "slothdb/planner/planner.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/planner/planner.hpp"
+#include "zugodb/common/exception.hpp"
 
 namespace zugodb {
 
@@ -152,6 +152,54 @@ void RemapGroupColumns(BoundExprPtr &expr,
         auto *a = static_cast<BoundCast *>(expr.get());
         RemapGroupColumns(a->child, groups);
         return;
+    }
+}
+
+// Moves every source-column reference of an ORDER BY expression `by`
+// columns to the right, where a window query's operator emits the source
+// columns after its select list. False for a node it cannot move (a window
+// function, an aggregate, a subquery, *), so that the caller refuses the
+// statement rather than sort by a column the reference did not mean.
+static bool ShiftSourceColumns(BoundExprPtr &expr, idx_t by) {
+    if (!expr) return true;
+    switch (expr->GetExpressionType()) {
+    case BoundExpressionType::COLUMN_REF:
+        static_cast<BoundColumnRef &>(*expr).column_index += by;
+        return true;
+    case BoundExpressionType::CONSTANT:
+        return true;
+    case BoundExpressionType::FUNCTION: {
+        auto &fn = static_cast<BoundFunction &>(*expr);
+        if (fn.is_aggregate) return false;
+        for (auto &arg : fn.arguments) {
+            if (!ShiftSourceColumns(arg, by)) return false;
+        }
+        return ShiftSourceColumns(fn.filter, by);
+    }
+    case BoundExpressionType::ARITHMETIC: {
+        auto &a = static_cast<BoundArithmetic &>(*expr);
+        return ShiftSourceColumns(a.left, by) && ShiftSourceColumns(a.right, by);
+    }
+    case BoundExpressionType::COMPARISON: {
+        auto &a = static_cast<BoundComparison &>(*expr);
+        return ShiftSourceColumns(a.left, by) && ShiftSourceColumns(a.right, by);
+    }
+    case BoundExpressionType::CONJUNCTION: {
+        auto &a = static_cast<BoundConjunction &>(*expr);
+        return ShiftSourceColumns(a.left, by) && ShiftSourceColumns(a.right, by);
+    }
+    case BoundExpressionType::NEGATION:
+        return ShiftSourceColumns(static_cast<BoundNegation &>(*expr).child, by);
+    case BoundExpressionType::IS_NULL:
+        return ShiftSourceColumns(static_cast<BoundIsNull &>(*expr).child, by);
+    case BoundExpressionType::IS_BOOL:
+        return ShiftSourceColumns(static_cast<BoundIsBool &>(*expr).child, by);
+    case BoundExpressionType::UNARY_MINUS:
+        return ShiftSourceColumns(static_cast<BoundUnaryMinus &>(*expr).child, by);
+    case BoundExpressionType::CAST:
+        return ShiftSourceColumns(static_cast<BoundCast &>(*expr).child, by);
+    default:
+        return false;
     }
 }
 
@@ -611,11 +659,51 @@ LogicalOpPtr Planner::PlanSelect(const BoundSelectStatement &stmt) {
         deferred_projection = std::make_unique<LogicalProjection>(
             std::move(proj_exprs), stmt.result_types);
     } else if (stmt.has_window) {
-        // Window function evaluation.
+        // Window function evaluation. The window operator emits the select
+        // list, but ORDER BY is bound to the source columns, and sorted the
+        // window's rows by them: past the end of each row when the source
+        // was wider, the wrong column otherwise (libzugodb Stage 7, #11).
+        // So an ORDER BY item that names an output column (an ordinal or
+        // an output name) sorts by that column; any other reads the source
+        // columns, which the window then also emits after the select list,
+        // and a projection above the sort drops them.
+        auto select_list = std::move(mutable_stmt.select_list);
+        auto window_types = stmt.result_types;
+        const idx_t width = select_list.size();
+        bool needs_source = false;
+        for (auto &item : mutable_stmt.order_by) {
+            if (item.select_index != INVALID_INDEX && item.select_index < width) {
+                item.expression = std::make_unique<BoundColumnRef>(
+                    "_sel_" + std::to_string(item.select_index), item.select_index,
+                    stmt.result_types[item.select_index]);
+                continue;
+            }
+            if (!ShiftSourceColumns(item.expression, width)) {
+                throw NotImplementedException(
+                    "ORDER BY in a query with window functions: only output columns, "
+                    "source columns and scalar expressions of them are supported");
+            }
+            needs_source = true;
+        }
+        if (needs_source) {
+            const auto &source_types = plan->GetTypes();
+            for (idx_t i = 0; i < source_types.size(); i++) {
+                select_list.push_back(std::make_unique<BoundColumnRef>(
+                    "_src_" + std::to_string(i), i, source_types[i]));
+                window_types.push_back(source_types[i]);
+            }
+            std::vector<BoundExprPtr> keep;
+            for (idx_t i = 0; i < width; i++) {
+                keep.push_back(std::make_unique<BoundColumnRef>(
+                    "_sel_" + std::to_string(i), i, stmt.result_types[i]));
+            }
+            deferred_projection = std::make_unique<LogicalProjection>(
+                std::move(keep), stmt.result_types);
+        }
         auto window = std::make_unique<LogicalWindow>(
-            std::move(mutable_stmt.select_list),
+            std::move(select_list),
             std::move(mutable_stmt.qualify_clause),
-            stmt.result_types);
+            std::move(window_types));
         window->children.push_back(std::move(plan));
         plan = std::move(window);
     } else {

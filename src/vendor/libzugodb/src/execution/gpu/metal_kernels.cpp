@@ -1,12 +1,12 @@
 // ============================================================================
-// SlothDB Metal GPU Kernels (Apple Silicon)
+// Metal GPU kernels (from SlothDB) (Apple Silicon)
 // ============================================================================
 //
 // This file contains Metal compute shader implementations for GPU-accelerated
 // query execution on Apple Silicon (M1/M2/M3/M4) Macs.
 //
 // To enable Metal:
-//   cmake -DSLOTHDB_METAL=ON ...  (on macOS)
+//   cmake -DZUGODB_METAL=ON ...  (on macOS)
 //
 // Metal Shading Language (MSL) kernels are compiled at runtime from strings.
 // This avoids the need for a separate .metal file and pre-compilation step.
@@ -31,7 +31,7 @@
 //
 // Note: This file compiles as regular C++ when Metal is not available.
 
-#ifdef SLOTHDB_METAL
+#ifdef ZUGODB_METAL
 
 #import <Metal/Metal.h>
 #import <Foundation/Foundation.h>
@@ -74,4 +74,4 @@ kernel void sum_int32(
 } // namespace metal
 } // namespace zugodb
 
-#endif // SLOTHDB_METAL
+#endif // ZUGODB_METAL

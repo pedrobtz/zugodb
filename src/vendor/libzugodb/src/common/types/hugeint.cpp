@@ -1,5 +1,5 @@
-#include "slothdb/common/types/hugeint.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/common/types/hugeint.hpp"
+#include "zugodb/common/exception.hpp"
 #include <sstream>
 
 namespace zugodb {

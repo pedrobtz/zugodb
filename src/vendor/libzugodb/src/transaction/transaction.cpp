@@ -1,5 +1,5 @@
-#include "slothdb/transaction/transaction.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/transaction/transaction.hpp"
+#include "zugodb/common/exception.hpp"
 
 namespace zugodb {
 

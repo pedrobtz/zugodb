@@ -3,10 +3,10 @@
 // error-return convention of design §4.3.
 #pragma once
 
-#include "slothdb/common/parallel.hpp"
-#include "slothdb/common/thread_pool.hpp"
-#include "slothdb/main/connection.hpp"
-#include "slothdb/main/database.hpp"
+#include "zugodb/common/parallel.hpp"
+#include "zugodb/common/thread_pool.hpp"
+#include "zugodb/main/connection.hpp"
+#include "zugodb/main/database.hpp"
 
 #include <cstring>
 #include <exception>

@@ -1,17 +1,50 @@
-#include "slothdb/parser/parser.hpp"
-#include "slothdb/common/exception.hpp"
-#include "slothdb/common/string_util.hpp"
+#include "zugodb/parser/parser.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/common/string_util.hpp"
 
 namespace zugodb {
+
+// libzugodb (#4, design §2): files reach the engine as Arrow C streams,
+// through zugodb, never from SQL. Every SQL route to a file stops here, in
+// the parser, before anything is opened: the file table functions, a path
+// used as a table, DESCRIBE of either, COPY and CREATE LIVE VIEW. The
+// readers stay compiled, and tested through their C++ API, until Stage 11;
+// connection.cpp's handlers for these routes are no longer reached.
+[[noreturn]] static void RefuseFileAccess(const std::string &what) {
+    throw NotImplementedException(
+        "Reading or writing files from SQL is not supported: " + what);
+}
+
+// The table functions the engine read files with, and DuckDB's others, so
+// that each gets the refusal rather than a syntax error.
+static bool IsFileTableFunction(const std::string &name) {
+    static const char *const names[] = {
+        "READ_CSV", "READ_CSV_AUTO", "READ_PARQUET", "PARQUET_SCAN",
+        "PARQUET_METADATA", "PARQUET_SCHEMA", "PARQUET_FILE_METADATA",
+        "PARQUET_KV_METADATA", "READ_JSON", "READ_JSON_AUTO", "READ_NDJSON",
+        "READ_NDJSON_AUTO", "READ_JSON_OBJECTS", "READ_JSON_OBJECTS_AUTO",
+        "READ_NDJSON_OBJECTS", "READ_TEXT", "READ_BLOB", "READ_ARROW",
+        "READ_AVRO", "READ_XLSX", "SQLITE_SCAN", "GLOB", "SNIFF_CSV"};
+    auto upper = StringUtil::Upper(name);
+    for (const char *n : names) {
+        if (upper == n) return true;
+    }
+    return false;
+}
 
 // ============================================================================
 // Public API
 // ============================================================================
 
 std::vector<ParsedStmtPtr> Parser::Parse(const std::string &sql) {
+    return Parse(sql, ParseOptions{});
+}
+
+std::vector<ParsedStmtPtr> Parser::Parse(const std::string &sql, const ParseOptions &options) {
     Tokenizer tokenizer(sql);
     auto tokens = tokenizer.Tokenize();
     Parser parser(std::move(tokens));
+    parser.options_ = options;
 
     std::vector<ParsedStmtPtr> statements;
     while (!parser.IsAtEnd()) {
@@ -20,8 +53,13 @@ std::vector<ParsedStmtPtr> Parser::Parse(const std::string &sql) {
             continue;
         }
         statements.push_back(parser.ParseStatement());
-        // Consume optional trailing semicolon.
-        parser.Match(TokenType::SEMICOLON);
+        // A statement ends at a semicolon or the end of the text. Anything
+        // else after it is DuckDB's syntax error: `SELECT 1 SELECT 2` ran
+        // as two statements, and a statement's unparsed tail was read as
+        // the start of the next (Stage 9, design §4).
+        if (!parser.Match(TokenType::SEMICOLON) && !parser.IsAtEnd()) {
+            parser.ThrowUnexpected("after the end of a statement");
+        }
     }
     return statements;
 }
@@ -173,6 +211,11 @@ const Token &Parser::ExpectIdentifier(const std::string &context) {
 
 bool Parser::IsAtEnd() const { return Current().type == TokenType::END_OF_FILE; }
 
+bool Parser::CheckWord(const char *word) const {
+    return Current().type == TokenType::IDENTIFIER && !Current().quoted &&
+           StringUtil::Upper(Current().value) == word;
+}
+
 [[noreturn]] void Parser::ThrowError(const std::string &msg) {
     auto ex = ParserException(ErrorCode::SYNTAX_ERROR, msg);
     ex.SetQueryLocation(Current().line, Current().column);
@@ -248,7 +291,7 @@ ParsedStmtPtr Parser::ParseStatement() {
                 item.expression = ParseExpression();
                 if (MatchKeyword(TokenType::KW_DESC)) item.ascending = false;
                 else MatchKeyword(TokenType::KW_ASC);
-                item.nulls_first = !item.ascending;
+                item.nulls_first = false;  // DuckDB's default_null_order, nulls_last
                 if (MatchKeyword(TokenType::KW_NULLS)) {
                     if (MatchKeyword(TokenType::KW_FIRST)) item.nulls_first = true;
                     else if (MatchKeyword(TokenType::KW_LAST)) item.nulls_first = false;
@@ -274,53 +317,12 @@ ParsedStmtPtr Parser::ParseStatement() {
     // SHOW {TABLES | DATABASES | SCHEMAS | COLUMNS FROM t} [LIKE 'pat'].
     // "SHOW" is not a reserved keyword in the tokenizer, so match on the
     // identifier's text. Same trick the CREATE parser uses for "OR REPLACE".
-    if (Check(TokenType::IDENTIFIER) && StringUtil::Upper(Current().value) == "SHOW") {
+    if (CheckWord("SHOW")) {
         return ParseShowStatement();
     }
-    // COPY table TO/FROM 'file.csv' [WITH (options)]
-    // COPY (SELECT ...) TO 'file' [WITH (options)]
-    if (MatchKeyword(TokenType::KW_COPY)) {
-        auto stmt = std::make_unique<CopyStatement>();
-        if (Match(TokenType::LPAREN)) {
-            // Subquery form.
-            auto inner = ParseSelectStatement();
-            stmt->source_query = std::unique_ptr<SelectStatement>(
-                static_cast<SelectStatement *>(inner.release()));
-            Expect(TokenType::RPAREN, "after COPY subquery");
-        } else {
-            stmt->table_name = ExpectIdentifier("for table name").value;
-        }
-
-        if (MatchKeyword(TokenType::KW_TO)) {
-            stmt->is_from = false;
-        } else if (MatchKeyword(TokenType::KW_FROM)) {
-            stmt->is_from = true;
-        } else {
-            ThrowError("Expected TO or FROM after COPY table");
-        }
-
-        stmt->file_path = Expect(TokenType::STRING_LITERAL, "for file path").value;
-
-        // Optional WITH (DELIMITER ',', HEADER true)
-        if (MatchKeyword(TokenType::KW_WITH)) {
-            Expect(TokenType::LPAREN, "after WITH");
-            while (!Check(TokenType::RPAREN)) {
-                auto opt_name = StringUtil::Upper(Advance().value);
-                if (opt_name == "DELIMITER") {
-                    auto delim = Expect(TokenType::STRING_LITERAL, "for delimiter").value;
-                    if (!delim.empty()) stmt->delimiter = delim[0];
-                } else if (opt_name == "HEADER") {
-                    auto val = StringUtil::Upper(Advance().value);
-                    stmt->header = (val == "TRUE" || val == "1");
-                } else if (opt_name == "FORMAT") {
-                    stmt->format = StringUtil::Upper(Advance().value);
-                }
-                Match(TokenType::COMMA);
-            }
-            Expect(TokenType::RPAREN, "after WITH options");
-        }
-
-        return stmt;
+    // COPY table TO/FROM 'file' and COPY (SELECT ...) TO 'file'.
+    if (CheckKeyword(TokenType::KW_COPY)) {
+        RefuseFileAccess("COPY");
     }
 
     if (MatchKeyword(TokenType::KW_BEGIN)) {
@@ -350,7 +352,7 @@ ParsedStmtPtr Parser::ParseStatement() {
             MatchKeyword(TokenType::KW_COLUMN);
             stmt->action = AlterTableStatement::AlterAction::DROP_COLUMN;
             stmt->column_name = ExpectIdentifier("for column name").value;
-        } else if (Check(TokenType::IDENTIFIER) && StringUtil::Upper(Current().value) == "RENAME") {
+        } else if (CheckWord("RENAME")) {
             Advance();
             MatchKeyword(TokenType::KW_COLUMN);
             stmt->action = AlterTableStatement::AlterAction::RENAME_COLUMN;
@@ -384,10 +386,17 @@ ParsedStmtPtr Parser::ParseSelectStatement() {
             SelectStatement::CTE cte;
             cte.recursive = is_recursive;
             cte.name = ExpectIdentifier("for CTE name").value;
-            // Optional column alias list: nums(n) or nums(a, b).
+            // Optional column alias list: nums(n) or nums(a, b). The names
+            // were skipped, any tokens at all, so `WITH t(b, a) AS (SELECT
+            // 1 AS a, 2 AS b) SELECT a FROM t` gave 1 where DuckDB gives 2
+            // (Stage 9). They name the query's first columns, as an alias
+            // list on a subquery does.
+            std::vector<std::pair<std::string, const Token *>> aliases;
             if (Match(TokenType::LPAREN)) {
-                // Skip column names - they're just aliases.
-                do { Advance(); } while (Match(TokenType::COMMA));
+                do {
+                    const Token &t = Current();
+                    aliases.emplace_back(ExpectIdentifier("for CTE column alias").value, &t);
+                } while (Match(TokenType::COMMA));
                 Expect(TokenType::RPAREN, "after CTE column list");
             }
             Expect(TokenType::KW_AS, "after CTE name");
@@ -397,6 +406,29 @@ ParsedStmtPtr Parser::ParseSelectStatement() {
             cte.query = std::unique_ptr<SelectStatement>(
                 static_cast<SelectStatement *>(inner.release()));
             Expect(TokenType::RPAREN, "after CTE query");
+            if (!aliases.empty()) {
+                auto &sel_list = cte.query->select_list;
+                for (auto &e : sel_list) {
+                    if (e->GetExpressionType() == ExpressionType::STAR) {
+                        auto ex = ParserException(
+                            "A column alias list on a CTE whose select list has * is not "
+                            "supported");
+                        ex.SetQueryLocation(aliases[0].second->line, aliases[0].second->column);
+                        throw ex;
+                    }
+                }
+                if (aliases.size() > sel_list.size()) {
+                    auto ex = ParserException(
+                        "table \"" + cte.name + "\" has " + std::to_string(sel_list.size()) +
+                        " columns available but " + std::to_string(aliases.size()) +
+                        " columns specified");
+                    ex.SetQueryLocation(aliases[0].second->line, aliases[0].second->column);
+                    throw ex;
+                }
+                for (size_t i = 0; i < aliases.size(); i++) {
+                    sel_list[i]->alias = aliases[i].first;
+                }
+            }
             stmt->ctes.push_back(std::move(cte));
         } while (Match(TokenType::COMMA));
     }
@@ -452,7 +484,7 @@ ParsedStmtPtr Parser::ParseSelectStatement() {
     Expect(TokenType::KW_SELECT, "");
 
     // DISTINCT or ALL (ALL is the default; consume and discard for SQL
-    // compatibility, since `SELECT ALL col` is legal but slothdb's
+    // compatibility, since `SELECT ALL col` is legal but SlothDB's
     // is_distinct=false is already the right state).
     if (MatchKeyword(TokenType::KW_DISTINCT)) {
         stmt->is_distinct = true;
@@ -534,10 +566,10 @@ ParsedStmtPtr Parser::ParseSelectStatement() {
             } else {
                 MatchKeyword(TokenType::KW_ASC); // optional
             }
-            // SQL standard / Postgres / DuckDB default: ASC -> NULLS LAST,
-            // DESC -> NULLS FIRST. Apply the direction default first, then
-            // let an explicit NULLS keyword override.
-            item.nulls_first = !item.ascending;
+            // DuckDB's default_null_order is nulls_last: NULLs sort last
+            // after ASC and DESC alike (Postgres puts them first after
+            // DESC, which the engine did). An explicit NULLS overrides.
+            item.nulls_first = false;
             if (MatchKeyword(TokenType::KW_NULLS)) {
                 if (MatchKeyword(TokenType::KW_FIRST)) {
                     item.nulls_first = true;
@@ -683,6 +715,19 @@ std::unique_ptr<TableRef> Parser::ParseTableRef() {
         Expect(TokenType::RPAREN, "after column alias list");
         if (ref->subquery && !ref->column_aliases.empty()) {
             auto &sel_list = ref->subquery->select_list;
+            // More aliases than columns is DuckDB's error; it was ignored
+            // (#38). Beside a *, the aliases were set on the * and lost.
+            for (auto &e : sel_list) {
+                if (e->GetExpressionType() == ExpressionType::STAR) {
+                    ThrowError("A column alias list on a subquery whose select list has * "
+                               "is not supported");
+                }
+            }
+            if (ref->column_aliases.size() > sel_list.size()) {
+                ThrowError("table has " + std::to_string(sel_list.size()) +
+                    " columns available but " + std::to_string(ref->column_aliases.size()) +
+                    " columns specified");
+            }
             for (size_t i = 0; i < ref->column_aliases.size() && i < sel_list.size(); i++) {
                 sel_list[i]->alias = ref->column_aliases[i];
             }
@@ -727,37 +772,13 @@ std::unique_ptr<TableRef> Parser::ParseTableRef() {
         parse_optional_alias();
         parse_optional_col_alias_list();
         // Fall through to JOIN handling below.
-    } else if (Check(TokenType::IDENTIFIER) &&
-        (StringUtil::Upper(Current().value) == "READ_CSV" ||
-         StringUtil::Upper(Current().value) == "READ_CSV_AUTO" ||
-         StringUtil::Upper(Current().value) == "READ_JSON" ||
-         StringUtil::Upper(Current().value) == "READ_JSON_AUTO" ||
-         StringUtil::Upper(Current().value) == "READ_PARQUET" ||
-         StringUtil::Upper(Current().value) == "READ_ARROW" ||
-         StringUtil::Upper(Current().value) == "READ_AVRO" ||
-         StringUtil::Upper(Current().value) == "READ_XLSX" ||
-         StringUtil::Upper(Current().value) == "SQLITE_SCAN")) {
-        ref->table_name = StringUtil::Upper(Advance().value);
-        ref->is_table_function = true;
-        Expect(TokenType::LPAREN, "after table function");
-        do {
-            ref->function_args.push_back(ParseExpression());
-        } while (Match(TokenType::COMMA));
-        Expect(TokenType::RPAREN, "after table function args");
-
-        parse_optional_alias();
-        parse_optional_col_alias_list();
+    } else if (Check(TokenType::IDENTIFIER) && Peek().type == TokenType::LPAREN &&
+               IsFileTableFunction(Current().value)) {
+        // read_csv(...), read_parquet(...), read_json(...) and the like.
+        RefuseFileAccess(Current().value + "()");
     } else if (Check(TokenType::STRING_LITERAL)) {
-        // Handle string literal in FROM: SELECT * FROM 'file.csv' (auto-detect format).
-        auto file_path = Advance().value;
-        ref->table_name = "__FILE__";
-        ref->is_table_function = true;
-        ref->function_args.push_back(
-            std::make_unique<ConstantExpression>(file_path, TokenType::STRING_LITERAL));
-
-        parse_optional_alias();
-        parse_optional_col_alias_list();
-        // Fall through to JOIN handling.
+        // SELECT * FROM 'file.csv': a path used as a table, any extension.
+        RefuseFileAccess("a file path used as a table");
     } else if (CheckKeyword(TokenType::KW_GENERATE_SERIES)) {
         // Handle GENERATE_SERIES(start, stop[, step]) as a table function.
         Advance();
@@ -801,8 +822,11 @@ std::unique_ptr<TableRef> Parser::ParseTableRef() {
             join_type = "FULL";
         } else if (MatchKeyword(TokenType::KW_CROSS)) {
             join_type = "CROSS";
-        } else if (MatchKeyword(TokenType::KW_NATURAL)) {
-            join_type = "NATURAL";
+        } else if (CheckKeyword(TokenType::KW_NATURAL)) {
+            // NATURAL JOIN joins on the columns both sides name and shows
+            // each once; the engine did neither (it joined on the first
+            // column of each side), so it is refused (Stage 8, #12).
+            ThrowError("NATURAL JOIN is not supported");
         } else if (CheckKeyword(TokenType::KW_JOIN)) {
             join_type = "INNER"; // plain JOIN = INNER JOIN
         } else {
@@ -816,7 +840,12 @@ std::unique_ptr<TableRef> Parser::ParseTableRef() {
 
         // ON condition (not for CROSS JOIN).
         ParsedExprPtr on_cond;
-        if (join_type != "CROSS" && MatchKeyword(TokenType::KW_ON)) {
+        if (join_type != "CROSS") {
+            // As DuckDB: a join other than CROSS needs its condition
+            // (USING is not supported).
+            if (!MatchKeyword(TokenType::KW_ON)) {
+                ThrowError("Expected ON after " + join_type + " JOIN, got '" + Current().value + "'");
+            }
             on_cond = ParseExpression();
         }
 
@@ -974,25 +1003,29 @@ ParsedExprPtr Parser::ParseComparison() {
         if (!pat_const || !esc_const ||
             pat_const->literal_type != TokenType::STRING_LITERAL ||
             esc_const->literal_type != TokenType::STRING_LITERAL) {
-            throw ParserException(
+            ThrowError(
                 "ESCAPE requires constant string for both pattern and "
                 "escape character");
         }
         const std::string &esc_str = esc_const->value;
         if (esc_str.size() > 1) {
-            throw ParserException(
+            ThrowError(
                 "ESCAPE character must be a single character");
         }
         if (esc_str.empty()) return;  // no-op
         char esc_char = esc_str[0];
         if (esc_char == '%' || esc_char == '_') {
-            throw ParserException(
+            ThrowError(
                 "ESCAPE character may not be the same as a wildcard");
         }
         const std::string &pat_str = pat_const->value;
         std::string out;
         out.reserve(pat_str.size());
         for (size_t i = 0; i < pat_str.size(); i++) {
+            if (pat_str[i] == esc_char && i + 1 == pat_str.size()) {
+                // DuckDB's error; it was read as a literal (#34).
+                ThrowError("LIKE pattern must not end with escape character");
+            }
             if (pat_str[i] == esc_char && i + 1 < pat_str.size()) {
                 // Emit \ + literal next char. Existing backslashes in
                 // the original pattern remain literal too; we just
@@ -1012,6 +1045,33 @@ ParsedExprPtr Parser::ParseComparison() {
         }
         pat = std::make_unique<ConstantExpression>(out, TokenType::STRING_LITERAL);
     };
+    // SIMILAR TO is a regular expression, DuckDB's regexp_full_match:
+    // refused without a regex provider (design L24, L29).
+    {
+        size_t k = pos_;
+        bool negated = false;
+        if (k < tokens_.size() && tokens_[k].type == TokenType::KW_NOT) {
+            k++;
+            negated = true;
+        }
+        if (k < tokens_.size() && tokens_[k].type == TokenType::IDENTIFIER &&
+            StringUtil::Upper(tokens_[k].value) == "SIMILAR") {
+            if (!options_.regex) RefuseRegex("SIMILAR TO");
+            pos_ = k + 1;
+            Expect(TokenType::KW_TO, "after SIMILAR");
+            auto right = ParseAddSub();
+            if (CheckKeyword(TokenType::KW_ESCAPE)) {
+                throw NotImplementedException("SIMILAR TO ... ESCAPE is not supported");
+            }
+            std::vector<ParsedExprPtr> args;
+            args.push_back(std::move(left));
+            args.push_back(std::move(right));
+            ParsedExprPtr call =
+                std::make_unique<FunctionExpression>("REGEXP_FULL_MATCH", std::move(args));
+            if (negated) return std::make_unique<NegationExpression>(std::move(call));
+            return call;
+        }
+    }
     if (MatchKeyword(TokenType::KW_LIKE)) {
         auto right = ParseAddSub();
         consume_escape_and_rewrite(right);
@@ -1156,6 +1216,33 @@ std::unique_ptr<SelectStatement> Parser::ParseValuesAsSelect() {
         ThrowError("VALUES requires at least one row");
     }
 
+    // A column that mixes a string literal with a value of another kind:
+    // DuckDB casts the literal to the other value's type ((2), ('10') is
+    // INTEGER, ordered 2 before 10), the engine's set operations made the
+    // column VARCHAR. Refused until VALUES types its columns as DuckDB's
+    // does (#59).
+    for (size_t c = 0; c < rows[0].size(); c++) {
+        bool string_literal = false, other = false;
+        for (auto &row : rows) {
+            if (c >= row.size() || !row[c]) continue;
+            auto &e = *row[c];
+            if (e.GetExpressionType() == ExpressionType::CONSTANT) {
+                auto &k = static_cast<const ConstantExpression &>(e);
+                if (k.is_null) continue;
+                if (k.literal_type == TokenType::STRING_LITERAL) {
+                    string_literal = true;
+                    continue;
+                }
+            }
+            other = true;
+        }
+        if (string_literal && other) {
+            throw NotImplementedException(
+                "A VALUES column of string literals and values of another type is not supported: "
+                "DuckDB gives the literals the other type (libzugodb#59)");
+        }
+    }
+
     // Build a SelectStatement chain via UNION ALL: each row becomes one
     // SELECT with positional column aliases (column0, column1, ...) on the
     // first; subsequent rows inherit positionally per SQL set-op rules.
@@ -1253,7 +1340,7 @@ ParsedExprPtr Parser::ParsePrimary() {
     }
 
     // TRY_CAST(expr AS type) - returns NULL on failure instead of error.
-    if (Check(TokenType::IDENTIFIER) && StringUtil::Upper(Current().value) == "TRY_CAST") {
+    if (CheckWord("TRY_CAST")) {
         Advance();
         Expect(TokenType::LPAREN, "after TRY_CAST");
         auto expr = ParseExpression();
@@ -1579,6 +1666,7 @@ ParsedExprPtr Parser::ParseFunctionCall(const std::string &name) {
         auto window = std::make_unique<WindowExpression>(
             StringUtil::Upper(name), std::move(args));
         window->filter = std::move(filter_expr);
+        window->is_distinct = distinct;
 
         Expect(TokenType::LPAREN, "after OVER");
 
@@ -1660,24 +1748,22 @@ ParsedStmtPtr Parser::ParseCreateStatement() {
     bool or_replace = false;
     if (CheckKeyword(TokenType::KW_OR)) {
         Advance();
-        if (Check(TokenType::IDENTIFIER) && StringUtil::Upper(Current().value) == "REPLACE") {
+        if (CheckWord("REPLACE")) {
             Advance();
             or_replace = true;
         }
     }
 
-    // CREATE [OR REPLACE] [LIVE] VIEW
-    bool is_live = false;
+    // CREATE [OR REPLACE] LIVE VIEW watches a file and reads it again when
+    // it changes.
     if (CheckKeyword(TokenType::KW_LIVE)) {
-        Advance();
-        is_live = true;
+        RefuseFileAccess("CREATE LIVE VIEW");
     }
 
     if (CheckKeyword(TokenType::KW_VIEW)) {
         Advance(); // consume VIEW
         auto stmt = std::make_unique<CreateViewStatement>();
         stmt->or_replace = or_replace;
-        stmt->is_live = is_live;
         stmt->view_name = ExpectIdentifier("for view name").value;
         Expect(TokenType::KW_AS, "after view name");
         auto inner = ParseSelectStatement();
@@ -1792,8 +1878,8 @@ ParsedStmtPtr Parser::ParsePragmaStatement() {
 // Syntax:
 //   DESCRIBE <select-or-with>        -- result schema of a query
 //   DESCRIBE <table_name>            -- desugars to SELECT * FROM <name>
-//   DESCRIBE '<file_path>'           -- ClickHouse-style file-schema peek
-//   DESCRIBE read_parquet('file')    -- table function form
+//   DESCRIBE '<file_path>'           -- refused, as is a path in FROM
+//   DESCRIBE read_parquet('file')    -- refused, as are the file functions
 // `DESC` is accepted as an alias for `DESCRIBE` (MySQL compatibility).
 ParsedStmtPtr Parser::ParseDescribeStatement() {
     if (CheckKeyword(TokenType::KW_DESCRIBE) || CheckKeyword(TokenType::KW_DESC)) {
@@ -1807,26 +1893,22 @@ ParsedStmtPtr Parser::ParseDescribeStatement() {
         return stmt;
     }
 
-    // Everything else desugars to SELECT * FROM <source>. Build the TableRef
-    // to match the forms the normal FROM clause accepts: bare identifier,
-    // quoted string literal (file path), or table function like
-    // `read_parquet('x.parquet')`.
+    // Everything else desugars to SELECT * FROM <source>: a bare identifier
+    // or a table function other than the file ones.
     auto select = std::make_unique<SelectStatement>();
     select->select_list.push_back(std::make_unique<StarExpression>());
     auto tref = std::make_unique<TableRef>();
 
     if (Check(TokenType::STRING_LITERAL)) {
-        // DESCRIBE 'data.csv' -> synthesize a __FILE__ table function
-        // matching what the FROM-clause parser emits for bare string literals.
-        auto lit = Advance();
-        tref->is_table_function = true;
-        tref->table_name = "__FILE__";
-        tref->function_args.push_back(
-            std::make_unique<ConstantExpression>(lit.value, TokenType::STRING_LITERAL));
+        // DESCRIBE 'data.csv'.
+        RefuseFileAccess("DESCRIBE of a file");
     } else if (Check(TokenType::IDENTIFIER)) {
+        if (Peek().type == TokenType::LPAREN && IsFileTableFunction(Current().value)) {
+            RefuseFileAccess("DESCRIBE " + Current().value + "()");
+        }
         auto name = Advance().value;
         if (Match(TokenType::LPAREN)) {
-            // Table function: DESCRIBE read_parquet('x.parquet'[, ...])
+            // Table function: DESCRIBE f(...)
             tref->is_table_function = true;
             tref->table_name = name;
             if (!Check(TokenType::RPAREN)) {
@@ -1838,6 +1920,7 @@ ParsedStmtPtr Parser::ParseDescribeStatement() {
         } else {
             // Bare identifier: DESCRIBE <table>
             tref->table_name = name;
+            stmt->table_name = name;
         }
     } else {
         ThrowError("DESCRIBE expects a table name, query, string literal, "
@@ -1853,7 +1936,7 @@ ParsedStmtPtr Parser::ParseDescribeStatement() {
 // Single-shot dispatcher; actual row production lives in connection.cpp.
 ParsedStmtPtr Parser::ParseShowStatement() {
     // "SHOW" arrives as an IDENTIFIER (not a reserved keyword).
-    if (!(Check(TokenType::IDENTIFIER) && StringUtil::Upper(Current().value) == "SHOW")) {
+    if (!(CheckWord("SHOW"))) {
         ThrowError("expected SHOW");
     }
     Advance(); // consume SHOW
@@ -1861,7 +1944,7 @@ ParsedStmtPtr Parser::ParseShowStatement() {
     auto stmt = std::make_unique<ShowStatement>();
 
     auto next_upper = [&]() -> std::string {
-        return Check(TokenType::IDENTIFIER) ? StringUtil::Upper(Current().value) : "";
+        return Check(TokenType::IDENTIFIER) && !Current().quoted ? StringUtil::Upper(Current().value) : "";
     };
 
     std::string kw = next_upper();
@@ -1876,7 +1959,7 @@ ParsedStmtPtr Parser::ParseShowStatement() {
         stmt->kind = ShowStatement::Kind::COLUMNS;
         // SHOW COLUMNS FROM t  (also accepts IN as a synonym, MySQL style).
         if (CheckKeyword(TokenType::KW_FROM) ||
-            (Check(TokenType::IDENTIFIER) && StringUtil::Upper(Current().value) == "IN")) {
+            CheckWord("IN")) {
             Advance();
         }
         stmt->table_name = ExpectIdentifier("for SHOW COLUMNS target").value;
@@ -1906,8 +1989,8 @@ ParsedStmtPtr Parser::ParseMergeStatement() {
         stmt->target_alias = Advance().value;
     }
 
-    // USING source
-    MatchKeyword(TokenType::KW_USING);
+    // USING source: DuckDB's grammar requires it (it was optional).
+    Expect(TokenType::KW_USING, "in MERGE");
     stmt->source_table = ExpectIdentifier("for source table").value;
     if (MatchKeyword(TokenType::KW_AS) || (Check(TokenType::IDENTIFIER) &&
         !CheckKeyword(TokenType::KW_ON))) {
@@ -1940,7 +2023,7 @@ ParsedStmtPtr Parser::ParseMergeStatement() {
             } while (Match(TokenType::COMMA));
             Expect(TokenType::RPAREN, "after VALUES");
         } else {
-            MatchKeyword(TokenType::KW_MATCHED);
+            Expect(TokenType::KW_MATCHED, "after WHEN");
             // WHEN MATCHED THEN UPDATE
             Expect(TokenType::KW_THEN, "after MATCHED");
             Expect(TokenType::KW_UPDATE, "in MERGE");

@@ -1,6 +1,6 @@
-#include "slothdb/parser/tokenizer.hpp"
-#include "slothdb/common/exception.hpp"
-#include "slothdb/common/string_util.hpp"
+#include "zugodb/parser/tokenizer.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/common/string_util.hpp"
 #include <unordered_map>
 
 namespace zugodb {
@@ -216,6 +216,7 @@ Token Tokenizer::ReadNumber() {
 }
 
 Token Tokenizer::ReadString() {
+    uint32_t start_line = line_;
     uint32_t start_col = column_;
     char quote = Advance(); // consume opening quote
     std::string result;
@@ -228,14 +229,14 @@ Token Tokenizer::ReadString() {
                 result += quote;
                 Advance();
             } else {
-                return Token(TokenType::STRING_LITERAL, result, line_, start_col);
+                return Token(TokenType::STRING_LITERAL, result, start_line, start_col);
             }
         } else {
             result += Advance();
         }
     }
     auto ex = ParserException(ErrorCode::UNTERMINATED_STRING, "Unterminated string literal");
-    ex.SetQueryLocation(line_, start_col);
+    ex.SetQueryLocation(start_line, start_col);
     throw ex;
 }
 
@@ -281,22 +282,43 @@ std::vector<Token> Tokenizer::Tokenize() {
             continue;
         }
 
-        // Double-quoted identifiers.
-        if (c == '"') {
+        // Delimited identifiers, "x" and DuckDB's `x`. A doubled delimiter
+        // inside is one of it ("a""b" is a"b), as in DuckDB; an empty one
+        // is DuckDB's error (Stage 9, design §4).
+        if (c == '"' || c == '`') {
+            uint32_t start_line = line_;
             uint32_t start_col = column_;
-            Advance(); // consume "
+            Advance(); // consume the opening delimiter
             std::string id;
-            while (!IsAtEnd() && Peek() != '"') {
-                id += Advance();
+            bool closed = false;
+            while (!IsAtEnd()) {
+                char d = Advance();
+                if (d == c) {
+                    if (!IsAtEnd() && Peek() == c) {
+                        id += c;
+                        Advance();
+                        continue;
+                    }
+                    closed = true;
+                    break;
+                }
+                id += d;
             }
-            if (IsAtEnd()) {
+            if (!closed) {
                 auto ex = ParserException(ErrorCode::UNTERMINATED_STRING,
                                            "Unterminated quoted identifier");
-                ex.SetQueryLocation(line_, start_col);
+                ex.SetQueryLocation(start_line, start_col);
                 throw ex;
             }
-            Advance(); // consume closing "
-            tokens.push_back(Token(TokenType::IDENTIFIER, id, line_, start_col));
+            if (id.empty()) {
+                auto ex = ParserException(ErrorCode::SYNTAX_ERROR,
+                                           "zero-length delimited identifier");
+                ex.SetQueryLocation(start_line, start_col);
+                throw ex;
+            }
+            Token tok(TokenType::IDENTIFIER, id, start_line, start_col);
+            tok.quoted = true;
+            tokens.push_back(std::move(tok));
             continue;
         }
 
@@ -352,10 +374,16 @@ std::vector<Token> Tokenizer::Tokenize() {
                 tokens.push_back(Token(TokenType::GREATER_THAN, ">", line_, tok_col));
             }
             break;
+        case '~':
+            // DuckDB's ~ (and ~~*, !~ ...) are regular expressions and
+            // LIKE forms; refused before anything runs (design L24).
+            RefuseRegex("The ~ operator");
         case '!':
             if (!IsAtEnd() && Peek() == '=') {
                 Advance();
                 tokens.push_back(Token(TokenType::NOT_EQUALS, "!=", line_, tok_col));
+            } else if (!IsAtEnd() && Peek() == '~') {
+                RefuseRegex("The !~ operator");
             } else {
                 auto ex = ParserException(ErrorCode::UNEXPECTED_TOKEN,
                                            "Unexpected character '!'");

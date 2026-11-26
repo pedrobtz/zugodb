@@ -1,14 +1,14 @@
-#include "slothdb/storage/column_data.hpp"
-#include "slothdb/common/enums.hpp"
-#include "slothdb/common/exception.hpp"
-#include "slothdb/common/types/string_type.hpp"
+#include "zugodb/storage/column_data.hpp"
+#include "zugodb/common/enums.hpp"
+#include "zugodb/common/exception.hpp"
+#include "zugodb/common/types/string_type.hpp"
 #include <cstring>
 
 namespace zugodb {
 
 ColumnData::ColumnData(const LogicalType &type, idx_t capacity)
     : type_(type), capacity_(capacity), count_(0) {
-    // zuslothdb: one bit per row of the row group, not one vector's (#45).
+    // zugodb: one bit per row of the row group, not one vector's (#45).
     validity_.SetCapacity(capacity);
     idx_t type_size = TypeSize();
     if (type_size > 0) {

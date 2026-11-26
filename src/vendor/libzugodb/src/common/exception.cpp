@@ -1,25 +1,30 @@
-#include "slothdb/common/exception.hpp"
+#include "zugodb/common/exception.hpp"
 
 namespace zugodb {
 
-SlothDBException::SlothDBException(ErrorCategory category, ErrorCode code,
+ZugodbException::ZugodbException(ErrorCategory category, ErrorCode code,
                                      const std::string &message)
     : category_(category), code_(code), message_(message) {
     // Prepend category for human-readable what().
     message_ = std::string(ErrorCategoryToString(category)) + " Error: " + message;
 }
 
-void SlothDBException::SetContext(const std::string &key, const std::string &value) {
+void ZugodbException::SetContext(const std::string &key, const std::string &value) {
     context_[key] = value;
 }
 
-std::optional<std::string> SlothDBException::GetContext(const std::string &key) const {
+std::optional<std::string> ZugodbException::GetContext(const std::string &key) const {
     auto it = context_.find(key);
     if (it == context_.end()) return std::nullopt;
     return it->second;
 }
 
-void SlothDBException::SetQueryLocation(uint32_t line, uint32_t column) {
+void ZugodbException::SetQueryLocation(uint32_t line, uint32_t column) {
+    // The position is part of the message, which is all a caller (zugodb)
+    // sees of the error (Stage 9, design §4); once, at the first location.
+    if (line_ == 0 && line > 0) {
+        message_ += " at line " + std::to_string(line) + ", column " + std::to_string(column);
+    }
     line_ = line;
     column_ = column;
     context_["line"] = std::to_string(line);

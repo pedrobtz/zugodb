@@ -1,4 +1,4 @@
-#include "slothdb/execution/dictionary_vector.hpp"
+#include "zugodb/execution/dictionary_vector.hpp"
 #include <unordered_set>
 
 namespace zugodb {

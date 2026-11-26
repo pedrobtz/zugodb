@@ -1,5 +1,5 @@
-#include "slothdb/common/thread_pool.hpp"
-#include "slothdb/common/parallel.hpp"
+#include "zugodb/common/thread_pool.hpp"
+#include "zugodb/common/parallel.hpp"
 
 namespace zugodb {
 
@@ -14,7 +14,7 @@ ThreadPool::ThreadPool(unsigned int num_threads) {
 }
 
 ThreadPool::~ThreadPool() {
-    // zuslothdb: set under the mutex the workers wait with, or a worker
+    // zugodb: set under the mutex the workers wait with, or a worker
     // between its predicate and its wait misses the notify and join() hangs.
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -37,13 +37,13 @@ void ThreadPool::WorkerLoop() {
             if (stop_.load() && tasks_.empty()) return;
             task = std::move(tasks_.front());
             tasks_.pop();
-            // zuslothdb: counted before the mutex is released, so WaitAll()
+            // zugodb: counted before the mutex is released, so WaitAll()
             // never sees an empty queue and no active task in between.
             active_tasks_.fetch_add(1);
         }
         task();
         {
-            // zuslothdb: under WaitAll()'s mutex, for the same reason as
+            // zugodb: under WaitAll()'s mutex, for the same reason as
             // the destructor's stop_.
             std::lock_guard<std::mutex> lock(wait_mutex_);
             active_tasks_.fetch_sub(1);

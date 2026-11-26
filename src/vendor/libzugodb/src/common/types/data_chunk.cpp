@@ -1,5 +1,5 @@
-#include "slothdb/common/types/data_chunk.hpp"
-#include "slothdb/common/exception.hpp"
+#include "zugodb/common/types/data_chunk.hpp"
+#include "zugodb/common/exception.hpp"
 #include <sstream>
 
 namespace zugodb {
@@ -11,6 +11,18 @@ void DataChunk::Initialize(const std::vector<LogicalType> &types, idx_t capacity
         data.emplace_back(type, capacity);
     }
     count_ = 0;
+}
+
+void DataChunk::SetCardinality(idx_t count) {
+    for (idx_t c = 0; c < data.size(); c++) {
+        idx_t capacity = data[c].GetCapacity();
+        if (capacity != 0 && count > capacity) {
+            throw InternalException("DataChunk::SetCardinality: " + std::to_string(count) +
+                                    " rows, past the capacity of " + std::to_string(capacity) +
+                                    " of column " + std::to_string(c));
+        }
+    }
+    count_ = count;
 }
 
 void DataChunk::Reset() {
