@@ -4,6 +4,13 @@
 # is an error naming both, before any table is read.
 
 test_that("a database written here reads back identical in a fresh R process", {
+  pkg <- find.package("zugodb")
+  # Under load_all() the package is its source directory, which a child R
+  # cannot load; R CMD check and tools/ci-run-tests.R test the installed one.
+  skip_if_not(
+    file.exists(file.path(pkg, "Meta", "package.rds")),
+    "needs the installed package: the reader is a child R"
+  )
   dir <- withr::local_tempdir()
   path <- normalizePath(file.path(dir, "p.zugodb"), "/", mustWork = FALSE)
   value <- persist_value()
@@ -18,15 +25,17 @@ test_that("a database written here reads back identical in a fresh R process", {
   script <- file.path(dir, "child.R")
   writeLines(c(
     "args <- commandArgs(trailingOnly = TRUE)",
-    "con <- DBI::dbConnect(zugodb::zugodb(), dbdir = args[[1]], read_only = TRUE)",
+    "library(zugodb, lib.loc = args[[3]])",
+    "con <- DBI::dbConnect(zugodb(), dbdir = args[[1]], read_only = TRUE)",
     "x <- list(t = DBI::dbReadTable(con, 't'),",
     "          u = DBI::dbGetQuery(con, 'SELECT j FROM u ORDER BY j'),",
     "          tables = sort(DBI::dbListTables(con)))",
     "DBI::dbDisconnect(con)",
     "saveRDS(x, args[[2]])"
   ), script)
-  res <- run_child_r(script, c(path, out), timeout = 120)
-  expect_null(attr(res, "status"))
+  res <- run_child_r(script, c(path, out, dirname(pkg)), timeout = 600)
+  expect_null(attr(res, "status"), info = paste(c("child R printed:", res), collapse = "\n"))
+  expect_true(file.exists(out))
   got <- readRDS(out)
   expect_identical(got$tables, c("t", "u"))
   expect_identical(got$t, value)
