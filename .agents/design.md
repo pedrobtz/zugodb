@@ -425,7 +425,16 @@ The remaining DBI generics that `DBItest` (§10) exercises are
 implemented without being listed above: `dbIsValid`, `dbGetInfo`,
 `dbDataType`, `dbQuoteIdentifier`, `dbColumnInfo`, `dbHasCompleted`,
 `dbGetRowCount`, `dbGetRowsAffected`, `dbGetStatement`, `dbExistsTable`
-and `show`. `bigint` and `timezone_out` are §6's options; `bigint`
+and `show`. *Added 2026-11-27 (Stage 9), from what `DBItest` found:*
+`dbReadTable`, `dbQuoteString`, `dbListObjects` (each table an `Id`,
+no prefixes), and `dbQuoteLiteral`, which writes a blob as
+`CAST('\xHH...' AS BLOB)` since the engine reads no `X'..'` literal.
+`dbColumnInfo()`'s third column is `.sql_type`, as DBI asks of an
+optional column. `dbFetch(n = NA)` fetches what is left; a second
+`dbClearResult()` warns and returns `TRUE`; `dbDisconnect()` with a
+result open clears it with a warning; `bigint = "integer64"` loads
+`bit64`, since without its methods `as.integer()` reads an
+`integer64`'s bits (it gave 0 for 10^10). `bigint` and `timezone_out` are §6's options; `bigint`
 also takes `"integer64"` and `"character"`. `decimal` is not added in
 v0.1.0, since the engine produces no `DECIMAL` (§6, 2026-11-18).
 
@@ -468,7 +477,11 @@ string that is not UTF-8), is a `zuslothdb_type_error` naming the
 column and row. `dbAppendTable()` matches columns by name and gives a
 column it lacks `NULL`. Names are always quoted, so they keep their
 case; SlothDB's parser reads no `""` escape, so a name holding `"` is a
-`zuslothdb_argument_error`. SlothDB has no schemas and no temporary
+`zuslothdb_argument_error`. *Since 2026-11-27 (Stage 9):* a `"` in a
+name is doubled, which the engine reads since libzugodb 0.3.0, and
+every table method matches a name ignoring ASCII case, as the engine
+does (`dbExistsTable()`, `dbListFields()`, `dbRemoveTable()` and
+`dbWriteTable()` compared the exact spelling). SlothDB has no schemas and no temporary
 tables: an `Id` with a schema and `temporary = TRUE` are
 `zuslothdb_unsupported`. Conditions
 inherit from `zuslothdb_error`: `zuslothdb_sql_error` (the engine's
@@ -947,7 +960,19 @@ binaries in the upstream tree (`packaging/npm/slothdb.wasm`,
   `test-chunks.R`) and the corpus on one thread and on two
   (`test-threads.R`).
 - **DBItest.** The `DBItest` spec for driver, connection, result and
-  SQL, with skips for parameter binding listed by name.
+  SQL, with skips for parameter binding listed by name. *As built in
+  Stage 9 (2026-11-27):* every suite of `DBItest` 1.8.3, each case
+  enabled (`dbitest_version` is the installed one) and binding run
+  rather than skipped by `DBItest` itself. The skips are a named list
+  with a reason each (`tests/testthat/helper-dbitest.R`), every one a
+  refusal this design records: parameters (Q3), transactions (§5),
+  `TIME` (§6), a `BIGINT` past 2^53 under `"numeric"` and `bigint =
+  "integer"` (§6), factors written with no warning (§5), `NUMERIC` (§6),
+  Arrow dictionaries (§7.3), Arrow results through DBI's default (§2),
+  `current_date` and `current_timestamp`, the `R` prefix of a package
+  name (D12), and DBI's generics not re-exported, as `duckdb`'s are not
+  (§5.1). Each skipped case is held to failing, so one that starts to
+  pass, or a skip that names no case, fails the suite.
 - **Upstream unit tests.** The 408 doctest cases are rebuilt by a
   development script against the patched tree, so a patch that breaks
   one is caught before vendoring.
@@ -1316,7 +1341,12 @@ any of them.
   (`oracle/known-differences.md`, Refused); every recorded query gives
   the same result on one thread and on two. The 308 unreliable cases are
   not a wrong answer the counts show, nor a pass; they are for Stage 14
-  to weigh.
+  to weigh. *2026-11-27 (Stage 9):* outside the subset, Stage 9's
+  hostile input found that a long chain of operators overflowed the C
+  stack and took R down (libzugodb#65). libzugodb 0.4.1 bounds an
+  expression's height at 256; nested statements and long set-operation
+  chains still do (libzugodb#66), so "never takes R down" does not yet
+  hold for every input.
 - **Q19.** Scan from SQL: a table function in the engine that pulls
   from a stream (§7.6), and with it a `duckdb_register()` counterpart.
   Proposal: after v0.1.0, once Q18's bar is met. **Decided 2026-11-18

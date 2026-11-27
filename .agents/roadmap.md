@@ -796,6 +796,46 @@ every skip named and explained.
 
 **Design.** [§10](design.md#10-testing-and-validation).
 
+**Deviations (2026-11-27).**
+
+- **The skip list.** It holds more than parameter binding and Arrow
+  results. Every other entry is a refusal the design already records:
+  - transactions (§5);
+  - `TIME` and `difftime` (§6, #43);
+  - a `BIGINT` past 2^53 under `bigint = "numeric"`, an error rather than
+    a rounded double (§6);
+  - `bigint = "integer"`, not offered (§6);
+  - factors written with no warning (§5);
+  - `NUMERIC` (§6) and Arrow dictionaries (§7.3);
+  - `current_date` and `current_timestamp`, which the engine lacks;
+  - the `R` prefix of a package name (D12);
+  - DBI's generics re-exported (§5.1).
+  No scope changes. `tests/testthat/helper-dbitest.R` gives each entry
+  its reason, and `test-DBItest.R` holds each skipped case to failing.
+- **What DBItest found and this stage fixed.**
+  - `bigint = "integer64"` returned values that `as.integer()` read as 0
+    when `bit64` was not loaded.
+  - A name holding `"` was refused, though the engine reads `""` since
+    libzugodb 0.3.0.
+  - `dbExistsTable()`, `dbListFields()`, `dbRemoveTable()` and
+    `dbWriteTable()` matched a name's exact spelling, where the engine
+    and `dbWriteTableArrow()` ignore ASCII case.
+  - `dbDisconnect()` with a result open, and `dbClearResult()` twice,
+    did not behave as DBI specifies.
+  - `dbFetch(n = NA)` was refused, an `I()` column was not written, and
+    `dbColumnInfo()`'s third column had no leading dot.
+  - `dbReadTable()`, `dbQuoteString()`, `dbQuoteLiteral()` (a blob as
+    `CAST('\xHH' AS BLOB)`, since the engine reads no `X'..'`) and
+    `dbListObjects()` were missing.
+- **The nested expression.** The test found an engine crash: a chain
+  of 5,000 `+` overflowed the C stack, because the parser's limit
+  counted only its own recursion (libzugodb#65). With the maintainer's
+  approval it was fixed in libzugodb 0.4.1, vendored here. The engine now
+  bounds an expression's height at 256, and `test-hostile.R` straddles
+  that limit for each operator family. Statement nesting and long
+  set-operation chains still crash (libzugodb#66, a gap in
+  `.agents/assurance.md`).
+
 ## Stage 10 — Readers from the zu family
 
 **Issue.** [#60](https://github.com/pedrobtz/zuslothdb/issues/60), sub-issue of

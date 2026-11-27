@@ -49,7 +49,7 @@ evidence behind D9: what testing found wrong in the engine and its readers.
 
 ## Current state
 
-Stages 0 to 8 are merged: the patched engine, the DBI driver and
+Stages 0 to 9 are merged: the patched engine, the DBI driver and
 connection, results and scalar types, `DATE`, `TIMESTAMP` and `BLOB`,
 writing, the engine as libzugodb and the package as zugodb, (Stage 6)
 libzugodb 0.4.0: format 1001 with a checksum, no file read from SQL, and
@@ -58,7 +58,9 @@ in through `dbWriteTableArrow()`, the adapter the readers use later, and
 (Stage 8) core conformance: Q18's bar holds, the engine's half by
 libzugodb's sqllogictest counts at the vendored tag (0 wrong, crashed or
 hung on DuckDB v2.0.0's 754-file subset), the package's by the widened
-`duckdb` corpus through the driver. The
+`duckdb` corpus through the driver, and (Stage 9) `DBItest` with every
+skip named, and libzugodb 0.4.1, whose expressions are at most 256
+levels high (statements are not bounded yet, libzugodb#66). The
 roadmap in [.agents/roadmap.md](.agents/roadmap.md) was restaged on
 2026-11-18 from Stage 6 on:
 
@@ -67,7 +69,7 @@ roadmap in [.agents/roadmap.md](.agents/roadmap.md) was restaged on
 
 v0.1.0 has no CRAN date. D1 in the design records why the package goes on.
 
-Next: Stage 9, DBItest conformance.
+Next: Stage 10, readers from the zu family.
 
 ## Versions and dependents
 
@@ -173,7 +175,9 @@ fresh R process, and the golden file `fixtures/golden/`, written by
 producer should make); Stage 8's `test-oracle-sql.R`, `test-chunks.R`
 (operators each side of 2048 and 4096 rows) and `test-threads.R` (caps 1
 and 2; the engine's one parallel path, the window sort, from 200,000
-rows). Recorded answers: run
+rows); Stage 9's `test-DBItest.R` (every suite; `dbitest_skips` in
+`helper-dbitest.R` names each skip with its reason, and each skipped
+case is held to failing) and `test-quote.R`. Recorded answers: run
 `Rscript tools/oracle.R [name]` (needs duckdb) after adding or changing a
 `tests/testthat/oracle/*.sql`; a disagreement is either fixed or listed
 in `oracle/known-differences.md`, whose rows the tests hold to "still
@@ -184,7 +188,7 @@ file-scope code. A finalizer's warning
 cannot be caught around `gc()` (R runs finalizers through
 `R_ToplevelExec`): test the effect of collection, and call the finalizer
 for the warning. Upstream's own doctest suite runs
-on the vendored tree through `tools/upstream-tests.sh` (491 cases), and
+on the vendored tree through `tools/upstream-tests.sh` (502 cases), and
 `tools/ci/coexist.R` runs `duckdb` in the same session: both from
 `tools/ci/platform.sh`, never from testthat, because §10 keeps `duckdb`
 out of `Suggests`. The design's §10 plans DuckDB's recorded answers as the

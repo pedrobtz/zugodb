@@ -1,5 +1,30 @@
 # zugodb 0.0.0.9000
 
+* zugodb passes the DBI specification's own tests (`DBItest`), except
+  what the design refuses (parameters, transactions, `TIME`, ...), each
+  skip named with its reason. What it found is fixed:
+  - `bigint = "integer64"` loads `bit64`. Without it, `as.integer()` and
+    `format()` of a value read its bits: 10^10 came back as 0.
+  - A table or column name may hold `"`, which is doubled when quoted.
+  - `dbExistsTable()`, `dbListFields()`, `dbRemoveTable()` and
+    `dbWriteTable()` match a name ignoring ASCII case, as the engine and
+    `dbReadTable()` do. `dbExistsTable(con, "T")` was `FALSE` for a
+    table `t`.
+  - `dbDisconnect()` with a result open clears it with a warning; a
+    second `dbClearResult()` warns and returns `TRUE`, as DBI specifies.
+  - `dbFetch(res, n = NA)` fetches what is left; a column marked with
+    `I()` is written as its type; `dbCreateTableArrow()` refuses an
+    argument it does not take.
+  - `dbReadTable()`, `dbQuoteString()`, `dbQuoteLiteral()` and
+    `dbListObjects()` are zugodb's own. A blob is quoted as
+    `CAST('\x..' AS BLOB)`, which the engine reads.
+  - `dbColumnInfo()`'s third column is `.sql_type` (it was `sql_type`).
+
+* The engine is libzugodb 0.4.1. An expression more than 256 levels
+  high, such as 5,000 `+` in a row, is a `zug_sql_error`; it overflowed
+  the C stack and took R down. Very long set-operation chains and deeply
+  nested `FROM` subqueries still do (libzugodb#66).
+
 * What the engine's SQL gets right is measured (design Q18). On DuckDB
   v2.0.0's sqllogictest subset, libzugodb 0.4.0 gives no wrong answer
   and no crash or hang; most of what it cannot do is refused with an
