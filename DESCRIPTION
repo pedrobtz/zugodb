@@ -28,6 +28,7 @@ Imports:
     methods
 Suggests:
     bit64,
+    DBItest,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
