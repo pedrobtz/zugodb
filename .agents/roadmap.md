@@ -836,6 +836,15 @@ every skip named and explained.
   that limit for each operator family. Statement nesting and long
   set-operation chains still crash (libzugodb#66, a gap in
   `.agents/assurance.md`).
+- **Where DBItest runs.** The first full run on the pull request found two
+  things.
+  - Six timestamp round trips convert through the zone `PST8PDT`. Ubuntu's
+    tzdata ships it only in `tzdata-legacy`, so on Linux lubridate warns
+    and the case fails whatever the driver did. These cases are skipped
+    only where the zone is missing; macOS and Windows run them.
+  - DBItest took gctorture past its 10-minute budget and valgrind past its
+    hour, so neither runs it. ASan and UBSan, with both compilers, run
+    every case.
 
 ## Stage 10 — Readers from the zu family
 

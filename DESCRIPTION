@@ -30,6 +30,7 @@ Suggests:
     bit64,
     DBItest,
     knitr,
+    lubridate,
     rmarkdown,
     testthat (>= 3.0.0),
     withr,

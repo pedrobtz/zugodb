@@ -102,6 +102,44 @@ dbitest_followers <- c(
   begin_write_disconnect_2 = "reads the table begin_write_disconnect_1 writes"
 )
 
+# DBItest's timestamp round trips convert through the zone PST8PDT, which
+# tzdata 2024b turned into a legacy link that Debian and Ubuntu ship only in
+# tzdata-legacy. Where it is missing lubridate warns, and the case fails on
+# DBItest's no-warning check whatever the driver did. They are skipped only
+# there; macOS and Windows have the zone, and run them.
+dbitest_tz_cases <- c(
+  roundtrip_timestamp = "no PST8PDT in this system's time zones",
+  roundtrip_timestamp_extended = "no PST8PDT in this system's time zones",
+  append_roundtrip_timestamp = "no PST8PDT in this system's time zones",
+  append_roundtrip_timestamp_extended = "no PST8PDT in this system's time zones",
+  arrow_write_table_arrow_roundtrip_timestamp = "no PST8PDT in this system's time zones",
+  arrow_append_table_arrow_roundtrip_timestamp = "no PST8PDT in this system's time zones"
+)
+
+# Whether lubridate, as DBItest calls it, knows PST8PDT.
+has_pst8pdt <- function() {
+  known <- TRUE
+  withCallingHandlers(
+    lubridate::with_tz(Sys.time(), tzone = "PST8PDT"),
+    warning = function(w) {
+      known <<- FALSE
+      invokeRestart("muffleWarning")
+    }
+  )
+  known
+}
+
+# DBItest's cases run under gctorture and valgrind (r-actions sets
+# R_ACTIONS_WORKFLOW) for neither: they took the gctorture pass past its
+# 10-minute budget and valgrind past its hour. ASan and UBSan, with both
+# compilers, run every case.
+skip_under_memory_tools <- function() {
+  workflow <- Sys.getenv("R_ACTIONS_WORKFLOW")
+  if (workflow %in% c("gctorture", "valgrind")) {
+    testthat::skip(paste("DBItest is left out of", workflow))
+  }
+}
+
 # The context: zugodb's own spelling of dates, timestamps and placeholders,
 # no TIME and no temporary tables (§5, §6), every case of this DBItest.
 dbitest_context <- function() {
