@@ -2,6 +2,16 @@
 
 ## zugodb 0.0.0.9000
 
+- What the engine’s SQL gets right is measured (design Q18). On DuckDB
+  v2.0.0’s sqllogictest subset, libzugodb 0.4.0 gives no wrong answer
+  and no crash or hang; most of what it cannot do is refused with an
+  error. Through zugodb, joins, `GROUP BY`, window functions,
+  subqueries, CTEs, set operations and `ORDER BY` with `LIMIT` agree
+  with `duckdb`, on one thread and on two. The queries the engine
+  refuses (correlated subqueries, window frames, …) and the one listed
+  difference, a column without an alias named `expr`, are listed in
+  `tests/testthat/oracle/known-differences.md`.
+
 - [`dbWriteTableArrow()`](https://dbi.r-dbi.org/reference/dbWriteTableArrow.html),
   [`dbAppendTableArrow()`](https://dbi.r-dbi.org/reference/dbAppendTableArrow.html)
   and
