@@ -40,6 +40,12 @@ jobs:
       # Inverted, because `cond && 0 || 10` is always 10: an expression
       # treats 0 as false.
       test-timeout-minutes: ${{ (github.event_name != 'schedule' && github.event_name != 'workflow_dispatch') && 10 || 0 }}
+      # The quick pass's width (maintainer, 2026-11-27). At the default 500
+      # the suite took 9m15s of the 10-minute budget in Stage 6 and ran past
+      # it once Stage 7's Arrow tests (streams past a 122,880-row group)
+      # came in; cost scales as about 1/step. The full pass stays at step 20
+      # on the schedule and on dispatch.
+      quick-step: 1000
       timeout-minutes: 240
       # The engine is about four CPU-minutes to compile; the runners have
       # four cores. Without this, every check waits on a serial build.

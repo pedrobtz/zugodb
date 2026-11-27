@@ -32,7 +32,10 @@ Suggests:
     rmarkdown,
     testthat (>= 3.0.0),
     withr,
-    yaml
+    yaml,
+    zuarrow
+Remotes:
+    pedrobtz/zuarrow@from-r-views-half-intervals
 VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.1
 Config/testthat/edition: 3
@@ -44,6 +47,7 @@ Collate:
     'connection.R'
     'result.R'
     'write.R'
+    'arrow.R'
     'info.R'
     'zugodb-package.R'
 Encoding: UTF-8

@@ -138,6 +138,19 @@ SEXP zug_append(SEXP conptr, SEXP table, SEXP quoted, SEXP cols, SEXP payloads,
                 SEXP names, SEXP check_only);
 SEXP zug_result_clear(SEXP ptr);
 
+// zug_stream.cpp
+SEXP zug_stream_take(SEXP src);
+SEXP zug_stream_release(SEXP ptr);
+SEXP zug_stream_columns(SEXP ptr);
+SEXP zug_schema_columns(SEXP src);
+SEXP zug_stream_append(SEXP conptr, SEXP holder, SEXP table, SEXP quoted,
+                       SEXP map);
+SEXP zug_test_stream(SEXP nbatch, SEXP per, SEXP fail_at, SEXP message,
+                     SEXP mismatch);
+SEXP zug_test_stream_releases(void);
+SEXP zug_test_raw_stream(SEXP cols, SEXP length, SEXP null_count,
+                         SEXP validity);
+
 static const R_CallMethodDef call_methods[] = {
     {"zug_scalar_int", (DL_FUNC)&zug_scalar_int, 1},
     {"zug_c_info", (DL_FUNC)&zug_c_info, 0},
@@ -155,6 +168,14 @@ static const R_CallMethodDef call_methods[] = {
     {"zug_fetch", (DL_FUNC)&zug_fetch, 4},
     {"zug_append", (DL_FUNC)&zug_append, 7},
     {"zug_result_clear", (DL_FUNC)&zug_result_clear, 1},
+    {"zug_stream_take", (DL_FUNC)&zug_stream_take, 1},
+    {"zug_stream_release", (DL_FUNC)&zug_stream_release, 1},
+    {"zug_stream_columns", (DL_FUNC)&zug_stream_columns, 1},
+    {"zug_schema_columns", (DL_FUNC)&zug_schema_columns, 1},
+    {"zug_stream_append", (DL_FUNC)&zug_stream_append, 5},
+    {"zug_test_stream", (DL_FUNC)&zug_test_stream, 5},
+    {"zug_test_stream_releases", (DL_FUNC)&zug_test_stream_releases, 0},
+    {"zug_test_raw_stream", (DL_FUNC)&zug_test_raw_stream, 4},
     {NULL, NULL, 0}};
 
 void attribute_visible R_init_zugodb(DllInfo *dll) {

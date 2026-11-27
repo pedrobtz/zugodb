@@ -30,7 +30,8 @@ date.
   returning `not_found` for `slothdb` and `rslothdb`, and no CRAN
   package name containing `sloth`. `Imports: DBI (>= 1.2.0), methods`. `Suggests:
   testthat (>= 3.2.0), withr, DBItest, bit64, nanoarrow, yaml` (`yaml`
-  added 2026-11-17: `test-info.R` reads the installed `vendor.yaml`).
+  added 2026-11-17: `test-info.R` reads the installed `vendor.yaml`;
+  `zuarrow` in place of `nanoarrow` since 2026-11-26, §7.3).
   Vendors SlothDB
   v0.2.7+ at commit `8180f21` (MIT, "SlothDB Contributors"), which
   itself carries zstd's decompressor (BSD-3-Clause, of the BSD/GPL-2.0
@@ -471,7 +472,9 @@ inherit from `zuslothdb_error`: `zuslothdb_sql_error` (the engine's
 message), `zuslothdb_type_error`, `zuslothdb_unsupported`,
 `zuslothdb_closed_error`, and `zuslothdb_argument_error` for a bad
 argument (added 2026-11-17, Stage 2, so a caller can tell an argument
-from an engine error).
+from an engine error). `zug_stream_error` was added on 2026-11-26
+(Stage 7) for an Arrow C stream whose producer fails or gives a batch
+that does not match its schema (§7.3).
 
 ### 5.1 The API against its two references
 
@@ -687,7 +690,15 @@ glue has one adapter from a stream to the engine.
 - **Any producer works.** The same adapter is DBI's
   `dbWriteTableArrow()`, `dbAppendTableArrow()` and
   `dbCreateTableArrow()`, so it can be built and tested with `nanoarrow`
-  as the producer before any sibling has a release.
+  as the producer before any sibling has a release. *Changed 2026-11-26
+  (maintainer, Stage 7): the producer is `zuarrow`*, the family's own
+  Arrow layer, not `nanoarrow`: the family uses its own packages, and
+  what one lacks is added to it. zuarrow was extended for the tests
+  (writers for the view layouts, half floats, intervals and `integer64`,
+  a schema of named formats for a data frame, and `arrow_release()`).
+  What no producer should make (invalid UTF-8, a null row, a batch whose
+  layout is not its format's, a producer failing on cue) comes from the
+  package's own test producers in `src/zug_stream.cpp`.
 - **Types follow §6.** A column of a type the engine cannot hold
   (`DECIMAL`, `TIME`, a nested type) is a `zuslothdb_type_error` naming
   the column, raised from the stream's schema before any row is
@@ -696,6 +707,58 @@ glue has one adapter from a stream to the engine.
   load creates a new table and drops it if the stream fails part-way.
   An append to an existing table needs another answer, a staging table
   being the proposal; the stage that builds the adapter settles it.
+  *Settled 2026-11-26 (Stage 7): a staging table.* An append, and an
+  overwrite of a table that exists, read the whole stream into a
+  staging table first (an append's of the table's own types, by
+  `CREATE TABLE ... AS SELECT * FROM t LIMIT 0`), and only then change
+  the table: an append by `INSERT INTO t SELECT ... FROM staging`, an
+  overwrite by dropping the old table, creating the new and copying
+  into it. A new table is loaded in place and dropped on failure. The
+  staging table is dropped whatever happens, by `on.exit()`, so an R
+  error or an interrupt between batches leaves nothing either. The cost
+  is one copy of the rows; `INSERT ... SELECT` was checked to keep every
+  type and every NULL past a row group before it was chosen.
+
+*As built in Stage 7 (2026-11-26).* `src/zug_stream.cpp` and
+`R/arrow.R`.
+
+- **Ownership.** A load moves the stream out of the producer's object
+  (`nanoarrow_array_stream`), as the C stream interface's move does,
+  into a holder of the package's that releases it, its schema and the
+  batch being read exactly once, however the load ends; the producer's
+  object is left released, so a stream is read once and a second load
+  of it is a `zug_closed_error`. A load on a closed connection, or one
+  refused before the move (a bad name, an existing table), leaves the
+  stream with its producer. A stream is any handle of class
+  `nanoarrow_array_stream`, the class zuarrow's, nanoarrow's and
+  arrow's handles share, whose pointer is the specification's struct. A
+  data frame is converted by `zuarrow::arrow_stream()` first, and a
+  schema read by `zuarrow::arrow_schema()`; `zuarrow` is in `Suggests`,
+  so without it only a handle is taken.
+- **§4.3.** The producer's callbacks and R's interrupt check run in the
+  `.Call` frame with no C++ object live; each batch is converted and
+  appended inside one `try`/`catch` helper.
+- **Types.** A new table's columns are §6's types: boolean, int8, int16,
+  int32, int64, float, double, the three string layouts (`VARCHAR`), the
+  four binary layouts (`BLOB`), date32 and date64 (`DATE`), and
+  timestamps of every unit and zone (`TIMESTAMP`, the instant). The
+  unsigned types widen, as no unsigned type can be named in SQL: uint8
+  to `SMALLINT`, uint16 to `INTEGER`, uint32 and uint64 to `BIGINT`, a
+  uint64 past 2^63 - 1 being a `zug_type_error`. So are a nanosecond
+  timestamp that is not a whole microsecond (refused, not rounded), a
+  date64 that is not a whole day, a string that is not UTF-8 or holds a
+  NUL, and every other type, from the schema, before any row: decimal,
+  time, duration, interval, list, struct, map, union, dictionary,
+  run-end encoded, an extension type, half float and the null type. An
+  append converts into the table's types as `dbAppendTable()` does.
+- **Errors.** A producer's error, and a batch whose layout does not
+  match the stream's schema (another number of columns, another
+  number of buffers, a null row), are `zug_stream_error`, a class added
+  here, carrying the producer's message. A batch's buffers cannot be
+  bounds-checked through the C data interface, which carries no
+  buffer sizes; offsets are checked to be ordered.
+- **NaN.** A `NaN` in a valid slot is stored as `NaN`; zuarrow keeps
+  R's `NaN` a value and makes `NA` a null.
 
 The alternative, set aside, was a bespoke C API per reader and one
 adapter for each. It asks less of the siblings and more of this package,
@@ -800,9 +863,10 @@ umbrella for its next version. The order is by what links what.
 | 5 | `zuslothdb` | Stage 10 ([#60](https://github.com/pedrobtz/zuslothdb/issues/60)) | Links them and adds `zuslothdb_read()` |
 <!-- markdownlint-enable MD013 -->
 
-Stage 7's adapter needs none of them: it is built against `nanoarrow`
-as the producer, and takes the readers' streams unchanged when they
-arrive.
+Stage 7's adapter needs none of them as archives: it is tested with
+`zuarrow`'s R package as the producer (from GitHub, by `Remotes:`,
+until zuarrow 0.1.0 is on CRAN, which comes before this package's
+release), and takes the readers' streams unchanged when they arrive.
 
 Each provider keeps a consumer fixture under `tools/` and a
 `consumer.yaml` workflow, and each `LinkingTo` floor here is the CRAN

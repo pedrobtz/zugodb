@@ -8,11 +8,14 @@
 #   argument     zug_argument_error, a bad argument
 #   closed       zug_closed_error, a closed or foreign-process object
 #   unsupported  zug_unsupported, a feature v0.1.0 does not have
+#   stream       zug_stream_error, an Arrow C stream's producer failed or
+#                gave a batch that does not match its schema
 zug_abort <- function(message, kind = "internal", call = NULL) {
   class <- switch(
     kind,
     sql = "zug_sql_error",
     type = "zug_type_error",
+    stream = "zug_stream_error",
     argument = "zug_argument_error",
     closed = "zug_closed_error",
     unsupported = "zug_unsupported",

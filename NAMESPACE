@@ -6,12 +6,14 @@ exportClasses(zugodb_connection)
 exportClasses(zugodb_driver)
 exportClasses(zugodb_result)
 exportMethods(dbAppendTable)
+exportMethods(dbAppendTableArrow)
 exportMethods(dbBegin)
 exportMethods(dbBind)
 exportMethods(dbClearResult)
 exportMethods(dbColumnInfo)
 exportMethods(dbCommit)
 exportMethods(dbConnect)
+exportMethods(dbCreateTableArrow)
 exportMethods(dbDataType)
 exportMethods(dbDisconnect)
 exportMethods(dbExecute)
@@ -31,16 +33,19 @@ exportMethods(dbRollback)
 exportMethods(dbSendQuery)
 exportMethods(dbSendStatement)
 exportMethods(dbWriteTable)
+exportMethods(dbWriteTableArrow)
 exportMethods(show)
 import(methods)
 importFrom(DBI,
   dbAppendTable,
+  dbAppendTableArrow,
   dbBegin,
   dbBind,
   dbClearResult,
   dbColumnInfo,
   dbCommit,
   dbConnect,
+  dbCreateTableArrow,
   dbDataType,
   dbDisconnect,
   dbExecute,
@@ -59,6 +64,7 @@ importFrom(DBI,
   dbRollback,
   dbSendQuery,
   dbSendStatement,
-  dbWriteTable
+  dbWriteTable,
+  dbWriteTableArrow
 )
 useDynLib(zugodb, .registration = TRUE)
