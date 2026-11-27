@@ -2,6 +2,46 @@
 
 ## zugodb 0.0.0.9000
 
+- zugodb passes the DBI specification’s own tests (`DBItest`), except
+  what the design refuses (parameters, transactions, `TIME`, …), each
+  skip named with its reason. What it found is fixed:
+
+  - `bigint = "integer64"` loads `bit64`. Without it,
+    [`as.integer()`](https://rdrr.io/r/base/integer.html) and
+    [`format()`](https://rdrr.io/r/base/format.html) of a value read its
+    bits: 10^10 came back as 0.
+  - A table or column name may hold `"`, which is doubled when quoted.
+  - [`dbExistsTable()`](https://dbi.r-dbi.org/reference/dbExistsTable.html),
+    [`dbListFields()`](https://dbi.r-dbi.org/reference/dbListFields.html),
+    [`dbRemoveTable()`](https://dbi.r-dbi.org/reference/dbRemoveTable.html)
+    and
+    [`dbWriteTable()`](https://dbi.r-dbi.org/reference/dbWriteTable.html)
+    match a name ignoring ASCII case, as the engine and
+    [`dbReadTable()`](https://dbi.r-dbi.org/reference/dbReadTable.html)
+    do. `dbExistsTable(con, "T")` was `FALSE` for a table `t`.
+  - [`dbDisconnect()`](https://dbi.r-dbi.org/reference/dbDisconnect.html)
+    with a result open clears it with a warning; a second
+    [`dbClearResult()`](https://dbi.r-dbi.org/reference/dbClearResult.html)
+    warns and returns `TRUE`, as DBI specifies.
+  - `dbFetch(res, n = NA)` fetches what is left; a column marked with
+    [`I()`](https://rdrr.io/r/base/AsIs.html) is written as its type;
+    [`dbCreateTableArrow()`](https://dbi.r-dbi.org/reference/dbCreateTableArrow.html)
+    refuses an argument it does not take.
+  - [`dbReadTable()`](https://dbi.r-dbi.org/reference/dbReadTable.html),
+    [`dbQuoteString()`](https://dbi.r-dbi.org/reference/dbQuoteString.html),
+    [`dbQuoteLiteral()`](https://dbi.r-dbi.org/reference/dbQuoteLiteral.html)
+    and
+    [`dbListObjects()`](https://dbi.r-dbi.org/reference/dbListObjects.html)
+    are zugodb’s own. A blob is quoted as `CAST('\x..' AS BLOB)`, which
+    the engine reads.
+  - [`dbColumnInfo()`](https://dbi.r-dbi.org/reference/dbColumnInfo.html)’s
+    third column is `.sql_type` (it was `sql_type`).
+
+- The engine is libzugodb 0.4.1. An expression more than 256 levels
+  high, such as 5,000 `+` in a row, is a `zug_sql_error`; it overflowed
+  the C stack and took R down. Very long set-operation chains and deeply
+  nested `FROM` subqueries still do (libzugodb#66).
+
 - What the engine’s SQL gets right is measured (design Q18). On DuckDB
   v2.0.0’s sqllogictest subset, libzugodb 0.4.0 gives no wrong answer
   and no crash or hang; most of what it cannot do is refused with an
@@ -126,9 +166,11 @@
   ([\#45](https://github.com/pedrobtz/zugodb/issues/45)).
 
 - `DATE` columns arrive as `Date`, `TIMESTAMP` as `POSIXct` and `BLOB`
-  as a list of raw vectors with `blob::blob()`’s classes.
-  `dbConnect(timezone_out = )` sets the time zone a `POSIXct` is shown
-  in, `"UTC"` by default as in `duckdb`; an unknown zone is an error.
+  as a list of raw vectors with
+  [`blob::blob()`](https://blob.tidyverse.org/reference/blob.html)’s
+  classes. `dbConnect(timezone_out = )` sets the time zone a `POSIXct`
+  is shown in, `"UTC"` by default as in `duckdb`; an unknown zone is an
+  error.
 
 - A `HUGEINT` or `TIME` column is a `zug_type_error`, since SlothDB
   computes their values wrongly (a `TIME` is always midnight), as are

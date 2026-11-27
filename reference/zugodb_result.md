@@ -77,13 +77,16 @@ show(object)
 
 - n:
 
-  The number of rows to fetch: a whole number from 0, or `-1` or `Inf`
-  for all that are left.
+  The number of rows to fetch: a whole number from 0, or `-1`, `Inf` or
+  `NA` for all that are left.
 
 ## Value
 
 `dbSendQuery()` and `dbSendStatement()`: a `zugodb_result`. `dbFetch()`:
-a data frame. The rest as in DBI.
+a data frame. `dbClearResult()`: `TRUE`, invisibly, with a warning if
+the result was already cleared. `dbColumnInfo()`: a data frame of
+`name`, `type` (the R class) and `.sql_type` (the engine's type). The
+rest as in DBI.
 
 ## Details
 
@@ -99,7 +102,7 @@ Columns arrive as these R types:
 | `VARCHAR` | character, marked UTF-8 |
 | `DATE` | `Date` |
 | `TIMESTAMP` | `POSIXct`, shown in the connection's `timezone_out` |
-| `BLOB` | a list of raw vectors with the classes of `blob::blob()`, `NULL` for a missing value |
+| `BLOB` | a list of raw vectors with the classes of [`blob::blob()`](https://blob.tidyverse.org/reference/blob.html), `NULL` for a missing value |
 
 A value R cannot hold as asked is a `zug_type_error` naming the column
 and the row, never a silent change: a 64-bit integer beyond 2^53 with
@@ -110,7 +113,8 @@ is not valid UTF-8 or holds a NUL. A column of another type is a
 `TIMESTAMP WITH TIME ZONE`, list, struct, map or union column.
 
 A connection has one open result: sending another query clears the
-first, with a warning.
+first, with a warning, and so does
+[`DBI::dbDisconnect()`](https://dbi.r-dbi.org/reference/dbDisconnect.html).
 
 ## Examples
 

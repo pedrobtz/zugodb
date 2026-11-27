@@ -46,7 +46,8 @@ dbGetInfo(dbObj, ...)
 
   How 64-bit integers (`BIGINT`, `UINTEGER`, `UBIGINT`) arrive:
   `"numeric"` (the default, as in `duckdb`), a double, with a value
-  beyond 2^53 a `zug_type_error`; `"integer64"`, the `bit64` class; or
+  beyond 2^53 a `zug_type_error`; `"integer64"`, the `bit64` class,
+  which loads `bit64` (an error if it is not installed); or
   `"character"`, the decimal digits.
 
 - threads:

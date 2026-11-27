@@ -116,18 +116,21 @@ non-<code>NULL</code> value is a <code>zug_unsupported</code> error.</p></dd>
 
 
 <dt id="arg-n">n<a class="anchor" aria-label="anchor" href="#arg-n"></a></dt>
-<dd><p>The number of rows to fetch: a whole number from 0, or <code>-1</code> or
-<code>Inf</code> for all that are left.</p></dd>
+<dd><p>The number of rows to fetch: a whole number from 0, or <code>-1</code>,
+<code>Inf</code> or <code>NA</code> for all that are left.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>dbSendQuery()</code> and <code>dbSendStatement()</code>: a <code>zugodb_result</code>.
-<code>dbFetch()</code>: a data frame. The rest as in DBI.</p>
+<code>dbFetch()</code>: a data frame. <code>dbClearResult()</code>: <code>TRUE</code>, invisibly, with
+a warning if the result was already cleared. <code>dbColumnInfo()</code>: a data
+frame of <code>name</code>, <code>type</code> (the R class) and <code>.sql_type</code> (the engine's
+type). The rest as in DBI.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Columns arrive as these R types:</p><table class="table table"><tr><td>Engine</td><td>R</td></tr><tr><td><code>BOOLEAN</code></td><td>logical</td></tr><tr><td><code>TINYINT</code>, <code>SMALLINT</code>, <code>INTEGER</code>, <code>UTINYINT</code>, <code>USMALLINT</code></td><td>integer</td></tr><tr><td><code>BIGINT</code>, <code>UINTEGER</code>, <code>UBIGINT</code></td><td>double, <code>integer64</code> or character, by <code>bigint</code></td></tr><tr><td><code>FLOAT</code>, <code>DOUBLE</code></td><td>double</td></tr><tr><td><code>VARCHAR</code></td><td>character, marked UTF-8</td></tr><tr><td><code>DATE</code></td><td><code>Date</code></td></tr><tr><td><code>TIMESTAMP</code></td><td><code>POSIXct</code>, shown in the connection's <code>timezone_out</code></td></tr><tr><td><code>BLOB</code></td><td>a list of raw vectors with the classes of <code>blob::blob()</code>, <code>NULL</code> for a missing value</td></tr></table><p>A value R cannot hold as asked is a <code>zug_type_error</code> naming the
+    <p>Columns arrive as these R types:</p><table class="table table"><tr><td>Engine</td><td>R</td></tr><tr><td><code>BOOLEAN</code></td><td>logical</td></tr><tr><td><code>TINYINT</code>, <code>SMALLINT</code>, <code>INTEGER</code>, <code>UTINYINT</code>, <code>USMALLINT</code></td><td>integer</td></tr><tr><td><code>BIGINT</code>, <code>UINTEGER</code>, <code>UBIGINT</code></td><td>double, <code>integer64</code> or character, by <code>bigint</code></td></tr><tr><td><code>FLOAT</code>, <code>DOUBLE</code></td><td>double</td></tr><tr><td><code>VARCHAR</code></td><td>character, marked UTF-8</td></tr><tr><td><code>DATE</code></td><td><code>Date</code></td></tr><tr><td><code>TIMESTAMP</code></td><td><code>POSIXct</code>, shown in the connection's <code>timezone_out</code></td></tr><tr><td><code>BLOB</code></td><td>a list of raw vectors with the classes of <code><a href="https://blob.tidyverse.org/reference/blob.html" class="external-link">blob::blob()</a></code>, <code>NULL</code> for a missing value</td></tr></table><p>A value R cannot hold as asked is a <code>zug_type_error</code> naming the
 column and the row, never a silent change: a 64-bit integer beyond 2^53
 with <code>bigint = "numeric"</code>, an <code>INTEGER</code> of -2^31 (R's <code>NA</code>), or a string
 that is not valid UTF-8 or holds a NUL. A column of another type is a
@@ -135,7 +138,7 @@ that is not valid UTF-8 or holds a NUL. A column of another type is a
 <code>HUGEINT</code>, <code>INTERVAL</code>, <code>UUID</code> and <code>DECIMAL</code> in SQL, and produces no
 <code>TIMESTAMP WITH TIME ZONE</code>, list, struct, map or union column.</p>
 <p>A connection has one open result: sending another query clears the
-first, with a warning.</p>
+first, with a warning, and so does <code><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">DBI::dbDisconnect()</a></code>.</p>
     </div>
 
     <div class="section level2">

@@ -85,7 +85,8 @@ own.</p></dd>
 <dd><p>How 64-bit integers (<code>BIGINT</code>, <code>UINTEGER</code>, <code>UBIGINT</code>)
 arrive: <code>"numeric"</code> (the default, as in <code>duckdb</code>), a double, with a
 value beyond 2^53 a <code>zug_type_error</code>; <code>"integer64"</code>, the
-<code>bit64</code> class; or <code>"character"</code>, the decimal digits.</p></dd>
+<code>bit64</code> class, which loads <code>bit64</code> (an error if it is not installed); or
+<code>"character"</code>, the decimal digits.</p></dd>
 
 
 <dt id="arg-threads">threads<a class="anchor" aria-label="anchor" href="#arg-threads"></a></dt>

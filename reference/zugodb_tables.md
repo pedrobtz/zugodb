@@ -93,6 +93,30 @@ dbRemoveTable(conn, name, ..., temporary = FALSE, fail_if_missing = TRUE)
 # S4 method for class 'zugodb_connection,character'
 dbQuoteIdentifier(conn, x, ...)
 
+# S4 method for class 'zugodb_connection,character'
+dbQuoteString(conn, x, ...)
+
+# S4 method for class 'zugodb_connection,SQL'
+dbQuoteString(conn, x, ...)
+
+# S4 method for class 'zugodb_connection,SQL'
+dbQuoteIdentifier(conn, x, ...)
+
+# S4 method for class 'zugodb_connection'
+dbQuoteLiteral(conn, x, ...)
+
+# S4 method for class 'zugodb_connection,character'
+dbReadTable(conn, name, ..., row.names = FALSE, check.names = TRUE)
+
+# S4 method for class 'zugodb_connection,Id'
+dbReadTable(conn, name, ..., row.names = FALSE, check.names = TRUE)
+
+# S4 method for class 'zugodb_connection,SQL'
+dbReadTable(conn, name, ..., row.names = FALSE, check.names = TRUE)
+
+# S4 method for class 'zugodb_connection'
+dbListObjects(conn, prefix = NULL, ...)
+
 # S4 method for class 'zugodb_connection'
 dbDataType(dbObj, obj, ...)
 
@@ -121,7 +145,7 @@ dbRollback(conn, ...)
   [`DBI::Id()`](https://dbi.r-dbi.org/reference/Id.html) with only a
   `table`, or [`DBI::SQL()`](https://dbi.r-dbi.org/reference/SQL.html)
   of a quoted name. Names keep their spelling and match ignoring ASCII
-  case, as DuckDB's. A name holding `"` is an error.
+  case, as DuckDB's; a `"` in a name is doubled when it is quoted.
 
 - value:
 
@@ -162,6 +186,16 @@ dbRollback(conn, ...)
 
   A character vector of identifiers.
 
+- check.names:
+
+  For `dbReadTable()`: `TRUE` (the default) to make the column names
+  syntactic with
+  [`make.names()`](https://rdrr.io/r/base/make.names.html).
+
+- prefix:
+
+  For `dbListObjects()`: `NULL`, since the engine has no schemas.
+
 - dbObj:
 
   A `zugodb_driver` or `zugodb_connection`.
@@ -175,8 +209,12 @@ dbRollback(conn, ...)
 `dbWriteTable()`, `dbRemoveTable()`: `TRUE`, invisibly.
 `dbAppendTable()`: the number of rows written. `dbListTables()`,
 `dbListFields()`: a character vector. `dbExistsTable()`: `TRUE` or
-`FALSE`. `dbDataType()`: a character vector. `dbQuoteIdentifier()`:
+`FALSE`. `dbDataType()`: a character vector. `dbQuoteIdentifier()`,
+`dbQuoteString()`:
 [`DBI::SQL()`](https://dbi.r-dbi.org/reference/SQL.html).
+`dbReadTable()`: a data frame. `dbListObjects()`: a data frame of
+`table` ([`DBI::Id()`](https://dbi.r-dbi.org/reference/Id.html)s) and
+`is_prefix`, always `FALSE`.
 
 ## Details
 
@@ -190,7 +228,7 @@ dbRollback(conn, ...)
 | `Date` | `DATE` |
 | `POSIXct` | `TIMESTAMP`, the instant in UTC, to the microsecond |
 | [`bit64::integer64`](https://bit64.r-lib.org/reference/bit64-package.html) | `BIGINT` |
-| `blob::blob()`, or a list of raw vectors | `BLOB` |
+| [`blob::blob()`](https://blob.tidyverse.org/reference/blob.html), or a list of raw vectors | `BLOB` |
 
 A column of another class, a value that does not fit its column (a
 fraction for an `INTEGER`, a number out of range, a string that is not
