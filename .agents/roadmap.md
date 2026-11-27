@@ -39,7 +39,7 @@ GitHub or the maintainer's r-universe.
 | 5.2 | [The package as zugodb](#stage-52--the-package-as-zugodb) | full | [#65](https://github.com/pedrobtz/zuslothdb/issues/65) | [#68](https://github.com/pedrobtz/zugodb/pull/68) | |
 | 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | [#76](https://github.com/pedrobtz/zugodb/pull/76) | 2026-11-26 |
 | 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | [#78](https://github.com/pedrobtz/zugodb/pull/78) | 2026-11-26 |
-| 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | | |
+| 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | | 2026-11-27 |
 | 9 | [DBItest conformance](#stage-9--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
 | 10 | [Readers from the zu family](#stage-10--readers-from-the-zu-family) | full | [#60](https://github.com/pedrobtz/zuslothdb/issues/60) | | |
 | 11 | [Documentation and measured claims](#stage-11--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/zuslothdb/issues/10) | | |
@@ -712,6 +712,53 @@ down, and what is wrong fails with an error, not a wrong answer.
 
 **Design.** [§10](design.md#10-testing-and-validation),
 [D1](design.md#12-decisions) and [Q18](design.md#14-open-questions).
+
+**Deviations (2026-11-27).**
+
+- Most of this stage's work was done in libzugodb before this stage
+  started, so the maintainer chose to keep here only what the package
+  can show (D10). Its Stages 6 to 10 built the sqllogictest runner and
+  its counts, met Q18's bar on its pinned subset, added the SQL fuzz
+  target, and audited the chunks.
+  - **What libzugodb shows.** At v0.4.0, the tag vendored, its pinned
+    subset is DuckDB v2.0.0's corpus, 754 files and 20,355 cases. On
+    Linux and macOS, under ASan and UBSan, at caps 1 and 2, none is
+    wrong, accepted, crashed or hung. Design Q18 has the counts.
+  - **What isn't repeated.** There is no `tools/sqllogictest.R`, no
+    `test-conformance.R` and no fuzz harness here. The vendored tree is
+    the tag's, file by file, so the tag's counts are this engine's.
+  - **What the chunk audit found.** It counted 88 sites, not 31 (its
+    L27).
+- **The widened corpus.** It is `oracle/sql-*` (31 queries) and
+  `oracle/chunk-*` (12), recorded by `duckdb` 2.0.1. No query gave a
+  wrong answer.
+- **Refused queries.** Eleven queries that `duckdb` answers are refused
+  by the engine with an error, which Q18 allows. They are listed in
+  `oracle/known-differences.md`, under Refused, and `test-oracle-sql.R`
+  holds each to a `zug_sql_error`:
+  - correlated subqueries;
+  - window frames;
+  - `NULLS` in a window's order;
+  - a window ordered by an expression;
+  - `lead()` with a default value;
+  - mixed windows;
+  - `CREATE TABLE AS` over a `WITH` clause or a table function;
+  - a keyword as an alias;
+  - one nested set operation.
+- **Column names.** A column without an alias is named `expr`, so two
+  such columns share a name. This is a listed difference
+  (`diff-column-name`).
+- **The chunk tests.** `test-chunks.R` runs each operator over
+  2047, 2048, 2049, 4095, 4096 and 4097 rows, the sizes of libzugodb's
+  own audit tests, summarised in SQL, rather than filling each audited
+  chunk directly.
+- **The thread tests.** Since the readers were cut, the engine has one
+  parallel path, the window operator's partition sort, from 200,000
+  rows on. `test-threads.R` runs every recorded query at caps 1 and 2.
+  It also runs a partitioned window at 199,999, 200,000 and 200,001
+  rows against ranks computed in R.
+- **Issues.** No wrong answer, crash or hang was found, so none is
+  filed.
 
 ## Stage 9 — DBItest conformance
 
