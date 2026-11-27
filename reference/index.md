@@ -18,6 +18,10 @@
   [`dbIsValid(`*`<zugodb_driver>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb.md)
   [`dbGetInfo(`*`<zugodb_driver>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb.md)
   : The zugodb driver
+- [`dbWriteTableArrow(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_arrow.md)
+  [`dbAppendTableArrow(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_arrow.md)
+  [`dbCreateTableArrow(`*`<zugodb_connection>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_arrow.md)
+  : Write Arrow C streams into tables
 - [`dbSendQuery(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
   [`dbSendStatement(`*`<zugodb_connection>`*`,`*`<character>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
   [`dbFetch(`*`<zugodb_result>`*`)`](https://pedrobtz.github.io/zugodb/reference/zugodb_result.md)
