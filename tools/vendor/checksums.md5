@@ -44,8 +44,8 @@ f4cd64f4b524052ed8b541f4a4b4af31  include/zugodb/main/database.hpp
 c626d62b19826982ae9d5dc1d49c4426  include/zugodb/main/providers.hpp
 14d3d2868ff4f155c147a4783705b61b  include/zugodb/main/query_materialize.hpp
 71e2f8f8df5599bb0ec3a2697c490b99  include/zugodb/optimizer/optimizer.hpp
-44ade52961a17d230db7b4bfd7771331  include/zugodb/parser/expression/parsed_expression.hpp
-2426e7f80fcb8357da7a50e602d67cdf  include/zugodb/parser/parser.hpp
+db23a6c951abcd122c2138a6ea84b9f1  include/zugodb/parser/expression/parsed_expression.hpp
+510e3f223902c826b0bd8a38c56d3457  include/zugodb/parser/parser.hpp
 2225d4363ceb6143bccb60c033f1b9fa  include/zugodb/parser/statement/parsed_statement.hpp
 2fd860287922dcb0f15fa632a1c34b53  include/zugodb/parser/tokenizer.hpp
 59b9d44e3519b3cc3a883fca0ba0323c  include/zugodb/planner/logical_operator.hpp
@@ -87,7 +87,7 @@ e2fa762119150be594559a3f745be593  src/execution/literal_emit_filter.cpp
 e5f76c4849ec2c8d5f64274c8f9a9348  src/main/database.cpp
 f73f3bfe7d1b2166f6e56b6da77a6403  src/main/provider_set.cpp
 bbd5c0d58c3803c75d41d24f063b47cc  src/optimizer/optimizer.cpp
-f5eabb5bce77c2eaa7a1d552ac8e9918  src/parser/parser.cpp
+7609731bc09647620cfd9cca2ff90c41  src/parser/parser.cpp
 397b30dff6ccffae85872864bd9c26e7  src/parser/tokenizer.cpp
 fe010e57cf1f3bf03c965fc64f4bf9b4  src/planner/planner.cpp
 65b8bdb553914c336df2dbd568d6d449  src/storage/block_manager.cpp
