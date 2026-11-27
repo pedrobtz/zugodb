@@ -340,6 +340,17 @@ test_that("dbCreateTableArrow() makes an empty table of the schema's types", {
     DBI::dbCreateTableArrow(con, "u", data.frame(x = 1L)),
     class = "zug_argument_error"
   )
+  # An argument the generic does not take is refused, not ignored
+  # (DBItest's arrow_create_table_arrow_error passes `fields`).
+  expect_error(
+    DBI::dbCreateTableArrow(con, "v", data.frame(x = 1L), fields = letters),
+    class = "zug_argument_error"
+  )
+  expect_error(
+    DBI::dbCreateTableArrow(con, "v", data.frame(x = 1L), 1L),
+    class = "zug_argument_error"
+  )
+  expect_false(DBI::dbExistsTable(con, "v"))
 })
 
 test_that("strings and binaries of every layout read back as written", {

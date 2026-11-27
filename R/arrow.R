@@ -358,6 +358,7 @@ setMethod(
   "zugodb_connection",
   function(conn, name, value, ..., temporary = FALSE) {
     call <- sys.call()
+    check_dots_empty("dbCreateTableArrow", list(...), call)
     check_open_connection(conn, call)
     table <- table_name(conn, name, call)
     check_not_temporary(temporary, call)

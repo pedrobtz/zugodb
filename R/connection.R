@@ -11,7 +11,8 @@
 #' @param bigint How 64-bit integers (`BIGINT`, `UINTEGER`, `UBIGINT`)
 #'   arrive: `"numeric"` (the default, as in `duckdb`), a double, with a
 #'   value beyond 2^53 a `zug_type_error`; `"integer64"`, the
-#'   `bit64` class; or `"character"`, the decimal digits.
+#'   `bit64` class, which loads `bit64` (an error if it is not installed); or
+#'   `"character"`, the decimal digits.
 #' @param timezone_out The time zone a `TIMESTAMP` column's `POSIXct` is
 #'   shown in: `"UTC"` (the default, as in `duckdb`), another of
 #'   [OlsonNames()], or `""` for the session's. The instant is the same in
@@ -54,6 +55,15 @@ setMethod(
     bigint <- check_choice(
       bigint, c("numeric", "integer64", "character"), "bigint", call
     )
+    # A value of class integer64 is a double's bits: without bit64's
+    # methods registered, as.integer() and format() read the bits.
+    if (bigint == "integer64" && !has_bit64()) {
+      zug_abort(
+        "`bigint = \"integer64\"` needs the bit64 package.",
+        "argument",
+        call
+      )
+    }
     threads <- check_count(threads, "threads", call)
     timezone_out <- check_tz(timezone_out, "timezone_out", call)
     zug_value(.Call(zug_set_threads, threads), call)
@@ -70,6 +80,10 @@ setMethod(
     methods::new("zugodb_connection", driver = drv, state = state)
   }
 )
+
+# Loads bit64, registering its methods for integer64 values. A function,
+# so a test can stand in for a library without it.
+has_bit64 <- function() requireNamespace("bit64", quietly = TRUE)
 
 #' @rdname dbConnect-zugodb_driver-method
 #' @export
@@ -122,6 +136,14 @@ setMethod(
     if (!dbIsValid(conn)) {
       warning("The connection is already closed.", call. = FALSE)
       return(invisible(FALSE))
+    }
+    open <- conn@state$result
+    if (!is.null(open) && !is.null(open$ptr)) {
+      warning(
+        "Clearing the connection's open result before disconnecting.",
+        call. = FALSE
+      )
+      clear_result_state(open)
     }
     disconnect_state(conn@state, shutdown)
     invisible(TRUE)

@@ -106,3 +106,42 @@ check_tz <- function(x, arg, call = NULL) {
   }
   x
 }
+
+# DBI::sqlRownamesToColumn()'s `row.names`: NULL, TRUE, FALSE, NA or the
+# name of the column the row names go to.
+check_row_names <- function(x, call = NULL) {
+  ok <- is.null(x) ||
+    (is.logical(x) && length(x) == 1L) ||
+    (is.character(x) && length(x) == 1L && !is.na(x))
+  if (!ok) {
+    zug_abort(
+      "`row.names` must be NULL, TRUE, FALSE, NA or a single string.",
+      "argument",
+      call
+    )
+  }
+  x
+}
+
+# A method's `...` holds nothing: an argument it does not take is an error,
+# not ignored.
+check_dots_empty <- function(fun, dots, call = NULL) {
+  if (length(dots)) {
+    nms <- names(dots)
+    if (is.null(nms)) {
+      nms <- rep("", length(dots))
+    }
+    nms[!nzchar(nms)] <- "<unnamed>"
+    zug_abort(
+      sprintf(
+        "Unknown argument%s to %s(): %s.",
+        if (length(dots) > 1L) "s" else "",
+        fun,
+        paste(nms, collapse = ", ")
+      ),
+      "argument",
+      call
+    )
+  }
+  invisible()
+}

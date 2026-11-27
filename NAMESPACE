@@ -26,8 +26,12 @@ exportMethods(dbGetStatement)
 exportMethods(dbHasCompleted)
 exportMethods(dbIsValid)
 exportMethods(dbListFields)
+exportMethods(dbListObjects)
 exportMethods(dbListTables)
 exportMethods(dbQuoteIdentifier)
+exportMethods(dbQuoteLiteral)
+exportMethods(dbQuoteString)
+exportMethods(dbReadTable)
 exportMethods(dbRemoveTable)
 exportMethods(dbRollback)
 exportMethods(dbSendQuery)
@@ -58,8 +62,12 @@ importFrom(DBI,
   dbHasCompleted,
   dbIsValid,
   dbListFields,
+  dbListObjects,
   dbListTables,
   dbQuoteIdentifier,
+  dbQuoteLiteral,
+  dbQuoteString,
+  dbReadTable,
   dbRemoveTable,
   dbRollback,
   dbSendQuery,

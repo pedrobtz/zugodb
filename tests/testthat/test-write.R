@@ -8,7 +8,7 @@ test_that("a factor is written as VARCHAR and read back as its labels", {
   f <- factor(c("b", NA, "a", "b"), levels = c("b", "a", "unused"))
   DBI::dbWriteTable(con, "t", data.frame(f = f))
   res <- DBI::dbSendQuery(con, "SELECT * FROM t")
-  expect_identical(DBI::dbColumnInfo(res)$sql_type, "VARCHAR")
+  expect_identical(DBI::dbColumnInfo(res)$.sql_type, "VARCHAR")
   DBI::dbClearResult(res)
   expect_identical(table_rows(con, "t")$f, c("b", NA, "a", "b"))
 })
@@ -219,4 +219,106 @@ test_that("dbAppendTable() matches columns by name and fills the rest with NULL"
   )
   expect_identical(DBI::dbAppendTable(con, "t", data.frame(a = integer())), 0)
   expect_identical(nrow(table_rows(con, "t")), 1L)
+})
+
+test_that("a bad row.names or a repeated field.types name is refused", {
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  df <- data.frame(a = 1L)
+  for (bad in list(letters, list(1L), NA_character_, 1L, character())) {
+    expect_error(
+      DBI::dbWriteTable(con, "t", df, row.names = bad),
+      class = "zug_argument_error"
+    )
+    expect_error(
+      DBI::dbReadTable(con, "t", row.names = bad),
+      class = "zug_argument_error"
+    )
+  }
+  expect_error(
+    DBI::dbWriteTable(
+      con,
+      "t",
+      df,
+      field.types = c(a = "INTEGER", a = "BIGINT")
+    ),
+    class = "zug_argument_error"
+  )
+  expect_identical(DBI::dbListTables(con), character())
+  # NA keeps row names only when they are not 1..n.
+  DBI::dbWriteTable(con, "t", df, row.names = NA)
+  expect_identical(DBI::dbListFields(con, "t"), "a")
+})
+
+test_that("a column marked with I() is written as its type", {
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  df <- data.frame(n = I(1:2))
+  df$b <- I(list(as.raw(c(0, 255)), NULL))
+  df$s <- I(c("x", NA))
+  expect_identical(
+    DBI::dbDataType(con, df),
+    c(n = "INTEGER", b = "BLOB", s = "VARCHAR")
+  )
+  DBI::dbWriteTable(con, "t", df)
+  got <- DBI::dbGetQuery(con, "SELECT * FROM t")
+  expect_identical(got$n, 1:2)
+  expect_identical(unclass(got$b)[[1L]], as.raw(c(0, 255)))
+  expect_null(unclass(got$b)[[2L]])
+  expect_identical(got$s, c("x", NA))
+  # I() of a class it cannot write is still refused.
+  expect_error(
+    DBI::dbWriteTable(con, "u", data.frame(x = I(list(1)))),
+    class = "zug_type_error"
+  )
+})
+
+test_that("dbReadTable() reads a table, with check.names and row.names", {
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  df <- data.frame(`a b` = 1:2, x = c("p", "q"), check.names = FALSE)
+  DBI::dbWriteTable(con, "t", df)
+  expect_identical(
+    DBI::dbReadTable(con, "t"),
+    data.frame(a.b = 1:2, x = c("p", "q"))
+  )
+  expect_identical(DBI::dbReadTable(con, "t", check.names = FALSE), df)
+  expect_identical(
+    DBI::dbReadTable(con, DBI::Id(table = "t"), row.names = "x"),
+    data.frame(a.b = 1:2, row.names = c("p", "q"))
+  )
+  expect_identical(
+    DBI::dbReadTable(con, DBI::SQL("\"t\"")),
+    DBI::dbReadTable(con, "t")
+  )
+  expect_error(DBI::dbReadTable(con, "nope"), class = "zug_argument_error")
+  expect_error(
+    DBI::dbReadTable(con, DBI::Id(schema = "s", table = "t")),
+    class = "zug_unsupported"
+  )
+  expect_error(
+    DBI::dbReadTable(con, "t", check.names = NA),
+    class = "zug_argument_error"
+  )
+})
+
+test_that("dbListObjects() lists each table as an Id, with no prefixes", {
+  con <- DBI::dbConnect(zugodb())
+  withr::defer(DBI::dbDisconnect(con))
+  empty <- DBI::dbListObjects(con)
+  expect_identical(names(empty), c("table", "is_prefix"))
+  expect_identical(nrow(empty), 0L)
+  DBI::dbWriteTable(con, "b", data.frame(x = 1))
+  DBI::dbWriteTable(con, "a\"q", data.frame(x = 1))
+  got <- DBI::dbListObjects(con)
+  expect_identical(got$is_prefix, c(FALSE, FALSE))
+  expect_identical(
+    unclass(got$table),
+    list(DBI::Id(table = "a\"q"), DBI::Id(table = "b"))
+  )
+  expect_true(all(vapply(got$table, DBI::dbExistsTable, TRUE, conn = con)))
+  expect_error(
+    DBI::dbListObjects(con, prefix = DBI::Id(schema = "s")),
+    class = "zug_unsupported"
+  )
 })

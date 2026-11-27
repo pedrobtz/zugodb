@@ -75,3 +75,54 @@ test_that("bigint must be one of the three", {
     )
   }
 })
+
+test_that("bigint = 'integer64' loads bit64, so its values convert", {
+  # Without bit64's methods, an integer64 is a double's bits: as.integer()
+  # gave 0 for 10^10 and format() 4.94e-314 (DBItest's
+  # connect_bigint_integer64). The child R has not loaded bit64.
+  skip_if_not_installed("bit64")
+  pkg <- find.package("zugodb")
+  skip_if_not(
+    file.exists(file.path(pkg, "Meta", "package.rds")),
+    "needs the installed package: the reader is a child R"
+  )
+  dir <- withr::local_tempdir()
+  out <- normalizePath(file.path(dir, "out.rds"), "/", mustWork = FALSE)
+  script <- file.path(dir, "child.R")
+  writeLines(
+    c(
+      "args <- commandArgs(trailingOnly = TRUE)",
+      "library(zugodb, lib.loc = args[[2]])",
+      "before <- isNamespaceLoaded('bit64')",
+      "con <- DBI::dbConnect(zugodb(), bigint = 'integer64')",
+      "v <- DBI::dbGetQuery(con, 'SELECT CAST(10000000000 AS BIGINT) AS a')$a",
+      "w <- NULL",
+      "i <- withCallingHandlers(as.integer(v), warning = function(e) {",
+      "  w <<- conditionMessage(e); invokeRestart('muffleWarning') })",
+      "saveRDS(list(before = before, after = isNamespaceLoaded('bit64'),",
+      "  i = i, warned = !is.null(w), d = as.numeric(v), s = as.character(v)),",
+      "  args[[1]])"
+    ),
+    script
+  )
+  res <- run_child_r(script, c(out, dirname(pkg)), timeout = 300)
+  expect_null(
+    attr(res, "status"),
+    info = paste(c("child R printed:", res), collapse = "\n")
+  )
+  got <- readRDS(out)
+  expect_false(got$before)
+  expect_true(got$after)
+  expect_identical(got$i, NA_integer_)
+  expect_true(got$warned)
+  expect_identical(got$d, 1e10)
+  expect_identical(got$s, "10000000000")
+})
+
+test_that("bigint = 'integer64' without bit64 is a zug_argument_error", {
+  local_mocked_bindings(has_bit64 = function() FALSE)
+  expect_error(
+    DBI::dbConnect(zugodb(), bigint = "integer64"),
+    class = "zug_argument_error"
+  )
+})

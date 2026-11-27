@@ -37,7 +37,7 @@ test_that("n = 0, n = -1, n = Inf and n past the end", {
   expect_true(DBI::dbHasCompleted(res))
   expect_identical(DBI::dbFetch(res)$n, integer())
   DBI::dbClearResult(res)
-  for (all in list(-1, Inf)) {
+  for (all in list(-1, Inf, NA, NA_integer_, NA_real_)) {
     res <- DBI::dbSendQuery(con, sql)
     expect_identical(DBI::dbFetch(res, all)$n, 1:5)
     DBI::dbClearResult(res)
@@ -49,7 +49,7 @@ test_that("a bad n is refused and fetches nothing", {
   withr::defer(DBI::dbDisconnect(con))
   res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
   withr::defer(DBI::dbClearResult(res))
-  for (bad in list(-2, 1.5, NA, NA_real_, "1", c(1, 2), numeric(), -Inf)) {
+  for (bad in list(-2, 1.5, NaN, "1", NA_character_, c(1, 2), numeric(), -Inf)) {
     expect_error(DBI::dbFetch(res, bad), class = "zug_argument_error")
   }
   expect_identical(DBI::dbGetRowCount(res), 0)
@@ -70,7 +70,7 @@ test_that("dbColumnInfo() names each column's R and SQL type", {
   df <- DBI::dbFetch(res)
   got <- vapply(df, function(x) if (is.double(x)) "numeric" else class(x)[1], "")
   expect_identical(info$type, unname(got))
-  expect_identical(info$sql_type, c("INTEGER", "BIGINT", "DOUBLE", "VARCHAR", "BOOLEAN"))
+  expect_identical(info$.sql_type, c("INTEGER", "BIGINT", "DOUBLE", "VARCHAR", "BOOLEAN"))
 })
 
 test_that("dbSendStatement() reports rows affected and has no rows", {

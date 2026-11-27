@@ -30,7 +30,8 @@
 #' @param conn A `zugodb_connection`.
 #' @param name The table's name: a string, [DBI::Id()] with only a `table`,
 #'   or [DBI::SQL()] of a quoted name. Names keep their spelling and match
-#'   ignoring ASCII case, as DuckDB's. A name holding `"` is an error.
+#'   ignoring ASCII case, as DuckDB's; a `"` in a name is doubled when it is
+#'   quoted.
 #' @param value A data frame.
 #' @param overwrite,append `TRUE` to replace or to add to a table that
 #'   exists; at most one of them.
@@ -48,8 +49,10 @@
 #' @return `dbWriteTable()`, `dbRemoveTable()`: `TRUE`, invisibly.
 #'   `dbAppendTable()`: the number of rows written. `dbListTables()`,
 #'   `dbListFields()`: a character vector. `dbExistsTable()`: `TRUE` or
-#'   `FALSE`. `dbDataType()`: a character vector. `dbQuoteIdentifier()`:
-#'   [DBI::SQL()].
+#'   `FALSE`. `dbDataType()`: a character vector. `dbQuoteIdentifier()`,
+#'   `dbQuoteString()`: [DBI::SQL()]. `dbReadTable()`: a data frame.
+#'   `dbListObjects()`: a data frame of `table` ([DBI::Id()]s) and
+#'   `is_prefix`, always `FALSE`.
 #' @name zugodb_tables
 #' @examples
 #' con <- DBI::dbConnect(zugodb())
@@ -88,8 +91,20 @@ is_raw_list <- function(x) {
   is.list(x) && all(vapply(x, function(e) is.null(e) || is.raw(e), TRUE))
 }
 
+# `x` without the class I() gives it, which says nothing of its type.
+drop_asis <- function(x) {
+  if (inherits(x, "AsIs")) {
+    class(x) <- setdiff(class(x), "AsIs")
+    if (!length(class(x))) {
+      x <- unclass(x)
+    }
+  }
+  x
+}
+
 # The payload a column is written as, or NA for a class that cannot be.
 payload_of <- function(x) {
+  x <- drop_asis(x)
   if (is.factor(x)) {
     return("character")
   }
@@ -230,18 +245,17 @@ table_name <- function(conn, name, call) {
   enc2utf8(name)
 }
 
+# Each name in double quotes, a `"` inside doubled ("a""b" is a"b), as
+# the engine's tokenizer reads it. An empty name is the engine's error.
 quote_name <- function(x, call) {
   if (anyNA(x)) {
     zug_abort("An identifier cannot be NA.", "argument", call)
   }
-  if (any(grepl("\"", x, fixed = TRUE))) {
-    zug_abort(
-      "zugodb does not quote an identifier holding `\"` yet.",
-      "argument",
-      call
-    )
+  if (!length(x)) {
+    return(character())
   }
-  paste0("\"", enc2utf8(x), "\"")
+  x <- gsub("\"", "\"\"", enc2utf8(x), fixed = TRUE)
+  paste0("\"", x, "\"")
 }
 
 append_frame <- function(conn, table, prepared, check_only, call) {
@@ -301,6 +315,7 @@ write_table_method <- function(
       call
     )
   }
+  check_row_names(row.names, call)
   if (append && !is.null(field.types)) {
     zug_abort(
       "`field.types` cannot be given with `append = TRUE`.",
@@ -313,7 +328,7 @@ write_table_method <- function(
   }
   value <- DBI::sqlRownamesToColumn(value, row.names)
   prepared <- prepare_frame(value, call)
-  exists <- table %in% dbListTables(conn)
+  exists <- table_exists(conn, table)
   if (exists && !overwrite && !append) {
     zug_abort(
       sprintf(
@@ -334,6 +349,7 @@ write_table_method <- function(
       !is.character(field.types) ||
         is.null(names(field.types)) ||
         anyNA(field.types) ||
+        anyDuplicated(names(field.types)) ||
         !all(names(field.types) %in% prepared$names)
     ) {
       zug_abort(
@@ -348,7 +364,7 @@ write_table_method <- function(
   # before an existing table is dropped: the engine has no rollback (its
   # transaction statements are refused, design §5) and no rename.
   probe <- paste0("__zugodb_write_", table, "__")
-  while (probe %in% dbListTables(conn)) {
+  while (table_exists(conn, probe)) {
     probe <- paste0(probe, "_")
   }
   dbExecute(conn, create_sql(probe, prepared$names, types, call))
@@ -473,7 +489,7 @@ setMethod("dbListTables", "zugodb_connection", function(conn, ...) {
 exists_table_method <- function(conn, name, ...) {
   call <- sys.call()
   check_open_connection(conn, call)
-  table_name(conn, name, call) %in% dbListTables(conn)
+  table_exists(conn, table_name(conn, name, call))
 }
 
 #' @rdname zugodb_tables
@@ -501,7 +517,7 @@ list_fields_method <- function(conn, name, ...) {
   call <- sys.call()
   check_open_connection(conn, call)
   table <- table_name(conn, name, call)
-  if (!table %in% dbListTables(conn)) {
+  if (!table_exists(conn, table)) {
     zug_abort(
       sprintf("The table `%s` does not exist.", table),
       "argument",
@@ -545,7 +561,7 @@ remove_table_method <- function(
   table <- table_name(conn, name, call)
   temporary <- check_flag(temporary, "temporary", call)
   fail_if_missing <- check_flag(fail_if_missing, "fail_if_missing", call)
-  if (!table %in% dbListTables(conn)) {
+  if (!table_exists(conn, table)) {
     if (fail_if_missing) {
       zug_abort(
         sprintf("The table `%s` does not exist.", table),
@@ -587,6 +603,138 @@ setMethod(
   c("zugodb_connection", "character"),
   function(conn, x, ...) {
     DBI::SQL(quote_name(x, sys.call()), names = names(x))
+  }
+)
+
+#' @rdname zugodb_tables
+#' @export
+setMethod(
+  "dbQuoteString",
+  c("zugodb_connection", "character"),
+  function(conn, x, ...) {
+    # A ' inside doubled, as the engine's tokenizer reads it; NA is NULL.
+    out <- if (length(x)) {
+      paste0("'", gsub("'", "''", enc2utf8(x), fixed = TRUE), "'")
+    } else {
+      character()
+    }
+    out[is.na(x)] <- "NULL"
+    DBI::SQL(out, names = names(x))
+  }
+)
+
+# SQL is quoted already, so it is returned as given.
+#' @rdname zugodb_tables
+#' @export
+setMethod(
+  "dbQuoteString",
+  c("zugodb_connection", "SQL"),
+  function(conn, x, ...) x
+)
+
+#' @rdname zugodb_tables
+#' @export
+setMethod(
+  "dbQuoteIdentifier",
+  c("zugodb_connection", "SQL"),
+  function(conn, x, ...) x
+)
+
+#' @rdname zugodb_tables
+#' @export
+setMethod("dbQuoteLiteral", "zugodb_connection", function(conn, x, ...) {
+  if (
+    !inherits(x, "blob") && !(identical(class(x), "list") && is_raw_list(x))
+  ) {
+    return(methods::callNextMethod())
+  }
+  # The engine reads no X'..' literal; a string of \xHH escapes cast to
+  # BLOB is its spelling of bytes, as DuckDB's.
+  out <- vapply(
+    x,
+    function(e) {
+      if (is.null(e)) {
+        return("NULL")
+      }
+      hex <- if (length(e)) {
+        paste0("\\x", sprintf("%02x", as.integer(e)), collapse = "")
+      } else {
+        ""
+      }
+      paste0("CAST('", hex, "' AS BLOB)")
+    },
+    ""
+  )
+  DBI::SQL(unname(out), names = names(x))
+})
+
+read_table_method <- function(
+  conn,
+  name,
+  ...,
+  row.names = FALSE,
+  check.names = TRUE
+) {
+  call <- sys.call()
+  check_open_connection(conn, call)
+  table <- table_name(conn, name, call)
+  check_row_names(row.names, call)
+  check.names <- check_flag(check.names, "check.names", call)
+  if (!table_exists(conn, table)) {
+    zug_abort(
+      sprintf("The table `%s` does not exist.", table),
+      "argument",
+      call
+    )
+  }
+  out <- DBI::dbGetQuery(conn, paste("SELECT * FROM", quote_name(table, call)))
+  if (check.names) {
+    names(out) <- make.names(names(out), unique = TRUE)
+  }
+  DBI::sqlColumnToRownames(out, row.names)
+}
+
+#' @rdname zugodb_tables
+#' @param check.names For `dbReadTable()`: `TRUE` (the default) to make the
+#'   column names syntactic with [make.names()].
+#' @export
+setMethod(
+  "dbReadTable",
+  c("zugodb_connection", "character"),
+  read_table_method
+)
+
+#' @rdname zugodb_tables
+#' @export
+setMethod("dbReadTable", c("zugodb_connection", "Id"), read_table_method)
+
+#' @rdname zugodb_tables
+#' @export
+setMethod("dbReadTable", c("zugodb_connection", "SQL"), read_table_method)
+
+#' @rdname zugodb_tables
+#' @param prefix For `dbListObjects()`: `NULL`, since the engine has no
+#'   schemas.
+#' @export
+setMethod(
+  "dbListObjects",
+  "zugodb_connection",
+  function(conn, prefix = NULL, ...) {
+    call <- sys.call()
+    check_open_connection(conn, call)
+    if (!is.null(prefix)) {
+      zug_abort(
+        "The engine has no schemas or catalogs: `prefix` must be NULL.",
+        "unsupported",
+        call
+      )
+    }
+    tables <- dbListTables(conn)
+    out <- data.frame(
+      table = I(lapply(tables, function(t) DBI::Id(table = t))),
+      is_prefix = rep(FALSE, length(tables))
+    )
+    out
   }
 )
 

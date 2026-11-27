@@ -27,7 +27,7 @@
 #' `TIMESTAMP WITH TIME ZONE`, list, struct, map or union column.
 #'
 #' A connection has one open result: sending another query clears the
-#' first, with a warning.
+#' first, with a warning, and so does [DBI::dbDisconnect()].
 #'
 #' @param conn A `zugodb_connection`.
 #' @param statement A single SQL string.
@@ -35,11 +35,14 @@
 #'   non-`NULL` value is a `zug_unsupported` error.
 #' @param immediate Ignored: every statement runs at once.
 #' @param res,dbObj,object A `zugodb_result`.
-#' @param n The number of rows to fetch: a whole number from 0, or `-1` or
-#'   `Inf` for all that are left.
+#' @param n The number of rows to fetch: a whole number from 0, or `-1`,
+#'   `Inf` or `NA` for all that are left.
 #' @param ... Not used.
 #' @return `dbSendQuery()` and `dbSendStatement()`: a `zugodb_result`.
-#'   `dbFetch()`: a data frame. The rest as in DBI.
+#'   `dbFetch()`: a data frame. `dbClearResult()`: `TRUE`, invisibly, with
+#'   a warning if the result was already cleared. `dbColumnInfo()`: a data
+#'   frame of `name`, `type` (the R class) and `.sql_type` (the engine's
+#'   type). The rest as in DBI.
 #' @name zugodb_result
 #' @examples
 #' con <- DBI::dbConnect(zugodb())
@@ -114,6 +117,11 @@ check_result <- function(res, call) {
 }
 
 check_fetch_n <- function(n, call) {
+  # NA is DBI's "as many rows as the driver likes": all that are left.
+  if (length(n) == 1L && (is.logical(n) || is.numeric(n)) && is.na(n) &&
+    !is.nan(n)) {
+    return(-1)
+  }
   ok <- is.numeric(n) && length(n) == 1L && !is.na(n) &&
     (n == -1 || (n >= 0 && (is.infinite(n) || n == trunc(n))))
   if (!ok) {
@@ -181,7 +189,7 @@ setMethod("dbFetch", "zugodb_result", function(res, n = -1, ...) {
 setMethod("dbClearResult", "zugodb_result", function(res, ...) {
   if (is.null(res@state$ptr)) {
     warning("The result is already cleared.", call. = FALSE)
-    return(invisible(FALSE))
+    return(invisible(TRUE))
   }
   clear_result_state(res@state)
   invisible(TRUE)
@@ -226,7 +234,7 @@ setMethod("dbColumnInfo", "zugodb_result", function(res, ...) {
   data.frame(
     name = info$names,
     type = r_type(info$sql_types, res@connection@state$bigint),
-    sql_type = info$sql_types,
+    .sql_type = info$sql_types,
     stringsAsFactors = FALSE
   )
 })
