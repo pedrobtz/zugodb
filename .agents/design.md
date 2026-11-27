@@ -352,6 +352,9 @@ library; it is identical wherever it is instantiated and cannot clash.
   2048-row chunk. Patch 0010 sizes the mask by its holder's capacity and
   the chunk by the list. 31 other chunks keep the default capacity and
   are not yet audited; one filled past 2048 rows would be the same bug.
+  *Audited 2026-11-20 in libzugodb's Stage 10 (its L27):* 88 sites, each
+  bounded by what fills it, with a guard past a vector's capacity;
+  `test-chunks.R` asks the same through the driver.
 - **Parquet columns the reader cannot decode (found 2026-11-18, #36 to
   #38).** The reader decodes by physical type and honours only `DATE`
   and `TIMESTAMP_MICROS`, so other annotations came out as wrong values:
@@ -929,12 +932,20 @@ binaries in the upstream tree (`packaging/npm/slothdb.wasm`,
   agreement, not survival: the rows a `SELECT *` returns equal
   `count(*)` over the same bytes, and a second read is identical.
   *Since 2026-11-18 (D9):* a file reader is fuzzed in its own package
-  (§7.2). The harnesses here are for the database file, the stream
-  adapter and SQL text, whose oracle is the same result on one thread
-  and on two.
-- **sqllogictest.** `ZUSLOTHDB_SLOW_TESTS` runs upstream's corpus fetch
-  at a pinned revision and records the pass rate per release; the
-  README states it.
+  (§7.2). The harnesses here are for the database file and the stream
+  adapter, whose oracle is the same result on one thread and on two.
+  *Since 2026-11-27 (Stage 8):* the SQL text harness is libzugodb's
+  (`fuzz/sql.cpp`, its Stage 9), with that oracle, and is not repeated
+  here.
+- **sqllogictest.** *Since 2026-11-27 (Stage 8, D10):* libzugodb runs
+  DuckDB's corpus at a pinned tag in its `conformance` job and commits
+  the counts per platform; a vendored tag carries them (Q18 has those of
+  v0.4.0), and the README states the pass rate. The package does not run
+  the corpus again: the vendored tree is the tag's, file by file
+  (`tools/vendor/verify`). What only the package can show runs here: the
+  widened `duckdb` corpus through the driver (`test-oracle-sql.R`,
+  `test-chunks.R`) and the corpus on one thread and on two
+  (`test-threads.R`).
 - **DBItest.** The `DBItest` spec for driver, connection, result and
   SQL, with skips for parameter binding listed by name.
 - **Upstream unit tests.** The 408 doctest cases are rebuilt by a
@@ -1290,6 +1301,22 @@ any of them.
   down" is the promise §1 makes. Until the bar holds, the package is
   installed from GitHub or the maintainer's r-universe, described as
   experimental, and CRAN-submission (#15) stays open without a date.
+  **Measured 2026-11-27 (Stage 8; the maintainer chose to keep only the
+  package's part, under D10).** The subset and its revision are
+  libzugodb's: DuckDB v2.0.0 (`d54cbbe3df17`), 754 files and 20,355
+  cases (`test/conformance/subset.txt` at libzugodb v0.4.0, the tag
+  vendored). At that tag, on Linux x86_64 and macOS arm64 under ASan and
+  UBSan and at thread caps 1 and 2, 5,963 cases pass, 14,084 are refused
+  with an error, 308 are unreliable (after a setup statement of their
+  file failed), and none is wrong, accepted, crashed or hung. The engine's
+  bar therefore holds, by libzugodb's `conformance` job, and is not run
+  again here. The package's part holds too: the widened corpus
+  (`oracle/sql-*`, `oracle/chunk-*`) agrees with `duckdb`, and each
+  query `duckdb` answers and the engine refuses is listed
+  (`oracle/known-differences.md`, Refused); every recorded query gives
+  the same result on one thread and on two. The 308 unreliable cases are
+  not a wrong answer the counts show, nor a pass; they are for Stage 14
+  to weigh.
 - **Q19.** Scan from SQL: a table function in the engine that pulls
   from a stream (§7.6), and with it a `duckdb_register()` counterpart.
   Proposal: after v0.1.0, once Q18's bar is met. **Decided 2026-11-18

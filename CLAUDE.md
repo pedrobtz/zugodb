@@ -49,23 +49,25 @@ evidence behind D9: what testing found wrong in the engine and its readers.
 
 ## Current state
 
-Stages 0 to 7 are merged: the patched engine, the DBI driver and
+Stages 0 to 8 are merged: the patched engine, the DBI driver and
 connection, results and scalar types, `DATE`, `TIMESTAMP` and `BLOB`,
 writing, the engine as libzugodb and the package as zugodb, (Stage 6)
 libzugodb 0.4.0: format 1001 with a checksum, no file read from SQL, and
 the engine's readers and their codecs gone, and (Stage 7) Arrow C streams
-in through `dbWriteTableArrow()`, the adapter the readers use later. The
+in through `dbWriteTableArrow()`, the adapter the readers use later, and
+(Stage 8) core conformance: Q18's bar holds, the engine's half by
+libzugodb's sqllogictest counts at the vendored tag (0 wrong, crashed or
+hung on DuckDB v2.0.0's 754-file subset), the package's by the widened
+`duckdb` corpus through the driver. The
 roadmap in [.agents/roadmap.md](.agents/roadmap.md) was restaged on
 2026-11-18 from Stage 6 on:
 
-- Stage 8: the core measured against sqllogictest. The bar for v0.1.0 is no
-  wrong answer, crash or hang on a pinned subset (Q18).
 - Stage 10: the zu readers linked, `zugodb_read()`, readers registered
   by other packages, and the engine's readers cut.
 
 v0.1.0 has no CRAN date. D1 in the design records why the package goes on.
 
-Next: Stage 8, core conformance.
+Next: Stage 9, DBItest conformance.
 
 ## Versions and dependents
 
@@ -168,11 +170,16 @@ fresh R process, and the golden file `fixtures/golden/`, written by
 `tools/golden.R` only with a new format version), `test-hostile.R`,
 `test-refused.R` and `test-hygiene.R`; Stage 7's `test-arrow-stream.R`
 (with `zuarrow`, and the package's own producers for what no
-producer should make). Recorded answers: run
+producer should make); Stage 8's `test-oracle-sql.R`, `test-chunks.R`
+(operators each side of 2048 and 4096 rows) and `test-threads.R` (caps 1
+and 2; the engine's one parallel path, the window sort, from 200,000
+rows). Recorded answers: run
 `Rscript tools/oracle.R [name]` (needs duckdb) after adding or changing a
 `tests/testthat/oracle/*.sql`; a disagreement is either fixed or listed
 in `oracle/known-differences.md`, whose rows the tests hold to "still
-differs". Helpers live in `helper-*.R`: testthat's shuffled run skips
+differs"; a query duckdb answers and the engine refuses is a `refused-`
+file in its Refused table, held to a `zug_sql_error`. Name every column
+(`AS`): the engine calls each unnamed one `expr`. Helpers live in `helper-*.R`: testthat's shuffled run skips
 file-scope code. A finalizer's warning
 cannot be caught around `gc()` (R runs finalizers through
 `R_ToplevelExec`): test the effect of collection, and call the finalizer
