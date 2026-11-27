@@ -40,7 +40,7 @@ GitHub or the maintainer's r-universe.
 | 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | [#76](https://github.com/pedrobtz/zugodb/pull/76) | 2026-11-26 |
 | 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | [#78](https://github.com/pedrobtz/zugodb/pull/78) | 2026-11-26 |
 | 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | [#80](https://github.com/pedrobtz/zugodb/pull/80) | 2026-11-27 |
-| 9 | [DBItest conformance](#stage-9--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
+| 9 | [DBItest conformance](#stage-9--dbitest-conformance) | full | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | 2026-11-27 |
 | 10 | [Readers from the zu family](#stage-10--readers-from-the-zu-family) | full | [#60](https://github.com/pedrobtz/zuslothdb/issues/60) | | |
 | 11 | [Documentation and measured claims](#stage-11--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/zuslothdb/issues/10) | | |
 | 12 | [Assurance](#stage-12--assurance) | quick | [#11](https://github.com/pedrobtz/zuslothdb/issues/11) | | |
@@ -765,7 +765,8 @@ down, and what is wrong fails with an error, not a wrong answer.
 **Issue.** [#9](https://github.com/pedrobtz/zuslothdb/issues/9), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
-**CI.** `quick`.
+**CI.** `full` (2026-11-27; it was `quick`): the stage vendors
+libzugodb 0.4.1, a change to the vendored engine.
 
 **Goal.** The driver passes the DBI specification's own tests, with
 every skip named and explained.
