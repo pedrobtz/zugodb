@@ -19,6 +19,14 @@
 \alias{dbRemoveTable,zugodb_connection,Id-method}
 \alias{dbRemoveTable,zugodb_connection,SQL-method}
 \alias{dbQuoteIdentifier,zugodb_connection,character-method}
+\alias{dbQuoteString,zugodb_connection,character-method}
+\alias{dbQuoteString,zugodb_connection,SQL-method}
+\alias{dbQuoteIdentifier,zugodb_connection,SQL-method}
+\alias{dbQuoteLiteral,zugodb_connection-method}
+\alias{dbReadTable,zugodb_connection,character-method}
+\alias{dbReadTable,zugodb_connection,Id-method}
+\alias{dbReadTable,zugodb_connection,SQL-method}
+\alias{dbListObjects,zugodb_connection-method}
 \alias{dbDataType,zugodb_connection-method}
 \alias{dbDataType,zugodb_driver-method}
 \alias{dbBegin,zugodb_connection-method}
@@ -90,6 +98,22 @@
 
 \S4method{dbQuoteIdentifier}{zugodb_connection,character}(conn, x, ...)
 
+\S4method{dbQuoteString}{zugodb_connection,character}(conn, x, ...)
+
+\S4method{dbQuoteString}{zugodb_connection,SQL}(conn, x, ...)
+
+\S4method{dbQuoteIdentifier}{zugodb_connection,SQL}(conn, x, ...)
+
+\S4method{dbQuoteLiteral}{zugodb_connection}(conn, x, ...)
+
+\S4method{dbReadTable}{zugodb_connection,character}(conn, name, ..., row.names = FALSE, check.names = TRUE)
+
+\S4method{dbReadTable}{zugodb_connection,Id}(conn, name, ..., row.names = FALSE, check.names = TRUE)
+
+\S4method{dbReadTable}{zugodb_connection,SQL}(conn, name, ..., row.names = FALSE, check.names = TRUE)
+
+\S4method{dbListObjects}{zugodb_connection}(conn, prefix = NULL, ...)
+
 \S4method{dbDataType}{zugodb_connection}(dbObj, obj, ...)
 
 \S4method{dbDataType}{zugodb_driver}(dbObj, obj, ...)
@@ -105,7 +129,8 @@
 
 \item{name}{The table's name: a string, \code{\link[DBI:Id]{DBI::Id()}} with only a \code{table},
 or \code{\link[DBI:SQL]{DBI::SQL()}} of a quoted name. Names keep their spelling and match
-ignoring ASCII case, as DuckDB's. A name holding \verb{"} is an error.}
+ignoring ASCII case, as DuckDB's; a \verb{"} in a name is doubled when it is
+quoted.}
 
 \item{value}{A data frame.}
 
@@ -127,6 +152,12 @@ the table does not exist.}
 
 \item{x}{A character vector of identifiers.}
 
+\item{check.names}{For \code{dbReadTable()}: \code{TRUE} (the default) to make the
+column names syntactic with \code{\link[=make.names]{make.names()}}.}
+
+\item{prefix}{For \code{dbListObjects()}: \code{NULL}, since the engine has no
+schemas.}
+
 \item{dbObj}{A \code{zugodb_driver} or \code{zugodb_connection}.}
 
 \item{obj}{A vector, or a data frame for the type of each column.}
@@ -135,8 +166,10 @@ the table does not exist.}
 \code{dbWriteTable()}, \code{dbRemoveTable()}: \code{TRUE}, invisibly.
 \code{dbAppendTable()}: the number of rows written. \code{dbListTables()},
 \code{dbListFields()}: a character vector. \code{dbExistsTable()}: \code{TRUE} or
-\code{FALSE}. \code{dbDataType()}: a character vector. \code{dbQuoteIdentifier()}:
-\code{\link[DBI:SQL]{DBI::SQL()}}.
+\code{FALSE}. \code{dbDataType()}: a character vector. \code{dbQuoteIdentifier()},
+\code{dbQuoteString()}: \code{\link[DBI:SQL]{DBI::SQL()}}. \code{dbReadTable()}: a data frame.
+\code{dbListObjects()}: a data frame of \code{table} (\code{\link[DBI:Id]{DBI::Id()}}s) and
+\code{is_prefix}, always \code{FALSE}.
 }
 \description{
 \code{\link[DBI:dbWriteTable]{DBI::dbWriteTable()}} creates a table from a data frame, or replaces one

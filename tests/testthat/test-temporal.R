@@ -91,6 +91,6 @@ test_that("dbColumnInfo() names the R class each temporal type arrives as", {
   )
   withr::defer(DBI::dbClearResult(res))
   info <- DBI::dbColumnInfo(res)
-  expect_identical(info$sql_type, c("DATE", "TIMESTAMP", "BLOB"))
+  expect_identical(info$.sql_type, c("DATE", "TIMESTAMP", "BLOB"))
   expect_identical(info$type, c("Date", "POSIXct", "blob"))
 })

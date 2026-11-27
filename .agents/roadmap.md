@@ -40,7 +40,7 @@ GitHub or the maintainer's r-universe.
 | 6 | [Persistence and the engine's own readers](#stage-6--persistence-and-the-engines-own-readers) | full | [#8](https://github.com/pedrobtz/zuslothdb/issues/8) | [#76](https://github.com/pedrobtz/zugodb/pull/76) | 2026-11-26 |
 | 7 | [Arrow streams in](#stage-7--arrow-streams-in) | full | [#58](https://github.com/pedrobtz/zuslothdb/issues/58) | [#78](https://github.com/pedrobtz/zugodb/pull/78) | 2026-11-26 |
 | 8 | [Core conformance](#stage-8--core-conformance) | full | [#59](https://github.com/pedrobtz/zuslothdb/issues/59) | [#80](https://github.com/pedrobtz/zugodb/pull/80) | 2026-11-27 |
-| 9 | [DBItest conformance](#stage-9--dbitest-conformance) | quick | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | | |
+| 9 | [DBItest conformance](#stage-9--dbitest-conformance) | full | [#9](https://github.com/pedrobtz/zuslothdb/issues/9) | [#82](https://github.com/pedrobtz/zugodb/pull/82) | 2026-11-27 |
 | 10 | [Readers from the zu family](#stage-10--readers-from-the-zu-family) | full | [#60](https://github.com/pedrobtz/zuslothdb/issues/60) | | |
 | 11 | [Documentation and measured claims](#stage-11--documentation-and-measured-claims) | quick | [#10](https://github.com/pedrobtz/zuslothdb/issues/10) | | |
 | 12 | [Assurance](#stage-12--assurance) | quick | [#11](https://github.com/pedrobtz/zuslothdb/issues/11) | | |
@@ -765,7 +765,8 @@ down, and what is wrong fails with an error, not a wrong answer.
 **Issue.** [#9](https://github.com/pedrobtz/zuslothdb/issues/9), sub-issue of
 [v0.1.0](https://github.com/pedrobtz/zuslothdb/issues/1).
 
-**CI.** `quick`.
+**CI.** `full` (2026-11-27; it was `quick`): the stage vendors
+libzugodb 0.4.1, a change to the vendored engine.
 
 **Goal.** The driver passes the DBI specification's own tests, with
 every skip named and explained.
@@ -795,6 +796,55 @@ every skip named and explained.
 - Every `**Tests.**` line exists and was seen to fail.
 
 **Design.** [§10](design.md#10-testing-and-validation).
+
+**Deviations (2026-11-27).**
+
+- **The skip list.** It holds more than parameter binding and Arrow
+  results. Every other entry is a refusal the design already records:
+  - transactions (§5);
+  - `TIME` and `difftime` (§6, #43);
+  - a `BIGINT` past 2^53 under `bigint = "numeric"`, an error rather than
+    a rounded double (§6);
+  - `bigint = "integer"`, not offered (§6);
+  - factors written with no warning (§5);
+  - `NUMERIC` (§6) and Arrow dictionaries (§7.3);
+  - `current_date` and `current_timestamp`, which the engine lacks;
+  - the `R` prefix of a package name (D12);
+  - DBI's generics re-exported (§5.1).
+  No scope changes. `tests/testthat/helper-dbitest.R` gives each entry
+  its reason, and `test-DBItest.R` holds each skipped case to failing.
+- **What DBItest found and this stage fixed.**
+  - `bigint = "integer64"` returned values that `as.integer()` read as 0
+    when `bit64` was not loaded.
+  - A name holding `"` was refused, though the engine reads `""` since
+    libzugodb 0.3.0.
+  - `dbExistsTable()`, `dbListFields()`, `dbRemoveTable()` and
+    `dbWriteTable()` matched a name's exact spelling, where the engine
+    and `dbWriteTableArrow()` ignore ASCII case.
+  - `dbDisconnect()` with a result open, and `dbClearResult()` twice,
+    did not behave as DBI specifies.
+  - `dbFetch(n = NA)` was refused, an `I()` column was not written, and
+    `dbColumnInfo()`'s third column had no leading dot.
+  - `dbReadTable()`, `dbQuoteString()`, `dbQuoteLiteral()` (a blob as
+    `CAST('\xHH' AS BLOB)`, since the engine reads no `X'..'`) and
+    `dbListObjects()` were missing.
+- **The nested expression.** The test found an engine crash: a chain
+  of 5,000 `+` overflowed the C stack, because the parser's limit
+  counted only its own recursion (libzugodb#65). With the maintainer's
+  approval it was fixed in libzugodb 0.4.1, vendored here. The engine now
+  bounds an expression's height at 256, and `test-hostile.R` straddles
+  that limit for each operator family. Statement nesting and long
+  set-operation chains still crash (libzugodb#66, a gap in
+  `.agents/assurance.md`).
+- **Where DBItest runs.** The first full run on the pull request found two
+  things.
+  - Six timestamp round trips convert through the zone `PST8PDT`. Ubuntu's
+    tzdata ships it only in `tzdata-legacy`, so on Linux lubridate warns
+    and the case fails whatever the driver did. These cases are skipped
+    only where the zone is missing; macOS and Windows run them.
+  - DBItest took gctorture past its 10-minute budget and valgrind past its
+    hour, so neither runs it. ASan and UBSan, with both compilers, run
+    every case.
 
 ## Stage 10 — Readers from the zu family
 

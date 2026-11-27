@@ -1,6 +1,7 @@
 #pragma once
 
 #include "zugodb/parser/tokenizer.hpp"
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -41,6 +42,21 @@ public:
 
     // Optional alias (AS name).
     std::string alias;
+
+    // The tree's height: 1 for a leaf, one more than the tallest child
+    // for any other node, and for a subquery one more than the tallest
+    // expression in its statement. The binder, planner, executor and the
+    // destructors recurse this deep, so the parser bounds it (#65).
+    uint32_t height = 1;
+
+    static uint32_t HeightOf(const std::unique_ptr<ParsedExpression> &e) {
+        return e ? e->height : 0;
+    }
+    static uint32_t HeightOf(const std::vector<std::unique_ptr<ParsedExpression>> &v) {
+        uint32_t h = 0;
+        for (auto &e : v) h = std::max(h, HeightOf(e));
+        return h;
+    }
 
 private:
     ExpressionType type_;
@@ -87,7 +103,9 @@ public:
                        bool distinct = false, ParsedExprPtr filter_expr = nullptr)
         : ParsedExpression(ExpressionType::FUNCTION),
           function_name(name), arguments(std::move(args)), is_distinct(distinct),
-          filter(std::move(filter_expr)) {}
+          filter(std::move(filter_expr)) {
+        height = 1 + std::max(HeightOf(arguments), HeightOf(filter));
+    }
 
     std::string function_name;
     std::vector<ParsedExprPtr> arguments;
@@ -104,7 +122,9 @@ class ComparisonExpression : public ParsedExpression {
 public:
     ComparisonExpression(const std::string &op, ParsedExprPtr left, ParsedExprPtr right)
         : ParsedExpression(ExpressionType::COMPARISON),
-          op(op), left(std::move(left)), right(std::move(right)) {}
+          op(op), left(std::move(left)), right(std::move(right)) {
+        height = 1 + std::max(HeightOf(this->left), HeightOf(this->right));
+    }
 
     std::string op;
     ParsedExprPtr left;
@@ -116,7 +136,9 @@ class ConjunctionExpression : public ParsedExpression {
 public:
     ConjunctionExpression(const std::string &op, ParsedExprPtr left, ParsedExprPtr right)
         : ParsedExpression(ExpressionType::CONJUNCTION),
-          op(op), left(std::move(left)), right(std::move(right)) {}
+          op(op), left(std::move(left)), right(std::move(right)) {
+        height = 1 + std::max(HeightOf(this->left), HeightOf(this->right));
+    }
 
     std::string op; // "AND" or "OR"
     ParsedExprPtr left;
@@ -127,7 +149,9 @@ public:
 class NegationExpression : public ParsedExpression {
 public:
     explicit NegationExpression(ParsedExprPtr child)
-        : ParsedExpression(ExpressionType::NEGATION), child(std::move(child)) {}
+        : ParsedExpression(ExpressionType::NEGATION), child(std::move(child)) {
+        height = 1 + HeightOf(this->child);
+    }
 
     ParsedExprPtr child;
 };
@@ -137,7 +161,9 @@ class IsNullExpression : public ParsedExpression {
 public:
     IsNullExpression(ParsedExprPtr child, bool is_not)
         : ParsedExpression(ExpressionType::IS_NULL),
-          child(std::move(child)), is_not(is_not) {}
+          child(std::move(child)), is_not(is_not) {
+        height = 1 + HeightOf(this->child);
+    }
 
     ParsedExprPtr child;
     bool is_not;
@@ -153,7 +179,9 @@ public:
     enum class Predicate { TRUE_, FALSE_, UNKNOWN_ };
     IsBoolExpression(ParsedExprPtr child, Predicate pred, bool is_not)
         : ParsedExpression(ExpressionType::IS_BOOL),
-          child(std::move(child)), pred(pred), is_not(is_not) {}
+          child(std::move(child)), pred(pred), is_not(is_not) {
+        height = 1 + HeightOf(this->child);
+    }
 
     ParsedExprPtr child;
     Predicate pred;
@@ -165,7 +193,9 @@ class ArithmeticExpression : public ParsedExpression {
 public:
     ArithmeticExpression(const std::string &op, ParsedExprPtr left, ParsedExprPtr right)
         : ParsedExpression(ExpressionType::ARITHMETIC),
-          op(op), left(std::move(left)), right(std::move(right)) {}
+          op(op), left(std::move(left)), right(std::move(right)) {
+        height = 1 + std::max(HeightOf(this->left), HeightOf(this->right));
+    }
 
     std::string op;
     ParsedExprPtr left;
@@ -176,7 +206,9 @@ public:
 class UnaryMinusExpression : public ParsedExpression {
 public:
     explicit UnaryMinusExpression(ParsedExprPtr child)
-        : ParsedExpression(ExpressionType::UNARY_MINUS), child(std::move(child)) {}
+        : ParsedExpression(ExpressionType::UNARY_MINUS), child(std::move(child)) {
+        height = 1 + HeightOf(this->child);
+    }
 
     ParsedExprPtr child;
 };
@@ -195,7 +227,9 @@ class CastExpression : public ParsedExpression {
 public:
     CastExpression(ParsedExprPtr child, const std::string &type_name, bool is_try = false)
         : ParsedExpression(ExpressionType::CAST),
-          child(std::move(child)), target_type(type_name), is_try(is_try) {}
+          child(std::move(child)), target_type(type_name), is_try(is_try) {
+        height = 1 + HeightOf(this->child);
+    }
 
     ParsedExprPtr child;
     std::string target_type;

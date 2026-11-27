@@ -56,12 +56,15 @@ non-\code{NULL} value is a \code{zug_unsupported} error.}
 
 \item{res, dbObj, object}{A \code{zugodb_result}.}
 
-\item{n}{The number of rows to fetch: a whole number from 0, or \code{-1} or
-\code{Inf} for all that are left.}
+\item{n}{The number of rows to fetch: a whole number from 0, or \code{-1},
+\code{Inf} or \code{NA} for all that are left.}
 }
 \value{
 \code{dbSendQuery()} and \code{dbSendStatement()}: a \code{zugodb_result}.
-\code{dbFetch()}: a data frame. The rest as in DBI.
+\code{dbFetch()}: a data frame. \code{dbClearResult()}: \code{TRUE}, invisibly, with
+a warning if the result was already cleared. \code{dbColumnInfo()}: a data
+frame of \code{name}, \code{type} (the R class) and \code{.sql_type} (the engine's
+type). The rest as in DBI.
 }
 \description{
 \code{\link[DBI:dbSendQuery]{DBI::dbSendQuery()}} runs a query and returns a \code{zugodb_result}, from
@@ -92,7 +95,7 @@ that is not valid UTF-8 or holds a NUL. A column of another type is a
 \verb{TIMESTAMP WITH TIME ZONE}, list, struct, map or union column.
 
 A connection has one open result: sending another query clears the
-first, with a warning.
+first, with a warning, and so does \code{\link[DBI:dbDisconnect]{DBI::dbDisconnect()}}.
 }
 \examples{
 con <- DBI::dbConnect(zugodb())

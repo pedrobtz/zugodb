@@ -10,6 +10,7 @@
 #' @importFrom DBI dbWriteTable dbAppendTable dbListTables dbListFields
 #' @importFrom DBI dbExistsTable dbRemoveTable dbQuoteIdentifier dbDataType
 #' @importFrom DBI dbBegin dbCommit dbRollback
+#' @importFrom DBI dbReadTable dbQuoteString dbQuoteLiteral dbListObjects
 #' @importFrom DBI dbWriteTableArrow dbAppendTableArrow dbCreateTableArrow
 #' @useDynLib zugodb, .registration = TRUE
 ## usethis namespace: end

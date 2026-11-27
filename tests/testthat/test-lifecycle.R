@@ -186,19 +186,33 @@ test_that("fetching after dbClearResult() is a zug_closed_error", {
   expect_error(DBI::dbHasCompleted(res), class = "zug_closed_error")
 })
 
-test_that("clearing twice warns and returns FALSE", {
+test_that("clearing twice warns and returns TRUE invisibly", {
   con <- DBI::dbConnect(zugodb())
   withr::defer(DBI::dbDisconnect(con))
   res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
   DBI::dbClearResult(res)
-  expect_warning(out <- DBI::dbClearResult(res), "already cleared")
-  expect_false(out)
+  expect_warning(out <- withVisible(DBI::dbClearResult(res)), "already cleared")
+  expect_identical(out, list(value = TRUE, visible = FALSE))
+})
+
+test_that("disconnecting with an open result warns and clears it", {
+  con <- DBI::dbConnect(zugodb())
+  res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  expect_warning(DBI::dbDisconnect(con), "open result")
+  expect_false(DBI::dbIsValid(res))
+  expect_false(DBI::dbIsValid(con))
+  expect_warning(DBI::dbClearResult(res), "already cleared")
+  # A cleared result leaves nothing to warn about.
+  con <- DBI::dbConnect(zugodb())
+  res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
+  DBI::dbClearResult(res)
+  expect_no_warning(DBI::dbDisconnect(con))
 })
 
 test_that("fetching after dbDisconnect() is a zug_closed_error", {
   con <- DBI::dbConnect(zugodb())
   res <- DBI::dbSendQuery(con, "SELECT 1 AS a")
-  DBI::dbDisconnect(con)
+  expect_warning(DBI::dbDisconnect(con), "open result")
   expect_false(DBI::dbIsValid(res))
   expect_error(DBI::dbFetch(res), class = "zug_closed_error")
 })

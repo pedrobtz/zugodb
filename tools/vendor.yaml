@@ -14,8 +14,8 @@
 
 source:
   repository: https://github.com/pedrobtz/libzugodb
-  tag: v0.4.0
-  commit: c331257f39b6c5d94013253679daca0f68224b45
+  tag: v0.4.1
+  commit: 9df82d5a03fb53c802f3633c5dafb9841b226b98
 
 origin:
   repository: https://github.com/SouravRoy-ETL/slothdb

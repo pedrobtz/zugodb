@@ -35,7 +35,8 @@ own.}
 \item{bigint}{How 64-bit integers (\code{BIGINT}, \code{UINTEGER}, \code{UBIGINT})
 arrive: \code{"numeric"} (the default, as in \code{duckdb}), a double, with a
 value beyond 2^53 a \code{zug_type_error}; \code{"integer64"}, the
-\code{bit64} class; or \code{"character"}, the decimal digits.}
+\code{bit64} class, which loads \code{bit64} (an error if it is not installed); or
+\code{"character"}, the decimal digits.}
 
 \item{threads}{The number of threads the engine may use, a whole number
 from 1. The engine has one thread pool per R process, so this is a cap

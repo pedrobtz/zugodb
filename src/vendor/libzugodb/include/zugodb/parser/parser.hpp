@@ -88,8 +88,20 @@ private:
     std::vector<Token> tokens_;
     size_t pos_;
     ParseOptions options_;
+    // Nesting: each ParseExpression() call and each prefix operator (NOT,
+    // unary - and +) counts one, so the parser's own recursion is bounded.
+    // A tree's height (ParsedExpression::height) is bounded by the same
+    // limit, so what recurses over the tree after the parser is too: a
+    // chain of binary operators is built in a loop, not by recursion, and
+    // only its height shows how deep it is (#65).
     int expr_depth_ = 0;
     static constexpr int MAX_EXPR_DEPTH = 256;
+    // The greatest height of an expression in the statement being parsed,
+    // which a subquery expression adds to its own (ParseSubquery()).
+    uint32_t stmt_height_ = 0;
+    void CheckHeight(const ParsedExpression &e);
+    void EnterNesting();
+    std::unique_ptr<SelectStatement> ParseSubquery(uint32_t &height);
 };
 
 } // namespace zugodb

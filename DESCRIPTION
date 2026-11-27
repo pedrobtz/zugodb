@@ -28,14 +28,16 @@ Imports:
     methods
 Suggests:
     bit64,
+    DBItest,
     knitr,
+    lubridate,
     rmarkdown,
     testthat (>= 3.0.0),
     withr,
     yaml,
     zuarrow
 Remotes:
-    pedrobtz/zuarrow@from-r-views-half-intervals
+    pedrobtz/zuarrow@807d48622d630f725f11cd26e457208f884655d1
 VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.1
 Config/testthat/edition: 3

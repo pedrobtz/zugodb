@@ -1,6 +1,7 @@
 #include "zugodb/parser/parser.hpp"
 #include "zugodb/common/exception.hpp"
 #include "zugodb/common/string_util.hpp"
+#include <algorithm>
 
 namespace zugodb {
 
@@ -909,11 +910,39 @@ std::string Parser::ParseTypeName() {
 // ============================================================================
 
 ParsedExprPtr Parser::ParseExpression() {
-    if (++expr_depth_ > MAX_EXPR_DEPTH)
-        ThrowError("Expression nesting too deep (limit: 256)");
+    EnterNesting();
     auto result = ParseOr();
+    CheckHeight(*result);
+    stmt_height_ = std::max(stmt_height_, result->height);
     expr_depth_--;
     return result;
+}
+
+// One more level of nesting: a ParseExpression() call or a prefix
+// operator. The caller decrements expr_depth_ when the level is done.
+void Parser::EnterNesting() {
+    if (++expr_depth_ > MAX_EXPR_DEPTH)
+        ThrowError("Expression nesting too deep (limit: 256)");
+}
+
+// Called on each node a loop builds over the tree before it, so a tree
+// taller than the limit is refused while it is one level past it: its
+// destructor then recurses no deeper than that (#65).
+void Parser::CheckHeight(const ParsedExpression &e) {
+    if (e.height > static_cast<uint32_t>(MAX_EXPR_DEPTH))
+        ThrowError("Expression nesting too deep (limit: 256)");
+}
+
+// A subquery's statement, with in `height` the tallest expression in it,
+// so the subquery expression that holds it can count it.
+std::unique_ptr<SelectStatement> Parser::ParseSubquery(uint32_t &height) {
+    uint32_t outer = stmt_height_;
+    stmt_height_ = 0;
+    auto inner = ParseSelectStatement();
+    height = stmt_height_;
+    stmt_height_ = outer;
+    return std::unique_ptr<SelectStatement>(
+        static_cast<SelectStatement *>(inner.release()));
 }
 
 ParsedExprPtr Parser::ParseOr() {
@@ -921,6 +950,7 @@ ParsedExprPtr Parser::ParseOr() {
     while (MatchKeyword(TokenType::KW_OR)) {
         auto right = ParseAnd();
         left = std::make_unique<ConjunctionExpression>("OR", std::move(left), std::move(right));
+        CheckHeight(*left);
     }
     return left;
 }
@@ -930,13 +960,16 @@ ParsedExprPtr Parser::ParseAnd() {
     while (MatchKeyword(TokenType::KW_AND)) {
         auto right = ParseNot();
         left = std::make_unique<ConjunctionExpression>("AND", std::move(left), std::move(right));
+        CheckHeight(*left);
     }
     return left;
 }
 
 ParsedExprPtr Parser::ParseNot() {
     if (MatchKeyword(TokenType::KW_NOT)) {
+        EnterNesting();
         auto child = ParseNot();
+        expr_depth_--;
         return std::make_unique<NegationExpression>(std::move(child));
     }
     return ParseComparison();
@@ -1147,13 +1180,14 @@ ParsedExprPtr Parser::ParseComparison() {
         Expect(TokenType::LPAREN, "after IN");
         ParsedExprPtr in_node;
         if (CheckKeyword(TokenType::KW_SELECT) || CheckKeyword(TokenType::KW_WITH)) {
-            auto inner = ParseSelectStatement();
+            uint32_t inner_height = 0;
+            auto inner = ParseSubquery(inner_height);
             Expect(TokenType::RPAREN, "after IN subquery");
             auto sub = std::make_unique<SubqueryExpression>(
-                SubqueryType::IN_SUBQUERY,
-                std::unique_ptr<SelectStatement>(
-                    static_cast<SelectStatement *>(inner.release())));
+                SubqueryType::IN_SUBQUERY, std::move(inner));
             sub->child = std::move(left);
+            sub->height = 1 + std::max(inner_height, ParsedExpression::HeightOf(sub->child));
+            CheckHeight(*sub);
             in_node = std::move(sub);
         } else {
             std::vector<ParsedExprPtr> args;
@@ -1185,6 +1219,7 @@ ParsedExprPtr Parser::ParseAddSub() {
         auto op = Advance().value;
         auto right = ParseMulDiv();
         left = std::make_unique<ArithmeticExpression>(op, std::move(left), std::move(right));
+        CheckHeight(*left);
     }
     return left;
 }
@@ -1195,6 +1230,7 @@ ParsedExprPtr Parser::ParseMulDiv() {
         auto op = Advance().value;
         auto right = ParseUnary();
         left = std::make_unique<ArithmeticExpression>(op, std::move(left), std::move(right));
+        CheckHeight(*left);
     }
     return left;
 }
@@ -1269,20 +1305,26 @@ std::unique_ptr<SelectStatement> Parser::ParseValuesAsSelect() {
 
 ParsedExprPtr Parser::ParseUnary() {
     if (Match(TokenType::MINUS)) {
+        EnterNesting();
         auto child = ParseUnary();
+        expr_depth_--;
         return std::make_unique<UnaryMinusExpression>(std::move(child));
     }
     if (Match(TokenType::PLUS)) {
         // Unary + is a no-op on numeric and a hard error on non-numeric in
         // strict SQL. We accept it as a pass-through; the binder will reject
         // if the operand is not a numeric type.
-        return ParseUnary();
+        EnterNesting();
+        auto expr = ParseUnary();
+        expr_depth_--;
+        return expr;
     }
     auto expr = ParsePrimary();
     // Postgres-style postfix cast: expr :: TYPE  (chains: expr :: A :: B).
     while (Match(TokenType::DOUBLE_COLON)) {
         auto type_name = ParseTypeName();
         expr = std::make_unique<CastExpression>(std::move(expr), type_name);
+        CheckHeight(*expr);
     }
     return expr;
 }
@@ -1291,12 +1333,13 @@ ParsedExprPtr Parser::ParsePrimary() {
     // Parenthesized expression OR scalar subquery (SELECT ...) / (WITH ...).
     if (Match(TokenType::LPAREN)) {
         if (CheckKeyword(TokenType::KW_SELECT) || CheckKeyword(TokenType::KW_WITH)) {
-            auto inner = ParseSelectStatement();
+            uint32_t inner_height = 0;
+            auto inner = ParseSubquery(inner_height);
             Expect(TokenType::RPAREN, "after scalar subquery");
-            return std::make_unique<SubqueryExpression>(
-                SubqueryType::SCALAR,
-                std::unique_ptr<SelectStatement>(
-                    static_cast<SelectStatement *>(inner.release())));
+            auto sub = std::make_unique<SubqueryExpression>(SubqueryType::SCALAR, std::move(inner));
+            sub->height = 1 + inner_height;
+            CheckHeight(*sub);
+            return sub;
         }
         auto expr = ParseExpression();
         Expect(TokenType::RPAREN, "after expression");
@@ -1319,12 +1362,13 @@ ParsedExprPtr Parser::ParsePrimary() {
     // EXISTS (subquery).
     if (MatchKeyword(TokenType::KW_EXISTS)) {
         Expect(TokenType::LPAREN, "after EXISTS");
-        auto inner = ParseSelectStatement();
+        uint32_t inner_height = 0;
+        auto inner = ParseSubquery(inner_height);
         Expect(TokenType::RPAREN, "after EXISTS subquery");
-        return std::make_unique<SubqueryExpression>(
-            SubqueryType::EXISTS,
-            std::unique_ptr<SelectStatement>(
-                static_cast<SelectStatement *>(inner.release())));
+        auto sub = std::make_unique<SubqueryExpression>(SubqueryType::EXISTS, std::move(inner));
+        sub->height = 1 + inner_height;
+        CheckHeight(*sub);
+        return sub;
     }
 
     // NOT EXISTS (subquery) - handled via NOT + EXISTS in ParseNot.
@@ -1694,6 +1738,13 @@ ParsedExprPtr Parser::ParseFunctionCall(const std::string &name) {
         }
 
         Expect(TokenType::RPAREN, "after OVER clause");
+        uint32_t h = std::max({ParsedExpression::HeightOf(window->arguments),
+                               ParsedExpression::HeightOf(window->partition_by),
+                               ParsedExpression::HeightOf(window->filter)});
+        for (auto &item : window->order_by)
+            h = std::max(h, ParsedExpression::HeightOf(item.expression));
+        window->height = 1 + h;
+        CheckHeight(*window);
         return window;
     }
 
